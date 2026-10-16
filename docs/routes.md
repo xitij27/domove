@@ -43,7 +43,7 @@ the screen.
 
 ## Team database
 
-The team project runs all three route migrations. The SQL editor keeps no
+The team project runs all four route migrations. The SQL editor keeps no
 migration history, so this is the record:
 
 | Migration | Applied |
@@ -51,6 +51,7 @@ migration history, so this is the record:
 | `20261016150000_routes.sql` | Before the PR #7 review |
 | `20261016151000_create_delete_routes.sql` | Before the review, under its old name `20261016160000_create_delete_routes.sql` |
 | `20261016152000_saved_routes_hardening.sql` | 2026-10-16, pasted into the SQL editor |
+| `20261016153000_routes_require_coordinates.sql` | 2026-10-16, after PR #7's checks passed; deleted no routes (the only one had coordinates) |
 
 Checked after the last one:
 
@@ -63,7 +64,12 @@ Checked after the last one:
   "multiple permissive policies" warning comes from the open hackathon policies,
   which the [ownership TODO](routes-database-todo.md) replaces.
 
-App builds from before this change call `create_saved_route` without `p_id` and
+Checked after `20261016153000_routes_require_coordinates.sql`: the three location
+columns are `not null`, only the jsonb `create_saved_route` exists, and through the
+REST API a save without a coordinate returns HTTP 400 with "Pick the starting
+location from the suggestions.", while a save with coordinates reads them back.
+
+App builds from before this change call the old `create_saved_route` and
 now get HTTP 404, so they cannot save routes. Update to this branch's app code;
 JS changes reload live in a development build.
 
