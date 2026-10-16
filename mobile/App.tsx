@@ -70,6 +70,7 @@ export default function App() {
   const [viewing, setViewing] = useState<SavedRoute | null>(null);
   const closeRoute = useCallback(() => setViewing(null), []);
   const routeDeleted = useCallback((id: string) => setViewing((route) => (route?.id === id ? null : route)), []);
+  const routeUpdated = useCallback((updated: SavedRoute) => setViewing((route) => (route?.id === updated.id ? updated : route)), []);
   // A place in the route form being chosen on the map, which then has the screen to itself.
   const [picking, setPicking] = useState<PlacePick | null>(null);
   const endPick = useCallback(() => setPicking(null), []);
@@ -102,7 +103,7 @@ export default function App() {
           <View style={styles.fill} importantForAccessibility={mapCovered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={mapCovered}>
             <RadarMap route={viewing} onCloseRoute={closeRoute} picking={picking} onEndPick={endPick} />
           </View>
-          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteDeleted={routeDeleted} onPickOnMap={setPicking} hidden={!!picking} />
+          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteUpdated={routeUpdated} onRouteDeleted={routeDeleted} onPickOnMap={setPicking} hidden={!!picking} />
         </View>
       )}
     </SafeAreaProvider>

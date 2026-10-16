@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type Place, type PlaceDraft, type PlacePick, type RouteDraft, type RouteErrors } from './model';
+import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type Place, type PlaceDraft, type PlacePick, type RouteDraft, type RouteErrors, type RouteLocation, type SavedRoute } from './model';
 import LeavingAtInput, { type Leaving } from './LeavingAtInput';
 import PlaceInput from './PlaceInput';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
 
 type Props = {
+  /** A saved route to change; the form starts empty without one. */
+  route?: SavedRoute;
   onSave: (draft: RouteDraft) => Promise<void>;
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
@@ -14,15 +16,15 @@ type Props = {
   onPickOnMap?: (pick: PlacePick) => void;
 };
 
-export default function RouteForm({ onSave, onCancel, onBusyChange, onPickOnMap }: Props) {
+export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPickOnMap }: Props) {
   const pickOnMap = onPickOnMap && ((title: string, kind: PlacePick['kind'], place: PlaceDraft, onPick: (place: Place) => void) =>
     () => onPickOnMap({ title, kind, initial: place.coordinate, onPick }));
-  const [start, setStart] = useState(EMPTY);
-  const [destination, setDestination] = useState(EMPTY);
-  const [mode, setMode] = useState<RouteDraft['mode']>('');
-  const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>([]);
-  const [leaving, setLeaving] = useState<Leaving>({ startTime: '', weekdays: [] });
-  const nextId = useRef(0);
+  const [start, setStart] = useState(route ? placeDraft(route.start) : EMPTY);
+  const [destination, setDestination] = useState(route ? placeDraft(route.destination) : EMPTY);
+  const [mode, setMode] = useState<RouteDraft['mode']>(route?.mode ?? '');
+  const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>(() => route?.waypoints.map((stop, index) => ({ id: index, place: placeDraft(stop) })) ?? []);
+  const [leaving, setLeaving] = useState<Leaving>({ startTime: route?.startTime ?? '', weekdays: route?.weekdays ?? [] });
+  const nextId = useRef(route?.waypoints.length ?? 0);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<RouteErrors>({});
@@ -52,8 +54,8 @@ export default function RouteForm({ onSave, onCancel, onBusyChange, onPickOnMap 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title} accessibilityRole="header">Create Route</Text>
-        <Text style={styles.hint}>Plan your next journey. Type an address or place name and pick it from the suggestions{pickOnMap ? ', or tap the pin to choose it on the map' : ''}.</Text>
+        <Text style={styles.title} accessibilityRole="header">{route ? 'Edit Route' : 'Create Route'}</Text>
+        <Text style={styles.hint}>{route ? 'Change any part of this journey, then save it.' : 'Plan your next journey.'} Type an address or place name and pick it from the suggestions{pickOnMap ? ', or tap the pin to choose it on the map' : ''}.</Text>
         <Text style={styles.label}>Starting location</Text>
         <PlaceInput accessibilityLabel="Starting location" value={start} onChange={setStart} editable={!busy} placeholder="e.g. Dortmund Hauptbahnhof" inputStyle={[styles.input, !!errors.start && styles.invalid]} onPickOnMap={pickOnMap?.('Starting location', 'start', start, setStart)} />
         {errors.start && <ErrorText message={errors.start} />}
@@ -95,8 +97,8 @@ export default function RouteForm({ onSave, onCancel, onBusyChange, onPickOnMap 
         <LeavingAtInput value={leaving} onChange={setLeaving} editable={!busy} invalid={!!errors.startTime} />
         {errors.startTime && <ErrorText message={errors.startTime} />}
         {saveError && <ErrorText message={saveError} />}
-        <Pressable accessibilityRole="button" accessibilityLabel="Ready" accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
-          <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Ready'}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={route ? 'Save changes' : 'Ready'} accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
+          <Text style={styles.primaryText}>{busy ? 'Saving…' : route ? 'Save changes' : 'Ready'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={busy} onPress={onCancel} style={styles.secondary}>
           <Text style={styles.secondaryText}>Cancel</Text>
@@ -104,6 +106,11 @@ export default function RouteForm({ onSave, onCancel, onBusyChange, onPickOnMap 
       </ScrollView>
     </KeyboardAvoidingView>
   );
+}
+
+/** A saved place counts as picked from the suggestions; one without a label has to be typed again. */
+function placeDraft({ label, coordinate }: RouteLocation): PlaceDraft {
+  return { label: label ?? '', coordinate };
 }
 
 function ErrorText({ message }: { message: string }) {

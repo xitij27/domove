@@ -43,19 +43,29 @@ async function fill(start = 'Station', destination = 'Park') {
   await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
 }
 
+/** What the backend stores for a draft. */
+function stored(id: string, draft: RouteDraft): SavedRoute {
+  return {
+    id, name: `${draft.start.label} → ${draft.destination.label}`,
+    start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
+    mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, weekdays: draft.weekdays, createdAt: '2026-10-16T12:00:00Z',
+    waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
+  };
+}
+
 beforeEach(() => {
   persisted = [];
   onBusyChange.mockReset();
   repository = {
     list: jest.fn(async () => [...persisted]),
     create: jest.fn(async (draft: RouteDraft) => {
-      const route: SavedRoute = {
-        id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
-        start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
-        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, weekdays: draft.weekdays, createdAt: '2026-10-16T12:00:00Z',
-        waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
-      };
+      const route = stored(String(persisted.length + 1), draft);
       persisted.unshift(route);
+      return route;
+    }),
+    update: jest.fn(async (id: string, draft: RouteDraft) => {
+      const route = stored(id, draft);
+      persisted = persisted.map((item) => (item.id === id ? route : item));
       return route;
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
@@ -118,6 +128,41 @@ test('a place chosen on the map fills its field, and the form waits under the hi
   await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
   await press('Ready');
   expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ start: { label: 'Markt, Dortmund', coordinate: at } }));
+});
+
+test('the pencil opens the form on the saved route and saves the changes in place', async () => {
+  persisted = [{ ...stationToPark, startTime: '07:15', weekdays: ['monday'], waypoints: [{ id: 'w', sequence: 0, label: 'Cafe', coordinate: at }] }];
+  const onRouteUpdated = jest.fn();
+  await render(<RoutesManager repository={repository} onRouteUpdated={onRouteUpdated} />);
+  await press('Saved routes');
+  await screen.findByText('Station → Park');
+  await press('Edit route from Station to Park');
+  expect(screen.getByRole('header', { name: 'Edit Route' })).toBeOnTheScreen();
+  expect(screen.getByLabelText('Starting location')).toHaveDisplayValue('Station');
+  expect(screen.getByLabelText('Intermediate stop 1')).toHaveDisplayValue('Cafe');
+  expect(screen.getByRole('radio', { name: 'Bicycle' })).toBeChecked();
+  await pick('Final destination', 'Library');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Car' }));
+  await press('Save changes');
+  expect(repository.update).toHaveBeenCalledWith('1', expect.objectContaining({
+    start: { label: 'Station', coordinate: at }, destination: { label: 'Library', coordinate: at }, mode: 'car',
+    waypoints: [{ label: 'Cafe', coordinate: at }], startTime: '07:15', weekdays: ['monday'],
+  }));
+  expect(repository.create).not.toHaveBeenCalled();
+  expect(onRouteUpdated).toHaveBeenCalledWith(expect.objectContaining({ id: '1', mode: 'car' }));
+  expect(await screen.findByText('Station → Library')).toBeOnTheScreen();
+  expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
+});
+
+test('cancelling an edit changes nothing', async () => {
+  persisted = [stationToPark];
+  await mount();
+  await screen.findByText('Station → Park');
+  await press('Edit route from Station to Park');
+  await enter('Starting location', 'Somewhere else');
+  await press('Cancel');
+  expect(repository.update).not.toHaveBeenCalled();
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
 });
 
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {

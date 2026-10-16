@@ -32,6 +32,22 @@ test('creates a route and its ordered stops in one atomic RPC', async () => {
   }));
 });
 
+test('updates a route through its own RPC with the same arguments', async () => {
+  fetchMock.mockResolvedValue(response(route));
+  await expect(repository.update(id, draft)).resolves.toEqual(route);
+  expect(newId).not.toHaveBeenCalled();
+  expect(fetchMock).toHaveBeenCalledWith('https://example.supabase.co/rest/v1/rpc/update_saved_route', expect.objectContaining({
+    method: 'POST',
+    body: JSON.stringify({
+      p_id: id, p_start: { label: 'Station', coordinate: at }, p_finish: { label: 'Park', coordinate: at }, p_modality: 'bike',
+      p_waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }], p_start_time: '07:45', p_weekdays: ['monday', 'friday'],
+    }),
+  }));
+  await expect(repository.update('not-a-uuid', draft)).rejects.toThrow('invalid ID');
+  fetchMock.mockResolvedValue(response(null));
+  await expect(repository.update(id, draft)).rejects.toThrow('Could not confirm the changes');
+});
+
 test('a route that does not repeat sends no days', async () => {
   fetchMock.mockResolvedValue(response({ ...route, weekdays: [] }));
   await repository.create({ ...draft, weekdays: [] });

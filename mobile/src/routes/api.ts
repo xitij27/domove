@@ -4,6 +4,8 @@ import { normalizeRoute, type RouteDraft, type SavedRoute } from './model';
 export type RoutesRepository = {
   list: () => Promise<SavedRoute[]>;
   create: (draft: RouteDraft) => Promise<SavedRoute>;
+  /** Replaces a saved route's places, mode, stops and leaving time; it keeps its ID. */
+  update: (id: string, draft: RouteDraft) => Promise<SavedRoute>;
   delete: (id: string) => Promise<void>;
   /** IDs of the construction sites the backend's job found on the way of a route; none until it has checked it. */
   obstacleSiteIds: (routeId: string) => Promise<string[]>;
@@ -72,20 +74,15 @@ export function createRoutesRepository(
       const fingerprint = JSON.stringify(clean);
       if (pendingSave?.draft !== fingerprint) pendingSave = { draft: fingerprint, id: newId() };
       const { id } = pendingSave;
-      const route = await request('rpc/create_saved_route', {
-        method: 'POST',
-        body: JSON.stringify({
-          p_id: id,
-          p_start: clean.start,
-          p_finish: clean.destination,
-          p_modality: clean.mode,
-          p_waypoints: clean.waypoints,
-          p_start_time: clean.startTime,
-          p_weekdays: clean.weekdays,
-        }),
-      }) as SavedRoute | null;
+      const route = await request('rpc/create_saved_route', { method: 'POST', body: routeParams(id, clean) }) as SavedRoute | null;
       if (route?.id !== id) throw new Error('Could not confirm the saved route. Refresh the list before trying again.');
       pendingSave = null;
+      return route;
+    },
+    async update(id, draft) {
+      checkId(id);
+      const route = await request('rpc/update_saved_route', { method: 'POST', body: routeParams(id, normalizeRoute(draft)) }) as SavedRoute | null;
+      if (route?.id !== id) throw new Error('Could not confirm the changes. Refresh the list before trying again.');
       return route;
     },
     async delete(id) {
@@ -99,6 +96,19 @@ export function createRoutesRepository(
       return rows.flatMap((row) => (typeof row?.construction_site_id === 'string' ? [row.construction_site_id] : []));
     },
   };
+}
+
+/** The arguments create_saved_route and update_saved_route share. */
+function routeParams(id: string, clean: ReturnType<typeof normalizeRoute>) {
+  return JSON.stringify({
+    p_id: id,
+    p_start: clean.start,
+    p_finish: clean.destination,
+    p_modality: clean.mode,
+    p_waypoints: clean.waypoints,
+    p_start_time: clean.startTime,
+    p_weekdays: clean.weekdays,
+  });
 }
 
 function checkId(id: string) {
