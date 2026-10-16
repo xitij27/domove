@@ -1,6 +1,5 @@
 -- Issue #1 accepts location text without geocoding or a recurring schedule.
 -- Preserve the existing spatial columns for the map/calculation features.
-begin;
 
 alter table public.routes
   alter column start_location drop not null,
@@ -100,4 +99,3 @@ $$;
 revoke all on function public.create_saved_route(text, text, public.modality, text[]) from public;
 grant execute on function public.create_saved_route(text, text, public.modality, text[]) to anon, authenticated;
 notify pgrst, 'reload schema';
-commit;
