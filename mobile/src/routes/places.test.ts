@@ -1,4 +1,4 @@
-import { searchPlaces, toPlaces } from './places';
+import { placeNameAt, searchPlaces, toPlaces } from './places';
 
 // Trimmed from a real Photon response for "Hauptbahnhof Dortmund" and "Hainallee 1".
 const feature = (properties: Record<string, unknown>, coordinates: unknown) => ({ type: 'Feature', properties, geometry: { type: 'Point', coordinates } });
@@ -40,6 +40,24 @@ test('asks Photon near Dortmund and reports HTTP errors', async () => {
     await expect(searchPlaces('Hbf & Co')).resolves.toHaveLength(4);
     expect(fetchMock.mock.calls[0][0]).toBe('https://photon.komoot.io/api/?q=Hbf%20%26%20Co&lat=51.514&lon=7.468&lang=de&limit=10');
     await expect(searchPlaces('Hbf')).rejects.toThrow('HTTP 429');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('names a point on the map after the nearest place, or null where there is none', async () => {
+  const originalFetch = globalThis.fetch;
+  const markt = { features: [feature({ name: 'Markt', city: 'Dortmund' }, [7.4653371, 51.5135883])] };
+  const fetchMock = jest.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => markt })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ features: [] }) })
+    .mockResolvedValueOnce({ ok: false, status: 503 });
+  globalThis.fetch = fetchMock;
+  try {
+    await expect(placeNameAt({ latitude: 51.5136, longitude: 7.4653 })).resolves.toBe('Markt, Dortmund');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://photon.komoot.io/reverse?lat=51.5136&lon=7.4653&lang=de');
+    await expect(placeNameAt({ latitude: 54, longitude: 7 })).resolves.toBeNull();
+    await expect(placeNameAt({ latitude: 51.5, longitude: 7.4 })).rejects.toThrow('HTTP 503');
   } finally {
     globalThis.fetch = originalFetch;
   }

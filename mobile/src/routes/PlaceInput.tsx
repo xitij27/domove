@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { MAX_LOCATION_LENGTH, type Place, type PlaceDraft } from './model';
 import { searchPlaces } from './places';
 
@@ -11,10 +12,12 @@ type Props = {
   editable: boolean;
   style?: StyleProp<ViewStyle>;
   inputStyle: StyleProp<TextStyle>;
+  /** Chooses the place on the map instead, from the pin button at the field's end. */
+  onPickOnMap?: () => void;
 };
 
-/** A text field that only gets a coordinate when the user picks one of its suggestions. */
-export default function PlaceInput({ accessibilityLabel, placeholder, value, onChange, editable, style, inputStyle }: Props) {
+/** A text field that only gets a coordinate when the user picks one of its suggestions, or a place on the map. */
+export default function PlaceInput({ accessibilityLabel, placeholder, value, onChange, editable, style, inputStyle, onPickOnMap }: Props) {
   // null places: the search failed
   const [result, setResult] = useState<{ query: string; places: Place[] | null }>({ query: '', places: [] });
   // a picked place needs no suggestions until the user types again
@@ -39,16 +42,23 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
 
   return (
     <View style={style}>
-      <TextInput
-        accessibilityLabel={accessibilityLabel}
-        value={value.label}
-        onChangeText={(label) => onChange({ label, coordinate: null })}
-        editable={editable}
-        maxLength={MAX_LOCATION_LENGTH}
-        placeholder={placeholder}
-        placeholderTextColor="#737d8b"
-        style={inputStyle}
-      />
+      <View>
+        <TextInput
+          accessibilityLabel={accessibilityLabel}
+          value={value.label}
+          onChangeText={(label) => onChange({ label, coordinate: null })}
+          editable={editable}
+          maxLength={MAX_LOCATION_LENGTH}
+          placeholder={placeholder}
+          placeholderTextColor="#737d8b"
+          style={[inputStyle, onPickOnMap && styles.besideMapButton]}
+        />
+        {onPickOnMap && (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${accessibilityLabel} on the map`} disabled={!editable} onPress={() => { Keyboard.dismiss(); onPickOnMap(); }} style={styles.mapButton}>
+            <MaterialIcons name="pin-drop" size={24} color="#a8520e" />
+          </Pressable>
+        )}
+      </View>
       {!suggestions && <Text style={styles.failed}>Could not load suggestions. Check your connection.</Text>}
       {!!suggestions?.length && (
         <View style={styles.list}>
@@ -65,6 +75,8 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
 }
 
 const styles = StyleSheet.create({
+  besideMapButton: { paddingRight: 52 },
+  mapButton: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 52, alignItems: 'center', justifyContent: 'center' },
   list: { marginTop: 4, borderWidth: 1, borderColor: '#b8c3cf', borderRadius: 12, backgroundColor: '#fff', overflow: 'hidden' },
   item: { paddingHorizontal: 14, paddingVertical: 12, minHeight: 48, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e1e6eb' },
   itemText: { color: '#182332', fontSize: 15 },

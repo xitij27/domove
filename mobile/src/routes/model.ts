@@ -37,9 +37,11 @@ export type SavedRoute = {
   createdAt: string;
 };
 
-/** A place being typed; it gets a coordinate only when picked from the suggestions. */
+/** A place being typed; it gets a coordinate only when picked from the suggestions or the map. */
 export type PlaceDraft = { label: string; coordinate: Coordinate | null };
 export type Place = { label: string; coordinate: Coordinate };
+/** A place in the form being chosen on the map: which one, where the map starts, and where the choice goes. */
+export type PlacePick = { title: string; kind: 'start' | 'stop' | 'destination'; initial: Coordinate | null; onPick: (place: Place) => void };
 
 export type RouteDraft = {
   start: PlaceDraft;
@@ -68,7 +70,7 @@ export function validateRoute(draft: RouteDraft): RouteErrors {
   if (draft.waypoints.length > MAX_WAYPOINTS) errors.waypoints = `Use no more than ${MAX_WAYPOINTS} intermediate stops.`;
   else if (stops.some((stop) => stop.label.trim().length > MAX_LOCATION_LENGTH)) {
     errors.waypoints = 'Use 200 characters or fewer for each stop.';
-  } else if (stops.some((stop) => !stop.coordinate)) errors.waypoints = 'Pick each stop from the suggestions.';
+  } else if (stops.some((stop) => !stop.coordinate)) errors.waypoints = 'Pick each stop from the suggestions or the map.';
   const time = draft.startTime.trim();
   if (time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) errors.startTime = 'Use a leaving time like 08:30.';
   else if (draft.weekdays.length && !time) errors.startTime = 'Pick a time for the repeat days.';
@@ -119,5 +121,5 @@ function placeError(place: PlaceDraft, missing: string) {
   const label = place.label.trim();
   if (!label) return missing;
   if (label.length > MAX_LOCATION_LENGTH) return 'Use 200 characters or fewer.';
-  if (!place.coordinate) return 'Pick a place from the suggestions.';
+  if (!place.coordinate) return 'Pick a place from the suggestions or the map.';
 }

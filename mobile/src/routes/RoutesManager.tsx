@@ -5,7 +5,7 @@ import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatLeaving, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatLeaving, type PlacePick, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 /** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
 export const SHEET_RADIUS = 24;
@@ -80,12 +80,16 @@ function createSheet(y: Animated.Value, show: (open: Open) => void) {
 }
 
 /** The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form. */
-export default function RoutesManager({ repository, onOpenChange, onViewRoute, onRouteDeleted }: {
+export default function RoutesManager({ repository, onOpenChange, onViewRoute, onRouteDeleted, onPickOnMap, hidden = false }: {
   repository?: RoutesRepository;
   onOpenChange?: (open: boolean) => void;
   /** Shows a saved route on the map below; the sheet lowers out of its way. */
   onViewRoute?: (route: SavedRoute) => void;
   onRouteDeleted?: (id: string) => void;
+  /** Hands a place in the form to the map below to choose; hide the sheet meanwhile. */
+  onPickOnMap?: (pick: PlacePick) => void;
+  /** Slides the sheet off screen and gives the map its room, keeping the form as it was. */
+  hidden?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   // What the raised sheet shows; null while it is lowered to the two buttons.
@@ -102,17 +106,25 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
   useEffect(() => { onOpenChange?.(open !== null); }, [open, onOpenChange]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || hidden) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { sheet.lower(); return true; });
     return () => subscription.remove();
-  }, [open, sheet]);
+  }, [open, sheet, hidden]);
+
+  // Only the open form hands a place to the map, so a hidden sheet comes back raised.
+  useEffect(() => {
+    if (hidden) Animated.spring(y, { toValue: sheetHeight, ...SNAP }).start();
+    else if (sheet.isOpen()) sheet.raise();
+  }, [hidden, sheet, sheetHeight, y]);
 
   return (
     <>
       {/* The map ends here, so only the sheet's rounded top lies over it while lowered. */}
-      <View style={{ height: Math.max(loweredHeight - SHEET_RADIUS, 0) }} />
+      <View style={{ height: hidden ? 0 : Math.max(loweredHeight - SHEET_RADIUS, 0) }} />
       <Animated.View
-        accessibilityViewIsModal={open !== null}
+        accessibilityViewIsModal={open !== null && !hidden}
+        accessibilityElementsHidden={hidden}
+        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
         onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
         style={[styles.sheet, { top: insets.top + RAISED_GAP, transform: [{ translateY: y }] }]}
       >
@@ -145,6 +157,7 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
             onBusyChange={sheet.setBusy}
             onView={onViewRoute && ((route) => { sheet.lower(); onViewRoute(route); })}
             onDeleted={onRouteDeleted}
+            onPickOnMap={onPickOnMap}
             repository={repository}
           />
         )}
@@ -153,12 +166,13 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
   );
 }
 
-export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, onView, onDeleted, repository = routesRepository }: {
+export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, onView, onDeleted, onPickOnMap, repository = routesRepository }: {
   initiallyCreating?: boolean;
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
   onView?: (route: SavedRoute) => void;
   onDeleted?: (id: string) => void;
+  onPickOnMap?: (pick: PlacePick) => void;
   repository?: RoutesRepository;
 }) {
   const insets = useSafeAreaInsets();
@@ -240,7 +254,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
         </Pressable>
       </View>
       {creating ? (
-        <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
+        <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} onPickOnMap={onPickOnMap} />
       ) : (
         <FlatList
           data={routes}

@@ -99,6 +99,27 @@ test('Map & alerts hands the route to the map and lowers the sheet out of its wa
   await waitFor(() => expect(onRouteDeleted).toHaveBeenCalledWith('1'));
 });
 
+test('a place chosen on the map fills its field, and the form waits under the hidden sheet', async () => {
+  const onPickOnMap = jest.fn();
+  const { rerender } = await render(<RoutesManager repository={repository} onPickOnMap={onPickOnMap} />);
+  await press('Create Route');
+  await pick('Final destination', 'Park');
+  await press('Choose Starting location on the map');
+  expect(onPickOnMap).toHaveBeenCalledWith(expect.objectContaining({ title: 'Starting location', kind: 'start', initial: null }));
+  await rerender(<RoutesManager repository={repository} onPickOnMap={onPickOnMap} hidden />);
+  expect(screen.queryByLabelText('Starting location')).toBeNull();
+  await act(async () => onPickOnMap.mock.calls[0][0].onPick({ label: 'Markt, Dortmund', coordinate: at }));
+  await rerender(<RoutesManager repository={repository} onPickOnMap={onPickOnMap} />);
+  expect(screen.getByLabelText('Starting location')).toHaveDisplayValue('Markt, Dortmund');
+  expect(screen.getByLabelText('Final destination')).toHaveDisplayValue('Park');
+  // A place already picked opens the map on it.
+  await press('Choose Final destination on the map');
+  expect(onPickOnMap).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'destination', initial: at }));
+  await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
+  await press('Ready');
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ start: { label: 'Markt, Dortmund', coordinate: at } }));
+});
+
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {
   const { unmount } = await mount();
   expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
@@ -154,12 +175,12 @@ test('only places picked from the suggestions can be saved', async () => {
   await pick('Final destination', 'Park');
   await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
   await press('Ready');
-  expect(screen.getByText('Pick a place from the suggestions.')).toBeOnTheScreen();
+  expect(screen.getByText('Pick a place from the suggestions or the map.')).toBeOnTheScreen();
   // Typing over a picked place drops its coordinate too.
   await pick('Starting location', 'Station');
   await enter('Final destination', 'Parks');
   await press('Ready');
-  expect(screen.getByText('Pick a place from the suggestions.')).toBeOnTheScreen();
+  expect(screen.getByText('Pick a place from the suggestions or the map.')).toBeOnTheScreen();
   expect(repository.create).not.toHaveBeenCalled();
   await fireEvent.press(await screen.findByRole('button', { name: 'Parks' }));
   await press('Ready');

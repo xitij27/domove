@@ -1,14 +1,22 @@
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type PlaceDraft, type RouteDraft, type RouteErrors } from './model';
+import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type Place, type PlaceDraft, type PlacePick, type RouteDraft, type RouteErrors } from './model';
 import LeavingAtInput, { type Leaving } from './LeavingAtInput';
 import PlaceInput from './PlaceInput';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
 
-type Props = { onSave: (draft: RouteDraft) => Promise<void>; onCancel: () => void; onBusyChange: (busy: boolean) => void };
+type Props = {
+  onSave: (draft: RouteDraft) => Promise<void>;
+  onCancel: () => void;
+  onBusyChange: (busy: boolean) => void;
+  /** Hands a place to the map to choose; without it the places can only be typed. */
+  onPickOnMap?: (pick: PlacePick) => void;
+};
 
-export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
+export default function RouteForm({ onSave, onCancel, onBusyChange, onPickOnMap }: Props) {
+  const pickOnMap = onPickOnMap && ((title: string, kind: PlacePick['kind'], place: PlaceDraft, onPick: (place: Place) => void) =>
+    () => onPickOnMap({ title, kind, initial: place.coordinate, onPick }));
   const [start, setStart] = useState(EMPTY);
   const [destination, setDestination] = useState(EMPTY);
   const [mode, setMode] = useState<RouteDraft['mode']>('');
@@ -45,28 +53,31 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title} accessibilityRole="header">Create Route</Text>
-        <Text style={styles.hint}>Plan your next journey. Type an address or place name and pick it from the suggestions.</Text>
+        <Text style={styles.hint}>Plan your next journey. Type an address or place name and pick it from the suggestions{pickOnMap ? ', or tap the pin to choose it on the map' : ''}.</Text>
         <Text style={styles.label}>Starting location</Text>
-        <PlaceInput accessibilityLabel="Starting location" value={start} onChange={setStart} editable={!busy} placeholder="e.g. Dortmund Hauptbahnhof" inputStyle={[styles.input, !!errors.start && styles.invalid]} />
+        <PlaceInput accessibilityLabel="Starting location" value={start} onChange={setStart} editable={!busy} placeholder="e.g. Dortmund Hauptbahnhof" inputStyle={[styles.input, !!errors.start && styles.invalid]} onPickOnMap={pickOnMap?.('Starting location', 'start', start, setStart)} />
         {errors.start && <ErrorText message={errors.start} />}
 
         <Text style={styles.label}>Intermediate stops (optional)</Text>
         <Text style={styles.hint}>Stops are visited in the order shown. Empty stops are ignored.</Text>
-        {stops.map((stop, index) => (
-          <View key={stop.id} style={styles.stop}>
-            <PlaceInput accessibilityLabel={`Intermediate stop ${index + 1}`} value={stop.place} editable={!busy} placeholder={`Stop ${index + 1}`} style={styles.stopInput} inputStyle={styles.input} onChange={(place) => setStops((current) => current.map((item) => item.id === stop.id ? { ...item, place } : item))} />
-            <Pressable accessibilityRole="button" accessibilityLabel={`Remove stop ${index + 1}`} disabled={busy} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} style={styles.remove}>
-              <Text style={styles.removeText}>Remove</Text>
-            </Pressable>
-          </View>
-        ))}
+        {stops.map((stop, index) => {
+          const setStop = (place: PlaceDraft) => setStops((current) => current.map((item) => item.id === stop.id ? { ...item, place } : item));
+          return (
+            <View key={stop.id} style={styles.stop}>
+              <PlaceInput accessibilityLabel={`Intermediate stop ${index + 1}`} value={stop.place} editable={!busy} placeholder={`Stop ${index + 1}`} style={styles.stopInput} inputStyle={styles.input} onChange={setStop} onPickOnMap={pickOnMap?.(`Stop ${index + 1}`, 'stop', stop.place, setStop)} />
+              <Pressable accessibilityRole="button" accessibilityLabel={`Remove stop ${index + 1}`} disabled={busy} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} style={styles.remove}>
+                <Text style={styles.removeText}>Remove</Text>
+              </Pressable>
+            </View>
+          );
+        })}
         {errors.waypoints && <ErrorText message={errors.waypoints} />}
         <Pressable accessibilityRole="button" disabled={busy || stops.length >= MAX_WAYPOINTS} accessibilityState={{ disabled: busy || stops.length >= MAX_WAYPOINTS }} style={styles.secondary} onPress={() => setStops((current) => [...current, { id: nextId.current++, place: EMPTY }])}>
           <Text style={styles.secondaryText}>{stops.length >= MAX_WAYPOINTS ? `${MAX_WAYPOINTS} stops maximum` : '+ Add stop'}</Text>
         </Pressable>
 
         <Text style={styles.label}>Final destination</Text>
-        <PlaceInput accessibilityLabel="Final destination" value={destination} onChange={setDestination} editable={!busy} placeholder="e.g. Westfalenpark, Dortmund" inputStyle={[styles.input, !!errors.destination && styles.invalid]} />
+        <PlaceInput accessibilityLabel="Final destination" value={destination} onChange={setDestination} editable={!busy} placeholder="e.g. Westfalenpark, Dortmund" inputStyle={[styles.input, !!errors.destination && styles.invalid]} onPickOnMap={pickOnMap?.('Final destination', 'destination', destination, setDestination)} />
         {errors.destination && <ErrorText message={errors.destination} />}
 
         <Text style={styles.label}>Transportation mode</Text>

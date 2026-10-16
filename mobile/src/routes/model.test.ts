@@ -50,7 +50,7 @@ test('reports all missing required fields', () => {
 
 test('typed text that was not picked from the suggestions is rejected', () => {
   expect(validateRoute({ ...draft, start: place('Station', null), destination: place('Park', null), waypoints: [place('Cafe', null)] })).toEqual({
-    start: 'Pick a place from the suggestions.', destination: 'Pick a place from the suggestions.', waypoints: 'Pick each stop from the suggestions.',
+    start: 'Pick a place from the suggestions or the map.', destination: 'Pick a place from the suggestions or the map.', waypoints: 'Pick each stop from the suggestions or the map.',
   });
   expect(() => normalizeRoute({ ...draft, start: place('Station', null) })).toThrow('Pick a place');
 });
