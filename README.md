@@ -14,7 +14,7 @@ The app renders the same data with Google Maps or Mapbox (toggle in the top-righ
    - in the cloud: `npx eas-cli@latest build --profile development --platform android` (free Expo account; first run creates `eas.json`; add `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` with `npx eas-cli env:create` since `.env` is not uploaded), or
    - locally with Android Studio installed: `npx expo run:android`.
 
-   For a sideloadable release APK, every push touching `mobile/` runs the **Android APK** workflow (`.github/workflows/android-apk.yml`); download it from the run's artifacts. It needs the three `EXPO_PUBLIC_MAPBOX_TOKEN` / `EXPO_PUBLIC_SUPABASE_*` values as repository secrets (`gh secret set <NAME>`).
+   For a sideloadable release APK, every push to `main` runs the **Android APK** workflow (`.github/workflows/android-apk.yml`), and it can also be started by hand from the Actions tab; download the APK from the run's artifacts. It needs the three `EXPO_PUBLIC_MAPBOX_TOKEN` / `EXPO_PUBLIC_SUPABASE_*` values as repository secrets (`gh secret set <NAME>`). If a release APK crashes at launch, see [docs/android-launch-crash.md](docs/android-launch-crash.md).
 3. `cd mobile && npx expo start`, then open the project from the dev app.
 
 Rebuild (step 2) only when native config or native packages change; JS changes reload live.
