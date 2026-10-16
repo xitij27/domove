@@ -10,20 +10,42 @@ When a question is decided, fill in its **Decision** line, and update #12 if the
 
 | # | Question | Until decided, the plan assumes | Waiting on it |
 |---|---|---|---|
-| 1 | [Which engine draws the paths?](#1-which-engine-draws-the-paths) | openrouteservice (ORS) | API work |
-| 2 | [Who syncs construction sites and replans saved routes?](#2-who-syncs-construction-sites-and-replans-saved-routes) | the pg_cron job in Postgres | database migration 1, replanning |
-| 3 | [Does a full road closure block people on foot and on bikes?](#3-does-a-full-road-closure-block-people-on-foot-and-on-bikes) | walking: slowed; bike: blocked | impact defaults |
-| 4 | [How much detour is worth it to avoid a slowed site?](#4-how-much-detour-is-worth-it-to-avoid-a-slowed-site) | the penalties in #12 | impact defaults |
-| 5 | [Which day do we plan for when a route has no weekdays?](#5-which-day-do-we-plan-for-when-a-route-has-no-weekdays) | today | replanning, #4 |
-| 6 | [When do routes get owners and login?](#6-when-do-routes-get-owners-and-login) | open access for the demo | saving real addresses |
-| 7 | [What do we keep from a search that isn't saved?](#7-what-do-we-keep-from-a-search-that-isnt-saved) | nothing in the database; cached URLs at Vercel | API design |
-| 8 | [Where do place suggestions come from, and how far may a trip go?](#8-where-do-place-suggestions-come-from-and-how-far-may-a-trip-go) | public Photon; trips anywhere, biased to Dortmund | search UI |
-| 9 | [What does "Open in Google Maps" hand over?](#9-what-does-open-in-google-maps-hand-over) | a few via-points from our path | #4 |
-| 10 | [Smaller questions with a default](#10-smaller-questions-with-a-default) | see the table | nothing yet |
+| 1 | [Do we need a separate planner, or is the route form from #1 enough?](#1-do-we-need-a-separate-planner-or-is-the-route-form-from-1-enough) | a separate planner on the map | the app part of #12 |
+| 2 | [Which engine draws the paths?](#2-which-engine-draws-the-paths) | openrouteservice (ORS) | API work |
+| 3 | [Who syncs construction sites and replans saved routes?](#3-who-syncs-construction-sites-and-replans-saved-routes) | the pg_cron job in Postgres | database migration 1, replanning |
+| 4 | [Does a full road closure block people on foot and on bikes?](#4-does-a-full-road-closure-block-people-on-foot-and-on-bikes) | walking: slowed; bike: blocked | impact defaults |
+| 5 | [How much detour is worth it to avoid a slowed site?](#5-how-much-detour-is-worth-it-to-avoid-a-slowed-site) | the penalties in #12 | impact defaults |
+| 6 | [Which day do we plan for when a route has no weekdays?](#6-which-day-do-we-plan-for-when-a-route-has-no-weekdays) | today | replanning, #4 |
+| 7 | [When do routes get owners and login?](#7-when-do-routes-get-owners-and-login) | open access for the demo | saving real addresses |
+| 8 | [What do we keep from a search that isn't saved?](#8-what-do-we-keep-from-a-search-that-isnt-saved) | nothing in the database; cached URLs at Vercel | API design |
+| 9 | [Where do place suggestions come from, and how far may a trip go?](#9-where-do-place-suggestions-come-from-and-how-far-may-a-trip-go) | public Photon; trips anywhere, biased to Dortmund | search UI |
+| 10 | [What does "Open in Google Maps" hand over?](#10-what-does-open-in-google-maps-hand-over) | a few via-points from our path | #4 |
+| 11 | [Smaller questions with a default](#11-smaller-questions-with-a-default) | see the table | nothing yet |
 | | [Checked already](#checked-already) | | |
 | | [To try out once we have an ORS key](#to-try-out-once-we-have-an-ors-key) | | |
 
-## 1. Which engine draws the paths?
+## 1. Do we need a separate planner, or is the route form from #1 enough?
+
+**Decision:** open. **Assumed in #12:** a separate planner on the map ("Where to?"), plus saving. **Decided by:** the team.
+
+Anton commented on #12: "An entire route mapping is not needed. The user can already make routes from the route creation mask."
+
+What #1's form does today: it saves start, destination, stops and mode as text. It doesn't look up coordinates and doesn't draw a path, so `routes.start_location` and `finish_location` stay empty. Whichever option we pick, a saved route still needs coordinates and a path before #2 can draw it and #3, #4 and #5 can find the sites on it.
+
+| | A. Paths for saved routes only | B. Separate planner, as in #12 |
+|---|---|---|
+| Where people enter places | #1's form, with suggestions in its fields so each place gets coordinates | a search bar on the map, and #1's form |
+| When the path appears | after saving, on the route's map (#2) | while searching, before saving |
+| Database work from #12 | all of it: closure kinds and impacts, `route_obstructions`, `sites_on_paths`, `route_paths`, replanning | the same |
+| API work from #12 | `/api/plan` and `/api/places` | the same |
+| App work from #12 | suggestions in #1's fields; the path and its sites on #2's map; time and detour on the route | all of A, plus the search bar, the planner panel, the result card, "Your location", picking an alternative, picking a day |
+| Questions that go away | 8 (nothing is searched without saving) | none |
+
+A is a subset of B: everything A needs, B needs too. So building A first wastes nothing, and the search bar can follow if people want to check a trip without saving it.
+
+Without suggestions in the form, we could look up the typed text after saving and take the first hit. But "Hauptstraße" alone matches several streets in and around Dortmund, and the route would quietly start in the wrong place.
+
+## 2. Which engine draws the paths?
 
 **Decision:** open. **Assumed:** openrouteservice now, pgRouting if we outgrow it. **Decided by:** the team.
 
@@ -40,7 +62,7 @@ The engine has to route around areas we give it, for car, bike and walking. The 
 
 pgRouting 3.4.1 is available in our project but not enabled. Because `anon` queries stop after 3 s (`authenticated` after 8 s), a planner inside the database, called with the publishable key, would have to search only a small box around the trip.
 
-## 2. Who syncs construction sites and replans saved routes?
+## 3. Who syncs construction sites and replans saved routes?
 
 **Decision:** open. **Assumed:** the pg_cron job. **Decided by:** the team, with whoever owns #5.
 
@@ -61,7 +83,7 @@ Right now the point and area feeds list the same 158 current and 54 planned site
 
 Keeping both isn't an option.
 
-## 3. Does a full road closure block people on foot and on bikes?
+## 4. Does a full road closure block people on foot and on bikes?
 
 **Decision:** open. **Assumed:** walking: slowed (+60 s); bike: blocked. **Decided by:** the team.
 
@@ -75,7 +97,7 @@ Keeping both isn't an option.
 
 Bikes have the same choice: blocked (assumed), or slowed, meaning "push the bike along the sidewalk".
 
-## 4. How much detour is worth it to avoid a slowed site?
+## 5. How much detour is worth it to avoid a slowed site?
 
 **Decision:** open. **Assumed:** the penalties in #12. **Decided by:** the team, after a few real test trips.
 
@@ -85,7 +107,7 @@ A penalty is the extra time we count for passing a slowed site. With +120 s for 
 - **Sites with several closure kinds**, e.g. a half closure with temporary lights: take the highest of their penalties (assumed) or add them up.
 - **An "Avoid all construction" switch** for users that turns every slowed site into a blocked one. Not planned so far.
 
-## 5. Which day do we plan for when a route has no weekdays?
+## 6. Which day do we plan for when a route has no weekdays?
 
 **Decision:** open. **Assumed:** today. **Decided by:** the team, with whoever owns #1.
 
@@ -95,7 +117,7 @@ Sites are active on certain days only, so a path depends on the travel day. Save
 - **Ask for weekdays when a planned route is saved.** One more field in the form.
 - **Plan each of the next 7 days** and show on which days the route is affected. Fits #4's notifications best, but costs seven times the ORS calls.
 
-## 6. When do routes get owners and login?
+## 7. When do routes get owners and login?
 
 **Decision:** open. **Assumed:** open access for the demo. **Decided by:** the team.
 
@@ -107,23 +129,25 @@ Today anyone with the publishable key can read, change and delete every route; t
 
 Suggestion: anonymous sign-ins before anyone outside the team saves a route.
 
-## 7. What do we keep from a search that isn't saved?
+## 8. What do we keep from a search that isn't saved?
 
 **Decision:** open. **Assumed:** nothing in the database. **Decided by:** the team.
+
+This only matters if question 1 is answered with B; with A, every path belongs to a saved route.
 
 The plan stores nothing from a search unless the user saves the route. But `/api/plan` is a GET with the coordinates in the URL, so that Vercel's edge cache can answer repeated searches. The coordinates therefore also land in Vercel's request logs and stay in the cache for 5 minutes.
 
 - **GET with coordinates rounded to 5 decimals, about 1 m (assumed).** Cache hits save ORS calls; coordinates appear in logs.
 - **POST.** No coordinates in URLs or logs, but no edge cache, so every search costs ORS calls.
 
-## 8. Where do place suggestions come from, and how far may a trip go?
+## 9. Where do place suggestions come from, and how far may a trip go?
 
 **Decision:** open. **Assumed:** public Photon through our API; trips anywhere, with suggestions biased to Dortmund. **Decided by:** the team.
 
 - **Provider.** Photon's public server is free and needs no key, but it's fair use: komoot throttles heavy users. Every character typed after the third sends a request (with a 300 ms debounce). Fine for a demo; for real use we'd host Photon ourselves or pay for a geocoder.
 - **Area.** Construction data covers only Dortmund. We can allow trips anywhere and show a notice when the path leaves the city (assumed), or only suggest places in Dortmund. Limiting suggestions to Dortmund is clearer, but people commute from Unna or Bochum.
 
-## 9. What does "Open in Google Maps" hand over?
+## 10. What does "Open in Google Maps" hand over?
 
 **Decision:** open. **Assumed:** start, destination and a few via-points from our path. **Decided by:** the team, with whoever owns #4.
 
@@ -133,7 +157,7 @@ In #4, tapping the notification should show the detour in Google Maps. But Googl
 - **Our own steps list only**, no hand-off.
 - **Hand-off plus a warning** that Google doesn't know about the closures.
 
-## 10. Smaller questions with a default
+## 11. Smaller questions with a default
 
 | Question | Default in the plan |
 |---|---|
