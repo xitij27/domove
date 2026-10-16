@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { scheduleDecision } from './core';
-import { DEFAULT_SETTINGS, PREFERENCES, WEEKDAYS, type NotificationPreference, type NotificationRoute, type RouteNotificationSettings, isSettings } from './model';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { SavedRoute } from '../routes/model';
+import { DEFAULT_SETTINGS, PREFERENCES, type NotificationPreference, type RouteNotificationSettings, isSettings } from './model';
 import { constructionNotifications, sendDevelopmentTestAlert } from './runtime';
 
-export default function NotificationSettings({ route, onBack }: { route: NotificationRoute; onBack: () => void }) {
+export default function NotificationSettings({ route, onBack }: { route: SavedRoute; onBack: () => void }) {
   const [selected, setSelected] = useState<RouteNotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,14 +23,14 @@ export default function NotificationSettings({ route, onBack }: { route: Notific
   async function save() {
     if (saving || loading) return;
     if (!isSettings(selected)) {
-      setError('Enter times as HH:mm, for example 18:00.');
+      setError('Enter the time as HH:mm, for example 18:00.');
       return;
     }
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
-      const warning = await constructionNotifications.setSettings(route, selected);
+      const warning = await constructionNotifications.setSettings(route.id, selected);
       setMessage(warning ?? 'Notification preference saved.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save the preference.');
@@ -43,35 +43,21 @@ export default function NotificationSettings({ route, onBack }: { route: Notific
     setError(null);
     setMessage(null);
     try {
-      await sendDevelopmentTestAlert(route);
-      setMessage('A labeled test alert will appear shortly. Tap it to open Google Maps.');
+      await sendDevelopmentTestAlert(route.id);
+      setMessage('A labeled test alert will appear shortly. Tap it to see the site on the map.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send the test alert.');
     }
   }
 
-  const hypotheticalStart = new Date();
-  hypotheticalStart.setDate(hypotheticalStart.getDate() + 14);
-  const sampleDate = `${hypotheticalStart.getFullYear()}-${String(hypotheticalStart.getMonth() + 1).padStart(2, '0')}-${String(hypotheticalStart.getDate()).padStart(2, '0')}`;
-  const preview = isSettings(selected)
-    ? scheduleDecision({ routeId: route.id, obstacleId: 'preview', constructionLocation: 'Preview', constructionStartDate: sampleDate }, selected)
-    : { date: null };
-
-  function toggleDay(day: typeof WEEKDAYS[number]) {
-    const days = selected.commuteDays ?? [];
-    const next = days.includes(day) ? days.filter((value) => value !== day) : WEEKDAYS.filter((value) => days.includes(value) || value === day);
-    setSelected({ ...selected, commuteDays: next.length ? [...next] : undefined });
-  }
-
   return (
-    <View style={styles.section}>
-      <Pressable accessibilityRole="button" onPress={onBack} style={styles.back}><Text style={styles.backText}>← All routes</Text></Pressable>
+    <ScrollView contentContainerStyle={styles.section}>
+      <Pressable accessibilityRole="button" disabled={saving} onPress={onBack} style={styles.back}><Text style={styles.backText}>← All routes</Text></Pressable>
       <Text accessibilityRole="header" style={styles.title}>Notification Preferences</Text>
-      <Text style={styles.hint}>Choose when to hear about construction affecting this route.</Text>
-      <Text style={styles.hint}>Known construction alerts are scheduled on this device. Automatic alerts for new sites need the account and push service.</Text>
-      <Text style={styles.route}>{route.start.label} → {route.destination.label}</Text>
+      <Text style={styles.route}>{route.start.label ?? 'Starting location'} → {route.destination.label ?? 'Final destination'}</Text>
+      <Text style={styles.hint}>We check your routes for construction each time you open the app, and remind you on this phone.</Text>
       <Text style={styles.label}>When should we notify you?</Text>
-      {loading ? <ActivityIndicator accessibilityLabel="Loading notification preference" /> :
+      {loading ? <ActivityIndicator accessibilityLabel="Loading notification preference" color="#163f36" /> :
         (Object.entries(PREFERENCES) as [NotificationPreference, string][]).map(([value, label]) => (
           <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected.preference === value }} accessibilityLabel={label}
             onPress={() => { setSelected({ ...selected, preference: value }); setMessage(null); }} style={[styles.option, selected.preference === value && styles.selected]}>
@@ -79,39 +65,24 @@ export default function NotificationSettings({ route, onBack }: { route: Notific
             <Text style={styles.optionText}>{label}</Text>
           </Pressable>
         ))}
-      <Text style={styles.label}>Preferred notification time</Text>
-      <TextInput accessibilityLabel="Preferred notification time" value={selected.notificationTime} onChangeText={(notificationTime) => setSelected({ ...selected, notificationTime })}
+      <Text style={styles.label}>Notification time</Text>
+      <TextInput accessibilityLabel="Notification time" value={selected.notificationTime} onChangeText={(notificationTime) => setSelected({ ...selected, notificationTime })}
         keyboardType="numbers-and-punctuation" placeholder="09:00" maxLength={5} style={styles.input} />
-      <Text style={styles.hint}>Device-local time, HH:mm. Default: 09:00.</Text>
-      <Text style={styles.label}>Regular commuting days (optional)</Text>
-      <View style={styles.days}>{WEEKDAYS.map((day) => <Pressable key={day} accessibilityRole="checkbox"
-        accessibilityState={{ checked: !!selected.commuteDays?.includes(day) }} onPress={() => toggleDay(day)}
-        style={[styles.day, selected.commuteDays?.includes(day) && styles.selected]}><Text style={styles.dayText}>{day.slice(0, 3).toUpperCase()}</Text></Pressable>)}</View>
-      <Text style={styles.hint}>Only reliable construction-day information can filter these days. Leave blank for all days.</Text>
-      <Text style={styles.label}>Typical departure time (optional)</Text>
-      <TextInput accessibilityLabel="Typical departure time" value={selected.departureTime ?? ''}
-        onChangeText={(departureTime) => setSelected({ ...selected, departureTime: departureTime || undefined })}
-        keyboardType="numbers-and-punctuation" placeholder="07:30" maxLength={5} style={styles.input} />
-      <View style={styles.switchRow}><View style={styles.switchText}>
-        <Text style={styles.label}>Important Last-Minute Updates</Text>
-        <Text style={styles.hint}>Alert me to recent, significant changes when my reminder time has passed.</Text>
-      </View><Switch accessibilityLabel="Important Last-Minute Updates" value={selected.importantUpdates}
-        onValueChange={(importantUpdates) => setSelected({ ...selected, importantUpdates })} disabled={selected.preference === 'DISABLED'} /></View>
+      <Text style={styles.hint}>HH:mm on this phone. If construction starts sooner than you chose, or has already started, we remind you the next time the clock reaches it.</Text>
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving || loading, busy: saving }} disabled={saving || loading}
         onPress={() => { void save(); }} style={styles.primary}><Text style={styles.primaryText}>{saving ? 'Saving…' : 'Save Preferences'}</Text></Pressable>
       {message && <Text accessibilityLiveRegion="polite" style={styles.success}>{message}</Text>}
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {__DEV__ && <View style={styles.dev}>
         <Text style={styles.devTitle}>Development test</Text>
-        <Text style={styles.hint}>Preview only: if construction started {hypotheticalStart.toLocaleDateString()}, this setting would remind you {preview.date?.toLocaleString() ?? 'never'}.</Text>
         <Pressable accessibilityRole="button" onPress={() => { void sendTest(); }} style={styles.secondary}><Text style={styles.backText}>Send Test Construction Alert</Text></Pressable>
       </View>}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 13 },
+  section: { padding: 20, gap: 13, width: '100%', maxWidth: 640, alignSelf: 'center' },
   back: { paddingVertical: 10, alignSelf: 'flex-start' },
   backText: { color: '#254636', fontWeight: '700' },
   title: { fontSize: 28, fontWeight: '700', color: '#182332' },
@@ -124,11 +95,6 @@ const styles = StyleSheet.create({
   circleSelected: { borderColor: '#163f36', borderWidth: 6 },
   optionText: { fontSize: 16, color: '#182332' },
   input: { backgroundColor: '#fff', borderColor: '#dce3e8', borderWidth: 1, borderRadius: 13, padding: 14, fontSize: 16, color: '#182332' },
-  days: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  day: { paddingVertical: 11, paddingHorizontal: 13, backgroundColor: '#fff', borderColor: '#dce3e8', borderWidth: 1, borderRadius: 12 },
-  dayText: { color: '#182332', fontWeight: '700' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  switchText: { flex: 1, gap: 3 },
   primary: { backgroundColor: '#163f36', borderRadius: 13, padding: 16, alignItems: 'center' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   secondary: { backgroundColor: '#e9eef2', borderRadius: 13, padding: 14, alignItems: 'center' },

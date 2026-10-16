@@ -1,213 +1,114 @@
-import { googleMapsDirectionsUrl, lastMinuteDecision, notificationContent, occurrenceKey, occurrenceSignature, scheduleDecision } from './core';
-import { DEFAULT_SETTINGS, type ConstructionObstacleEvent, type KnownObstacle, type NotificationPreference, type NotificationRoute, type RouteNotificationSettings, isEvent, isPreference, isRoute, isSettings, minimalEvent, minimalRoute } from './model';
+import { notificationContent, obstacleKey, reminderDate } from './core';
+import { DEFAULT_SETTINGS, type RouteNotificationSettings, type RouteObstacle, isObstacle, isSettings } from './model';
 
-const STORAGE_KEY = '@domove/construction-notifications/v1';
-
-export type StoredState = {
+type StoredState = {
   settings: Record<string, RouteNotificationSettings>;
-  obstacles: Record<string, KnownObstacle>;
-  urgentSent: Record<string, string>;
-  remoteRoutes: Record<string, boolean>;
+  /** The last list the backend returned. */
+  obstacles: RouteObstacle[];
+  /** When each obstacle's reminder fires; a time in the past means it was delivered and is not sent again. */
+  due: Record<string, number>;
 };
 
-export type PendingReminder = { id: string; routeId?: string; signature?: string };
-export type ReminderPayload = {
-  title: string;
-  body: string;
-  route: NotificationRoute;
-  event: ConstructionObstacleEvent;
-  signature: string;
-};
+export type PendingReminder = { id: string; signature: string };
+export type ReminderPayload = { title: string; body: string; siteId: string; signature: string };
 export type NotificationDriver = {
   permission: (request: boolean) => Promise<boolean>;
+  /** Only the reminders this service scheduled. */
   pending: () => Promise<PendingReminder[]>;
   schedule: (date: Date, payload: ReminderPayload) => Promise<string>;
-  notifyNow: (payload: ReminderPayload) => Promise<void>;
   cancel: (id: string) => Promise<void>;
 };
-export type KeyValueStorage = { getItem: (key: string) => Promise<string | null>; setItem: (key: string, value: string) => Promise<void> };
+export type TextStorage = { read: () => string | null; write: (value: string) => void };
 
 function readState(raw: string | null): StoredState {
-  if (!raw) return { settings: {}, obstacles: {}, urgentSent: {}, remoteRoutes: {} };
+  const state: StoredState = { settings: {}, obstacles: [], due: {} };
   try {
-    const value = JSON.parse(raw) as Partial<StoredState> & { preferences?: Record<string, unknown> };
-    const settings: StoredState['settings'] = {};
-    const obstacles: StoredState['obstacles'] = {};
-    const urgentSent: StoredState['urgentSent'] = {};
-    const remoteRoutes: StoredState['remoteRoutes'] = {};
-    // Preserve preferences written by the Issue #4 MVP before the settings shape existed.
-    if (value.preferences && typeof value.preferences === 'object') {
-      for (const [id, preference] of Object.entries(value.preferences)) {
-        if (id && isPreference(preference) && preference !== 'DISABLED') settings[id] = { ...DEFAULT_SETTINGS, preference };
-      }
-    }
-    if (value.settings && typeof value.settings === 'object') {
-      for (const [id, selected] of Object.entries(value.settings)) {
-        if (id && isSettings(selected)) settings[id] = selected;
-      }
-    }
-    if (value.obstacles && typeof value.obstacles === 'object') {
-      for (const [key, known] of Object.entries(value.obstacles)) {
-        if (known && isRoute(known.route) && isEvent(known.event)
-          && known.route.id === known.event.routeId
-          && key === occurrenceKey(known.route.id, known.event.obstacleId)) {
-          obstacles[key] = { route: minimalRoute(known.route), event: minimalEvent(known.event) };
-        }
-      }
-    }
-    if (value.urgentSent && typeof value.urgentSent === 'object') {
-      for (const [key, revision] of Object.entries(value.urgentSent)) {
-        if (typeof revision === 'string' && revision) urgentSent[key] = revision;
-      }
-    }
-    if (value.remoteRoutes && typeof value.remoteRoutes === 'object') {
-      for (const [routeId, enabled] of Object.entries(value.remoteRoutes)) if (routeId && enabled === true) remoteRoutes[routeId] = true;
-    }
-    return { settings, obstacles, urgentSent, remoteRoutes };
+    const value = raw ? JSON.parse(raw) as Partial<StoredState> : {};
+    for (const [id, settings] of Object.entries(value.settings ?? {})) if (isSettings(settings)) state.settings[id] = settings;
+    if (Array.isArray(value.obstacles)) state.obstacles = value.obstacles.filter(isObstacle);
+    for (const [key, at] of Object.entries(value.due ?? {})) if (Number.isFinite(at)) state.due[key] = at;
   } catch {
-    return { settings: {}, obstacles: {}, urgentSent: {}, remoteRoutes: {} };
+    // A broken file only costs the saved choices; it must not stop the app.
   }
+  return state;
 }
 
-/** Serialized operations prevent duplicate schedules from simultaneous event and setting updates. */
-export function createNotificationService(storage: KeyValueStorage, driver: NotificationDriver, now: () => Date = () => new Date()) {
+/** Operations run one at a time, so a sync and a settings change can't schedule the same reminder twice. */
+export function createNotificationService(storage: TextStorage, driver: NotificationDriver, now: () => Date = () => new Date()) {
   let tail: Promise<unknown> = Promise.resolve();
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = tail.then(operation);
     tail = result.catch(() => undefined);
     return result;
   }
-  async function load() { return readState(await storage.getItem(STORAGE_KEY)); }
-  async function save(state: StoredState) { await storage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  const load = () => readState(storage.read());
 
-  async function reconcile(routeId: string, state: StoredState, requestPermission: boolean): Promise<string | null> {
-    const current = (await driver.pending()).filter((item) => item.routeId === routeId);
-    const settings = state.settings[routeId] ?? DEFAULT_SETTINGS;
-    const remoteManaged = state.remoteRoutes[routeId] === true;
-    const knownForRoute = Object.values(state.obstacles).filter(({ route }) => route.id === routeId);
-    const desired = knownForRoute.flatMap(({ route, event }) => {
-      if (route.id !== routeId) return [];
-      const decision = scheduleDecision(event, settings, now());
-      if (!decision.date) return [];
-      const content = notificationContent(route, event);
-      return [{ date: decision.date, payload: {
-        ...content, route, event,
-        signature: occurrenceSignature(route, event, settings, decision.date),
-      } }];
-    });
-    const allowed = settings.preference !== 'DISABLED' && !remoteManaged && await driver.permission(requestPermission);
-    const signatures = new Set(allowed ? desired.map((item) => item.payload.signature) : []);
+  /** Brings the scheduled reminders in line with the state, then saves it. Returns a warning for the user, if any. */
+  async function reconcile(state: StoredState, requestPermission: boolean): Promise<string | null> {
+    const time = now();
+    const due: StoredState['due'] = {};
+    const wanted = new Map<string, { date: Date; key: string; payload: ReminderPayload }>();
+    for (const obstacle of state.obstacles) {
+      const key = obstacleKey(obstacle);
+      if (state.due[key] !== undefined && state.due[key] <= time.getTime()) {
+        due[key] = state.due[key];
+        continue;
+      }
+      const date = reminderDate(obstacle, state.settings[obstacle.routeId] ?? DEFAULT_SETTINGS, time);
+      if (!date) continue;
+      const content = notificationContent(obstacle, time);
+      const signature = JSON.stringify([key, date.getTime(), content.body]);
+      wanted.set(signature, { date, key, payload: { ...content, siteId: obstacle.siteId, signature } });
+    }
+    const allowed = wanted.size > 0 && await driver.permission(requestPermission);
     const kept = new Set<string>();
-    for (const item of current) {
-      if (item.signature && signatures.has(item.signature) && !kept.has(item.signature)) kept.add(item.signature);
+    for (const item of await driver.pending()) {
+      if (allowed && wanted.has(item.signature) && !kept.has(item.signature)) kept.add(item.signature);
       else await driver.cancel(item.id);
     }
-    if (!allowed) return settings.preference === 'DISABLED' || remoteManaged ? null : 'Notifications are disabled in device settings. Your preference was saved, but no reminder was scheduled.';
-    for (const item of desired) {
-      if (!kept.has(item.payload.signature)) {
-        await driver.schedule(item.date, item.payload);
-        kept.add(item.payload.signature);
+    if (allowed) {
+      for (const [signature, { date, key, payload }] of wanted) {
+        if (!kept.has(signature)) await driver.schedule(date, payload);
+        due[key] = date.getTime();
       }
     }
-    for (const { route, event } of knownForRoute) {
-      const key = occurrenceKey(route.id, event.obstacleId);
-      if (!lastMinuteDecision(event, settings, now()) || state.urgentSent[key] === event.revision) continue;
-      await driver.notifyNow({ ...notificationContent(route, event), title: 'Important Construction Update', route, event, signature: `urgent:${key}:${event.revision}` });
-      state.urgentSent[key] = event.revision!;
-      await save(state);
-    }
-    return null;
-  }
-
-  async function updateSettings(route: NotificationRoute, settings: RouteNotificationSettings): Promise<string | null> {
-    if (!isRoute(route) || !isSettings(settings)) throw new Error('Invalid route or notification settings.');
-    const state = await load();
-    state.settings[route.id] = settings;
-    for (const known of Object.values(state.obstacles)) if (known.route.id === route.id) known.route = minimalRoute(route);
-    await save(state);
-    return reconcile(route.id, state, settings.preference !== 'DISABLED');
+    state.due = due;
+    storage.write(JSON.stringify(state));
+    return wanted.size > 0 && !allowed
+      ? 'Notifications are turned off for this app in your phone settings, so no alert was scheduled.'
+      : null;
   }
 
   return {
-    getPreference(routeId: string): Promise<NotificationPreference> {
-      return enqueue(async () => (await load()).settings[routeId]?.preference ?? 'DISABLED');
-    },
     getSettings(routeId: string): Promise<RouteNotificationSettings> {
-      return enqueue(async () => ({ ...DEFAULT_SETTINGS, ...(await load()).settings[routeId] }));
+      return enqueue(async () => load().settings[routeId] ?? DEFAULT_SETTINGS);
     },
-    listSettings(): Promise<Record<string, RouteNotificationSettings>> {
-      return enqueue(async () => ({ ...(await load()).settings }));
-    },
-    setSettings(route: NotificationRoute, settings: RouteNotificationSettings): Promise<string | null> {
-      return enqueue(() => updateSettings(route, settings));
-    },
-    /** Call only after the authenticated backend confirms remote delivery ownership. */
-    setRemoteDelivery(routeId: string, enabled: boolean): Promise<void> {
+    setSettings(routeId: string, settings: RouteNotificationSettings): Promise<string | null> {
       return enqueue(async () => {
-        if (!routeId || typeof enabled !== 'boolean') throw new Error('Invalid delivery mode.');
-        const state = await load();
-        if (enabled) state.remoteRoutes[routeId] = true;
-        else delete state.remoteRoutes[routeId];
-        await save(state);
-        await reconcile(routeId, state, false);
+        if (!isSettings(settings)) throw new Error('Invalid notification settings.');
+        const state = load();
+        state.settings[routeId] = settings;
+        return reconcile(state, settings.preference !== 'DISABLED');
       });
     },
-    setPreference(route: NotificationRoute, preference: NotificationPreference): Promise<string | null> {
+    /** Replaces the known obstacles with the backend's current list. */
+    sync(obstacles: RouteObstacle[]): Promise<void> {
       return enqueue(async () => {
-        if (!isPreference(preference)) throw new Error('Invalid notification preference.');
-        const existing = (await load()).settings[route.id] ?? DEFAULT_SETTINGS;
-        return updateSettings(route, { ...existing, preference });
-      });
-    },
-    processObstacle(route: NotificationRoute, event: ConstructionObstacleEvent): Promise<string | null> {
-      return enqueue(async () => {
-        if (!isRoute(route) || !isEvent(event) || route.id !== event.routeId) throw new Error('Invalid construction event or route.');
-        const state = await load();
-        const key = occurrenceKey(route.id, event.obstacleId);
-        if (event.change === 'CANCELLED') delete state.obstacles[key];
-        else state.obstacles[key] = { route: minimalRoute(route), event: minimalEvent(event) };
-        await save(state);
-        return reconcile(route.id, state, false);
-      });
-    },
-    removeObstacle(routeId: string, obstacleId: string): Promise<void> {
-      return enqueue(async () => {
-        const state = await load();
-        delete state.obstacles[occurrenceKey(routeId, obstacleId)];
-        await save(state);
-        await reconcile(routeId, state, false);
+        const state = load();
+        state.obstacles = obstacles;
+        await reconcile(state, false);
       });
     },
     forgetRoute(routeId: string): Promise<void> {
       return enqueue(async () => {
-        const state = await load();
+        const state = load();
         delete state.settings[routeId];
-        delete state.remoteRoutes[routeId];
-        for (const [key, known] of Object.entries(state.obstacles)) {
-          if (known.route.id === routeId) delete state.obstacles[key];
-        }
-        for (const key of Object.keys(state.urgentSent)) {
-          try { if (JSON.parse(key)[0] === routeId) delete state.urgentSent[key]; }
-          catch { delete state.urgentSent[key]; }
-        }
-        await save(state);
-        for (const item of await driver.pending()) {
-          if (item.routeId === routeId) await driver.cancel(item.id);
-        }
+        state.obstacles = state.obstacles.filter((obstacle) => obstacle.routeId !== routeId);
+        await reconcile(state, false);
       });
     },
-    reconcileAll(): Promise<void> {
-      return enqueue(async () => {
-        const state = await load();
-        const ids = new Set([...Object.keys(state.settings), ...Object.keys(state.remoteRoutes), ...Object.values(state.obstacles).map((known) => known.route.id)]);
-        for (const item of await driver.pending()) if (item.routeId) ids.add(item.routeId);
-        for (const id of ids) await reconcile(id, state, false);
-      });
+    obstaclesOn(routeId: string): Promise<RouteObstacle[]> {
+      return enqueue(async () => load().obstacles.filter((obstacle) => obstacle.routeId === routeId));
     },
-    notificationTarget(routeId: string, obstacleId: string): Promise<KnownObstacle | null> {
-      return enqueue(async () => (await load()).obstacles[occurrenceKey(routeId, obstacleId)] ?? null);
-    },
-    /** Testing and external links share the same validated Maps URL. */
-    directionsUrl: googleMapsDirectionsUrl,
   };
 }
