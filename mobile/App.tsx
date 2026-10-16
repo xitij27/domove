@@ -69,6 +69,7 @@ export default function App() {
   const [viewing, setViewing] = useState<SavedRoute | null>(null);
   const closeRoute = useCallback(() => setViewing(null), []);
   const routeDeleted = useCallback((id: string) => setViewing((route) => (route?.id === id ? null : route)), []);
+  const routeUpdated = useCallback((updated: SavedRoute) => setViewing((route) => (route?.id === updated.id ? updated : route)), []);
 
   useEffect(() => startNotificationRuntime(), []);
 
@@ -97,7 +98,7 @@ export default function App() {
           <View style={styles.fill} importantForAccessibility={routesOpen ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={routesOpen}>
             <RadarMap route={viewing} onCloseRoute={closeRoute} />
           </View>
-          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteDeleted={routeDeleted} />
+          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteUpdated={routeUpdated} onRouteDeleted={routeDeleted} />
         </View>
       )}
     </SafeAreaProvider>
