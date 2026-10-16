@@ -8,6 +8,7 @@
    2. `20261016151000_create_delete_routes.sql`
    3. `20261016152000_saved_routes_hardening.sql`
    4. `20261016153000_routes_require_coordinates.sql`
+   5. `20261016154000_routes_leaving_time.sql`
 
    The team database already runs all of them; see [Team database](#team-database).
    The second file was renamed from `20261016160000_create_delete_routes.sql`
@@ -15,7 +16,9 @@
    unchanged. The third adds table constraints, so it fails if a route has a start
    time without weekdays (or the reverse) or repeats a weekday. Routes created by
    the app never do. The fourth deletes routes saved without coordinates and
-   then requires a coordinate for every place.
+   then requires a coordinate for every place. The fifth adds the optional
+   leaving time, allows a start time without weekdays and lowers the stop limit
+   to 48, so it fails if a route has more than 48 stops.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
@@ -24,7 +27,8 @@
 
 The app footer offers **Create Route** and **Saved routes**. Type a starting
 location and final destination and pick each from the suggestions, select Pedestrian, Bicycle or Car, optionally
-add/remove stops, then tap **Ready**. The saved list opens after a successful save.
+add/remove stops, optionally enter a **Leaving at** time such as `08:30`, then
+tap **Ready**. The saved list opens after a successful save.
 Delete removes a route immediately after the server confirms the deletion. A
 failed deletion leaves it visible, with a retryable error. Close returns to the
 existing app; Cancel returns from the form to the list without saving.
@@ -36,7 +40,10 @@ coordinate again, and **Ready** asks to pick one. That way every saved route can
 be checked against construction sites (#5).
 
 The form trims location text, ignores blank stops and requires a mode. Labels
-allow up to 200 characters, and routes allow up to 50 intermediate stops.
+allow up to 200 characters, and routes allow up to 48 intermediate stops:
+openrouteservice takes at most 50 points, start and destination included. The
+leaving time decides whether daytime-only construction sites count (between 6:00
+and 22:00); without one, the time of planning is used.
 Saving disables editing, closing and duplicate submissions until the request ends.
 Every request gives up after 15 seconds, so a stalled connection cannot lock
 the screen.
@@ -86,6 +93,7 @@ const route = await routesRepository.create({
   start: { label: 'Hauptbahnhof Dortmund', coordinate: { latitude: 51.5168, longitude: 7.4593 } },
   destination: { label: 'Westfalenpark, Dortmund', coordinate: { latitude: 51.4951, longitude: 7.4754 } },
   mode: 'bike',
+  startTime: '08:30',               // or '' for no leaving time
   waypoints: [{ label: 'Friedensplatz, Dortmund', coordinate: { latitude: 51.5119, longitude: 7.4669 } }],
 });
 await routesRepository.delete(route.id);
@@ -98,6 +106,7 @@ type SavedRoute = {
   start: RouteLocation;
   destination: RouteLocation;
   mode: 'pedestrian' | 'bike' | 'car'; // UI label for bike is Bicycle
+  startTime: string | null;         // "HH:MM" leaving time; without weekdays it means today
   waypoints: (RouteLocation & { id: string; sequence: number })[];
   createdAt: string;                // Database-generated ISO timestamp
 };
@@ -116,11 +125,12 @@ name for it. No route calculation, map visualization or obstacle analysis is
 added here.
 
 The existing schema required a recurring schedule. These migrations make it
-optional: a route without a schedule has neither
-`start_time` nor `weekdays`. A scheduled route has both, with no repeated day.
-Existing scheduled/spatial rows, indexes and enum values are preserved.
-Consumers must handle these optional values. Scheduling remains in the underlying
-tables and can be added to the shared projection when that feature needs it.
+optional: a route may have no `start_time` and no `weekdays`, or only a
+`start_time` ("today at this time", the form's **Leaving at**), or both. Weekdays
+always need a start time and never repeat a day. Existing scheduled/spatial rows,
+indexes and enum values are preserved. Consumers must handle these optional
+values. Weekdays stay in the underlying tables and can be added to the shared
+projection when a feature needs them.
 
 If `create` fails, calling it again with the same draft reuses the route's ID.
 A save that reached the server before its response was lost therefore returns the
@@ -134,8 +144,8 @@ stored route instead of saving it twice. A changed draft gets a new ID.
   (`or=(created_at.lt.<createdAt>,and(created_at.eq.<createdAt>,id.lt.<id>))`),
   so routes added or deleted meanwhile do not shift the pages.
 - `POST /rest/v1/rpc/create_saved_route` takes `p_id` (a UUID chosen by the app),
-  `p_start`, `p_finish`, `p_modality` and optional `p_waypoints` (an array), and
-  returns one `SavedRoute`. Each place has the read shape
+  `p_start`, `p_finish`, `p_modality`, optional `p_waypoints` (an array) and
+  optional `p_start_time` (`"HH:MM"`), and returns one `SavedRoute`. Each place has the read shape
   `{ "label": "…", "coordinate": { "latitude": …, "longitude": … } }`; a missing,
   non-numeric or out-of-range coordinate is rejected. Route and child inserts
   run in one transaction, so a failed stop cannot leave a partial route. Calling
@@ -144,7 +154,7 @@ stored route instead of saving it twice. A changed draft gets a new ID.
 - `DELETE /rest/v1/routes?id=eq.<uuid>` deletes the route. The existing foreign
   key cascades deletion to all its stops.
 
-The 200-character and 50-stop limits are also table constraints, so they hold
+The 200-character and 48-stop limits are also table constraints, so they hold
 for writes that do not go through the RPC.
 
 Use the existing publishable key in the `apikey` header. The read view uses

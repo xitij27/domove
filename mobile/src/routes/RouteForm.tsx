@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type PlaceDraft, type RouteDraft, type RouteErrors } from './model';
 import PlaceInput from './PlaceInput';
 
@@ -12,6 +12,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [destination, setDestination] = useState(EMPTY);
   const [mode, setMode] = useState<RouteDraft['mode']>('');
   const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>([]);
+  const [startTime, setStartTime] = useState('');
   const nextId = useRef(0);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
 
   async function save() {
     if (submitting.current) return;
-    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place) };
+    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place), startTime };
     const validation = validateRoute(draft);
     setErrors(validation);
     setSaveError(null);
@@ -60,7 +61,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
         ))}
         {errors.waypoints && <ErrorText message={errors.waypoints} />}
         <Pressable accessibilityRole="button" disabled={busy || stops.length >= MAX_WAYPOINTS} accessibilityState={{ disabled: busy || stops.length >= MAX_WAYPOINTS }} style={styles.secondary} onPress={() => setStops((current) => [...current, { id: nextId.current++, place: EMPTY }])}>
-          <Text style={styles.secondaryText}>{stops.length >= MAX_WAYPOINTS ? '50 stops maximum' : '+ Add stop'}</Text>
+          <Text style={styles.secondaryText}>{stops.length >= MAX_WAYPOINTS ? `${MAX_WAYPOINTS} stops maximum` : '+ Add stop'}</Text>
         </Pressable>
 
         <Text style={styles.label}>Final destination</Text>
@@ -76,6 +77,11 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
           ))}
         </View>
         {errors.mode && <ErrorText message={errors.mode} />}
+
+        <Text style={styles.label}>Leaving at (optional)</Text>
+        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a time, we check the time the route is planned.</Text>
+        <TextInput accessibilityLabel="Leaving at" value={startTime} onChangeText={setStartTime} editable={!busy} maxLength={5} keyboardType="numbers-and-punctuation" placeholder="e.g. 08:30" placeholderTextColor="#737d8b" style={[styles.input, !!errors.startTime && styles.invalid]} />
+        {errors.startTime && <ErrorText message={errors.startTime} />}
         {saveError && <ErrorText message={saveError} />}
         <Pressable accessibilityRole="button" accessibilityLabel="Ready" accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
           <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Ready'}</Text>

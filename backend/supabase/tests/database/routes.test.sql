@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(44);
+select plan(46);
 
 -- Inject a child-insert failure to verify that the RPC is atomic.
 create function pg_temp.reject_test_stop() returns trigger language plpgsql as $$
@@ -42,6 +42,8 @@ select is((select route #> '{destination,coordinate}' from saved_routes where id
   '{"latitude": 51.49, "longitude": 7.48}'::jsonb, 'the destination coordinate is stored');
 select is((select route ->> 'mode' from saved_routes where id = '11111111-1111-4111-8111-111111111111'),
   'bike', 'the bike mode is stored as bike');
+select is((select route -> 'startTime' from saved_routes where id = '11111111-1111-4111-8111-111111111111'),
+  'null'::jsonb, 'a route without a leaving time has a null start time');
 select ok((select route ->> 'createdAt' is not null from saved_routes where id = '11111111-1111-4111-8111-111111111111'),
   'the creation time is returned');
 select is((select jsonb_path_query_array(route, '$.waypoints[*].label') from saved_routes where id = '11111111-1111-4111-8111-111111111111'),
@@ -63,6 +65,9 @@ select is((select count(*)::integer from route_waypoints where route_id = '11111
 select lives_ok(
   $$select public.create_saved_route('22222222-2222-4222-8222-222222222222', pg_temp.place('Home'), pg_temp.place('Work'), 'car')$$,
   'a route without stops can be saved');
+select is(
+  public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', '[]', '07:45') ->> 'startTime',
+  '07:45', 'the leaving time is stored and returned as HH:MM');
 select lives_ok(
   $$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), mode) from unnest(enum_range(null::public.modality)) as mode$$,
   'every transportation mode can be saved');
@@ -95,11 +100,11 @@ select throws_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.p
 select throws_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', pg_temp.place('Cafe'))$$,
   '22023', 'Stops must be a list.', 'stops that are not a list are rejected');
 select throws_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', jsonb_build_array(pg_temp.place(repeat('x', 201))))$$,
-  '22023', 'Use at most 50 stops, each no longer than 200 characters.', 'a stop over 200 characters is rejected');
-select throws_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', (select jsonb_agg(pg_temp.place('Stop')) from generate_series(1, 51)))$$,
-  '22023', 'Use at most 50 stops, each no longer than 200 characters.', 'more than 50 stops are rejected');
-select lives_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', (select jsonb_agg(pg_temp.place('Stop')) from generate_series(1, 50)))$$,
-  '50 stops are accepted');
+  '22023', 'Use at most 48 stops, each no longer than 200 characters.', 'a stop over 200 characters is rejected');
+select throws_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', (select jsonb_agg(pg_temp.place('Stop')) from generate_series(1, 49)))$$,
+  '22023', 'Use at most 48 stops, each no longer than 200 characters.', 'more than 48 stops are rejected');
+select lives_ok($$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', (select jsonb_agg(pg_temp.place('Stop')) from generate_series(1, 48)))$$,
+  '48 stops are accepted');
 
 -- Table constraints, which also apply to writes that bypass the RPC
 select col_not_null('public', 'routes', 'start_location', 'a route needs a starting coordinate');
@@ -108,15 +113,14 @@ select col_not_null('public', 'route_waypoints', 'location', 'a stop needs a coo
 select throws_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality) values (repeat('x', 201), 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car')$$,
   '23514', 'new row for relation "routes" violates check constraint "routes_label_length"',
   'the table rejects labels over 200 characters');
-select throws_ok($$insert into route_waypoints (route_id, seq, label, location) values ('22222222-2222-4222-8222-222222222222', 50, 'Too far', 'POINT(7.46 51.51)')$$,
+select throws_ok($$insert into route_waypoints (route_id, seq, label, location) values ('22222222-2222-4222-8222-222222222222', 48, 'Too far', 'POINT(7.46 51.51)')$$,
   '23514', 'new row for relation "route_waypoints" violates check constraint "route_waypoints_seq_limit"',
-  'the table rejects a 51st stop');
+  'the table rejects a 49th stop');
 select throws_ok($$insert into route_waypoints (route_id, seq, label, location) values ('22222222-2222-4222-8222-222222222222', 0, repeat('x', 201), 'POINT(7.46 51.51)')$$,
   '23514', 'new row for relation "route_waypoints" violates check constraint "route_waypoints_label_length"',
   'the table rejects stop labels over 200 characters');
-select throws_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, start_time) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '08:00')$$,
-  '23514', 'new row for relation "routes" violates check constraint "routes_schedule_complete"',
-  'a start time needs weekdays');
+select lives_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, start_time) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '08:00')$$,
+  'a start time without weekdays means today at that time');
 select throws_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, weekdays) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '{monday}')$$,
   '23514', 'new row for relation "routes" violates check constraint "routes_schedule_complete"',
   'weekdays need a start time');

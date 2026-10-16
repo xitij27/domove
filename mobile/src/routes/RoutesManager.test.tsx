@@ -14,7 +14,7 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
   return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
@@ -48,7 +48,7 @@ beforeEach(() => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
         start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
-        mode: draft.mode as SavedRoute['mode'], createdAt: '2026-10-16T12:00:00Z',
+        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, createdAt: '2026-10-16T12:00:00Z',
         waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
       };
       persisted.unshift(route);
@@ -122,6 +122,19 @@ test('only places picked from the suggestions can be saved', async () => {
   await fireEvent.press(await screen.findByRole('button', { name: 'Parks' }));
   await press('Ready');
   expect(screen.getByText('Station → Parks')).toBeOnTheScreen();
+});
+
+test('an optional leaving time is checked, saved and listed', async () => {
+  await mount();
+  await fill();
+  await enter('Leaving at', '8.30');
+  await press('Ready');
+  expect(screen.getByText('Enter a time like 08:30, or leave it empty.')).toBeOnTheScreen();
+  expect(repository.create).not.toHaveBeenCalled();
+  await enter('Leaving at', '08:30');
+  await press('Ready');
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30' }));
+  expect(screen.getByText('Leaving at 08:30')).toBeOnTheScreen();
 });
 
 test('says when suggestions cannot be loaded', async () => {

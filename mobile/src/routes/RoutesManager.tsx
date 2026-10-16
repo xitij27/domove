@@ -134,6 +134,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
+              {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
                 <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>

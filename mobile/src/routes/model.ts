@@ -16,6 +16,8 @@ export type SavedRoute = {
   start: RouteLocation;
   destination: RouteLocation;
   mode: TransportMode;
+  /** "HH:MM" when the user leaves; without weekdays it means today. */
+  startTime: string | null;
   waypoints: RouteWaypoint[];
   createdAt: string;
 };
@@ -29,11 +31,14 @@ export type RouteDraft = {
   destination: PlaceDraft;
   mode: TransportMode | '';
   waypoints: PlaceDraft[];
+  /** "HH:MM", or empty for no time. */
+  startTime: string;
 };
 
 export const MAX_LOCATION_LENGTH = 200;
-export const MAX_WAYPOINTS = 50;
-export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints', string>>;
+// openrouteservice takes 50 points, start and destination included
+export const MAX_WAYPOINTS = 48;
+export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints' | 'startTime', string>>;
 
 export function validateRoute(draft: RouteDraft): RouteErrors {
   const errors: RouteErrors = {};
@@ -43,14 +48,16 @@ export function validateRoute(draft: RouteDraft): RouteErrors {
   if (destination) errors.destination = destination;
   if (!Object.hasOwn(TRANSPORT_MODES, draft.mode)) errors.mode = 'Select a transportation mode.';
   const stops = draft.waypoints.filter(isFilled);
-  if (draft.waypoints.length > MAX_WAYPOINTS) errors.waypoints = 'Use no more than 50 intermediate stops.';
+  if (draft.waypoints.length > MAX_WAYPOINTS) errors.waypoints = `Use no more than ${MAX_WAYPOINTS} intermediate stops.`;
   else if (stops.some((stop) => stop.label.trim().length > MAX_LOCATION_LENGTH)) {
     errors.waypoints = 'Use 200 characters or fewer for each stop.';
   } else if (stops.some((stop) => !stop.coordinate)) errors.waypoints = 'Pick each stop from the suggestions.';
+  const time = draft.startTime.trim();
+  if (time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) errors.startTime = 'Enter a time like 08:30, or leave it empty.';
   return errors;
 }
 
-export function normalizeRoute(draft: RouteDraft): { start: Place; destination: Place; mode: TransportMode; waypoints: Place[] } {
+export function normalizeRoute(draft: RouteDraft): { start: Place; destination: Place; mode: TransportMode; waypoints: Place[]; startTime: string | null } {
   const errors = validateRoute(draft);
   if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
   // validateRoute guarantees a coordinate on every place kept here
@@ -60,6 +67,7 @@ export function normalizeRoute(draft: RouteDraft): { start: Place; destination: 
     destination: clean(draft.destination),
     mode: draft.mode as TransportMode,
     waypoints: draft.waypoints.filter(isFilled).map(clean),
+    startTime: draft.startTime.trim() || null,
   };
 }
 

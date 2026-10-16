@@ -78,6 +78,7 @@ export function createRoutesRepository(
           p_finish: clean.destination,
           p_modality: clean.mode,
           p_waypoints: clean.waypoints,
+          p_start_time: clean.startTime,
         }),
       }) as SavedRoute | null;
       if (route?.id !== id) throw new Error('Could not confirm the saved route. Refresh the list before trying again.');
