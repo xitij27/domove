@@ -27,7 +27,7 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
   { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
 ];
 
-const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
+export const GOOGLE_MAP_STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
 export default function GoogleSitesMap({ sites, onSelect, theme }: {
   sites: Site[];
@@ -38,7 +38,7 @@ export default function GoogleSitesMap({ sites, onSelect, theme }: {
     <MapView
       style={StyleSheet.absoluteFill}
       initialRegion={DORTMUND}
-      customMapStyle={STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
+      customMapStyle={GOOGLE_MAP_STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
       userInterfaceStyle={theme === 'night' ? 'dark' : 'light'}
       onPress={(e) => e.nativeEvent.action !== 'marker-press' && onSelect(null)}
     >

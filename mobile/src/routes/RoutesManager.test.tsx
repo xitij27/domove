@@ -5,6 +5,22 @@ import type { RouteDraft, SavedRoute } from './model';
 import { searchPlaces } from './places';
 
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock('@expo/vector-icons/MaterialIcons', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  function MockMaterialIcons({ accessibilityLabel }: { accessibilityLabel?: string }) {
+    return <View accessibilityLabel={accessibilityLabel} />;
+  }
+  return MockMaterialIcons;
+});
+jest.mock('react-native-maps', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  const MapView = ({ children }: { children?: React.ReactNode }) => <View testID="route-map">{children}</View>;
+  const Marker = () => <View />;
+  const Polyline = () => <View />;
+  return { __esModule: true, default: MapView, Marker, Polyline };
+});
 // Every search suggests exactly the typed text.
 jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
 jest.setTimeout(15000);
@@ -44,6 +60,7 @@ beforeEach(() => {
   onBusyChange.mockReset();
   repository = {
     list: jest.fn(async () => [...persisted]),
+    listObstacles: jest.fn(async (_routeId: string) => []),
     create: jest.fn(async (draft: RouteDraft) => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
@@ -203,4 +220,42 @@ test('cancelling discards the draft and load failures can be retried', async () 
   expect(screen.getByText('Cannot load routes.')).toBeOnTheScreen();
   await press('Retry loading routes');
   expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
+});
+
+test('tapping a route shows its map and obstacles, back returns to the list', async () => {
+  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+  try {
+    persisted = [{ ...stationToPark }];
+    repository.listObstacles.mockResolvedValueOnce([{
+      siteId: 'site-1',
+      distanceMeters: 0,
+      detectedAt: '2026-10-16T12:00:00Z',
+      site: {
+        id: 'site-1', status: 'current', coordinate: { latitude: 51.51, longitude: 7.47 },
+        title: 'Road works', owner: '', period: 'Mon–Fri', district: 'Mitte',
+      },
+    }]);
+    await mount();
+    await press('View route from Station to Park');
+    expect(await screen.findByTestId('route-map')).toBeOnTheScreen();
+    expect(screen.getByText('1 construction site on the way.')).toBeOnTheScreen();
+    expect(screen.getByText('Road works')).toBeOnTheScreen();
+    await press('Back to routes');
+    expect(screen.getByText('Your routes')).toBeOnTheScreen();
+  } finally {
+    fetchSpy.mockRestore();
+  }
+});
+
+test('a route without obstacles says so on its map', async () => {
+  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+  try {
+    persisted = [{ ...stationToPark }];
+    await mount();
+    await press('View route from Station to Park');
+    expect(await screen.findByTestId('route-map')).toBeOnTheScreen();
+    expect(await screen.findByText('No construction sites on the way.')).toBeOnTheScreen();
+  } finally {
+    fetchSpy.mockRestore();
+  }
 });
