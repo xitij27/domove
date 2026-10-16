@@ -8,7 +8,7 @@
    2. `20261016151000_create_delete_routes.sql`
    3. `20261016152000_saved_routes_hardening.sql`
 
-   The team database already runs the first two, so paste only the third there.
+   The team database already runs all three; see [Team database](#team-database).
    The second file was renamed from `20261016160000_create_delete_routes.sql`
    so it no longer shares a version with the obstacles branch; its content is
    unchanged. The third adds table constraints, so it fails if a route has a start
@@ -32,6 +32,32 @@ allow up to 200 characters, and routes allow up to 50 intermediate stops.
 Saving disables editing, closing and duplicate submissions until the request ends.
 Every request gives up after 15 seconds, so a stalled connection cannot lock
 the screen.
+
+## Team database
+
+The team project runs all three route migrations. The SQL editor keeps no
+migration history, so this is the record:
+
+| Migration | Applied |
+| --- | --- |
+| `20261016150000_routes.sql` | Before the PR #7 review |
+| `20261016151000_create_delete_routes.sql` | Before the review, under its old name `20261016160000_create_delete_routes.sql` |
+| `20261016152000_saved_routes_hardening.sql` | 2026-10-16, pasted into the SQL editor |
+
+Checked after the last one:
+
+- The new constraints, the list index and the five-argument
+  `create_saved_route` are in place, the old four-argument version is gone, and
+  the existing route still reads back with its coordinates.
+- Through the REST API with the publishable key, an invalid save returns
+  HTTP 400 with the server's message, and the route list loads.
+- Supabase's security advisor reports nothing. The performance advisor's
+  "multiple permissive policies" warning comes from the open hackathon policies,
+  which the [ownership TODO](routes-database-todo.md) replaces.
+
+App builds from before this change call `create_saved_route` without `p_id` and
+now get HTTP 404, so they cannot save routes. Update to this branch's app code;
+JS changes reload live in a development build.
 
 ## Shared contract for teammates
 
