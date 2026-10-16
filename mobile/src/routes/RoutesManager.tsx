@@ -5,7 +5,7 @@ import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatDay, TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatLeaving, TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 /** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
 export const SHEET_RADIUS = 24;
@@ -233,7 +233,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
-              {item.startTime && <Text style={styles.hint}>Leaving {item.startDate && `${formatDay(item.startDate)} `}at {item.startTime}</Text>}
+              {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Notification preferences for the route to ${place(item.destination, 'Final destination')}`} disabled={!!deleting} onPress={() => setNotifying(item)} style={styles.notify}>
                 <Text style={styles.secondaryText}>Notifications</Text>

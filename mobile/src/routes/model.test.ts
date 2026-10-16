@@ -1,34 +1,41 @@
-import { normalizeRoute, parseDay, validateRoute, type PlaceDraft, type RouteDraft } from './model';
+import { formatLeaving, normalizeRoute, repeatSummary, validateRoute, type PlaceDraft, type RouteDraft } from './model';
 
 const at = { latitude: 51.51, longitude: 7.46 };
 const place = (label: string, coordinate: PlaceDraft['coordinate'] = at): PlaceDraft => ({ label, coordinate });
 const draft: RouteDraft = {
   start: place(' Station '), destination: place(' Park '), mode: 'bike',
-  waypoints: [place(' Cafe '), place('', null), place('  ', null), place('Library')], startTime: ' 07:45 ', startDate: ' 2026-10-20 ',
+  waypoints: [place(' Cafe '), place('', null), place('  ', null), place('Library')], startTime: ' 07:45 ', weekdays: ['friday', 'monday'],
 };
 
 test('trims locations and preserves the order of non-empty stops', () => {
   expect(normalizeRoute(draft)).toEqual({
     start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike',
-    waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }], startTime: '07:45', startDate: '2026-10-20',
+    waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }], startTime: '07:45', weekdays: ['monday', 'friday'],
   });
-  expect(normalizeRoute({ ...draft, startTime: '  ', startDate: ' ' })).toMatchObject({ startTime: null, startDate: null });
+  expect(normalizeRoute({ ...draft, startTime: '  ', weekdays: [] })).toMatchObject({ startTime: null, weekdays: [] });
 });
 
 test('the leaving time is optional but must be a time of day', () => {
-  for (const time of ['', '8:30', '08:30', '23:59', '00:00']) expect(validateRoute({ ...draft, startDate: '', startTime: time }).startTime).toBeUndefined();
+  for (const time of ['', '8:30', '08:30', '23:59', '00:00']) expect(validateRoute({ ...draft, weekdays: [], startTime: time }).startTime).toBeUndefined();
   for (const time of ['24:00', '8.30', '0830', '12:60', 'noon']) {
-    expect(validateRoute({ ...draft, startDate: '', startTime: time }).startTime).toBe('Use a leaving time like 08:30.');
+    expect(validateRoute({ ...draft, weekdays: [], startTime: time }).startTime).toBe('Use a leaving time like 08:30.');
   }
 });
 
-test('the leaving date is optional, must be a real day and needs a time', () => {
-  for (const day of ['', '2026-10-20', '2028-02-29']) expect(validateRoute({ ...draft, startDate: day }).startTime).toBeUndefined();
-  for (const day of ['2026-02-30', '2026-13-01', '20-10-2026', 'tomorrow']) {
-    expect(validateRoute({ ...draft, startDate: day }).startTime).toBe('Use a leaving date like 2026-10-16.');
-  }
-  expect(validateRoute({ ...draft, startTime: '' }).startTime).toBe('Pick a time for the leaving date.');
-  expect(parseDay('2026-10-20')).toEqual(new Date(2026, 9, 20));
+test('repeat days are optional but need a time', () => {
+  expect(validateRoute({ ...draft, weekdays: [] }).startTime).toBeUndefined();
+  expect(validateRoute({ ...draft, startTime: '' }).startTime).toBe('Pick a time for the repeat days.');
+});
+
+test('repeat days read like an alarm', () => {
+  expect(repeatSummary([])).toBeNull();
+  expect(repeatSummary(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'])).toBe('Every day');
+  expect(repeatSummary(['friday', 'thursday', 'wednesday', 'tuesday', 'monday'])).toBe('Weekdays');
+  expect(repeatSummary(['sunday', 'saturday'])).toBe('Weekends');
+  expect(repeatSummary(['friday', 'monday', 'wednesday'])).toBe('Mon, Wed, Fri');
+  expect(formatLeaving({ startTime: '07:15', weekdays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] })).toBe('Leaving at 07:15 · Weekdays');
+  expect(formatLeaving({ startTime: '07:15', weekdays: [] })).toBe('Leaving at 07:15');
+  expect(formatLeaving({ startTime: null, weekdays: [] })).toBeNull();
 });
 
 test.each(['pedestrian', 'bike', 'car'] as const)('accepts %s without optional stops', (mode) => {
@@ -36,7 +43,7 @@ test.each(['pedestrian', 'bike', 'car'] as const)('accepts %s without optional s
 });
 
 test('reports all missing required fields', () => {
-  expect(validateRoute({ start: place(' \t ', null), destination: place('\n', null), mode: '', waypoints: [], startTime: '', startDate: '' })).toEqual({
+  expect(validateRoute({ start: place(' \t ', null), destination: place('\n', null), mode: '', waypoints: [], startTime: '', weekdays: [] })).toEqual({
     start: 'Enter a starting location.', destination: 'Enter a final destination.', mode: 'Select a transportation mode.',
   });
 });
