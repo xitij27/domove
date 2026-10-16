@@ -1,0 +1,76 @@
+# Runs the app's unit tests and the route database tests on every pull request.
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+      - run: npm test -- --ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROJECT: ${{ github.workspace }}/../routes-db
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Only the route migrations: the construction-sites migration fetches the
+      # city's live feeds, which would make this job depend on them.
+      - name: Create a local Supabase project with the route migrations
+        run: |
+          mkdir -p "$PROJECT" && cd "$PROJECT"
+          supabase init < /dev/null
+          mkdir -p supabase/migrations supabase/tests
+          cp "$GITHUB_WORKSPACE"/backend/supabase/migrations/*routes*.sql supabase/migrations/
+          cp -r "$GITHUB_WORKSPACE"/backend/supabase/tests/database supabase/tests/
+          ls supabase/migrations supabase/tests/database
+
+      - name: Apply the migrations
+        working-directory: ${{ env.PROJECT }}
+        run: supabase db start
+
+      - name: Run the pgTAP tests
+        working-directory: ${{ env.PROJECT }}
+        run: supabase test db
+
+      - name: Run the REST smoke test
+        working-directory: ${{ env.PROJECT }}
+        run: |
+          supabase start -x gotrue,realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" \
+            node "$GITHUB_WORKSPACE/backend/supabase/tests/routes-rest.mjs"
