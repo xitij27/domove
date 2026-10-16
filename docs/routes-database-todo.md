@@ -53,11 +53,11 @@ is bundled in the APK, so anyone who extracts it can:
    ```
 
    Wrapping `auth.uid()` in `(select …)` lets Postgres evaluate it once per query
-   instead of once per row. The obstacles detector connects to the database
-   directly as a privileged role, so it bypasses RLS and keeps seeing every route.
+   instead of once per row. The obstacles job runs in `pg_cron` as the tables'
+   owner, so it bypasses RLS and keeps seeing every route. `obstacles` needs the
+   same owner check through its route, since anyone can still read it.
    One policy per table also clears the performance advisor's "multiple
-   permissive policies" warning for these tables; `obstacles` has the same pair
-   of open policies.
+   permissive policies" warning for these tables.
 4. Add pgTAP tests: user B cannot see, change or delete user A's routes or
    stops, and `anon` can no longer read or write either table.
 

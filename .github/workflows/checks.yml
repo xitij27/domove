@@ -48,14 +48,15 @@ jobs:
         with:
           version: latest
 
-      # Only the route migrations: the construction-sites migration fetches the
+      # All migrations, minus the construction-sites migration's first sync of the
       # city's live feeds, which would make this job depend on them.
-      - name: Create a local Supabase project with the route migrations
+      - name: Create a local Supabase project with the migrations
         run: |
           mkdir -p "$PROJECT" && cd "$PROJECT"
           supabase init < /dev/null
           mkdir -p supabase/migrations supabase/tests
-          cp "$GITHUB_WORKSPACE"/backend/supabase/migrations/*routes*.sql supabase/migrations/
+          cp "$GITHUB_WORKSPACE"/backend/supabase/migrations/*.sql supabase/migrations/
+          sed -i '/^select private.sync_construction_sites();$/d' supabase/migrations/*_construction_sites.sql
           cp -r "$GITHUB_WORKSPACE"/backend/supabase/tests/database supabase/tests/
           ls supabase/migrations supabase/tests/database
 
