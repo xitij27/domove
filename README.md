@@ -25,7 +25,7 @@ Route creation and deletion (Issue #1): see [setup, shared route model, API and 
 
 ## Backend (`backend/supabase/`)
 
-Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city feeds every hour (`private.sync_construction_sites()`), so there is no server to deploy.
+Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city area feeds every hour (`private.sync_construction_sites()`), storing each site's centre and polygon. A second job fills `obstacles` every 15 minutes (`private.detect_obstacles()`): it asks the public [FOSSGIS router](https://routing.openstreetmap.de) for the path of each new or changed route and stores the sites near it. So there is no server to deploy.
 
 Apply a new migration by pasting the file from `backend/supabase/migrations/` into the Supabase SQL editor and running it.
 
@@ -45,7 +45,7 @@ The routes the user is planning to take with planned departure schedule, start, 
 
 ## Obstacles
 
-The construction sites on the way of any given routes. They are calculated in an event loop regularly.
+The construction sites on the way of each route: every site whose area comes within 30 m of the route's path, or within 55 m of its centre when it has no area. A `pg_cron` job recalculates them every 15 minutes; the app can only read them.
 
 ## Construction Sites
 
