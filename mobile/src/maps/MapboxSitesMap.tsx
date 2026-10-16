@@ -2,11 +2,16 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Mapbox, { Camera, CircleLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
 import { COLORS, type Site } from '../sites';
+import type { MapTheme } from '../theme';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
 
-export default function MapboxSitesMap({ sites, onSelect }: { sites: Site[]; onSelect: (site: Site | null) => void }) {
+export default function MapboxSitesMap({ sites, onSelect, theme }: {
+  sites: Site[];
+  onSelect: (site: Site | null) => void;
+  theme: MapTheme;
+}) {
   const shape = useMemo<GeoJSON.FeatureCollection>(() => ({
     type: 'FeatureCollection',
     features: sites.map((s) => ({
@@ -31,7 +36,7 @@ export default function MapboxSitesMap({ sites, onSelect }: { sites: Site[]; onS
       scaleBarEnabled={false}
       onPress={() => onSelect(null)}
     >
-      <StyleImport id="basemap" existing config={{ lightPreset: 'night', showPointOfInterestLabels: false }} />
+      <StyleImport id="basemap" existing config={{ lightPreset: theme, showPointOfInterestLabels: false }} />
       <Camera defaultSettings={{ centerCoordinate: [7.4653, 51.5136], zoomLevel: 11 }} />
       <ShapeSource
         id="sites"
