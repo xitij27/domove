@@ -107,7 +107,7 @@ export default function LeavingAtInput({ value, onChange, editable, invalid }: P
         )}
       </View>
       {open && Platform.OS !== 'android' && (
-        <DateTimePicker testID="leaving-picker" value={pickerValue(value)} mode={open} display={open === 'date' ? 'inline' : 'spinner'} is24Hour minimumDate={open === 'date' ? startOfToday() : undefined} accentColor="#163f36" onValueChange={(_, date) => pick(open, date, value)} />
+        <DateTimePicker testID="leaving-picker" value={pickerValue(value)} mode={open} display={open === 'date' ? 'inline' : 'spinner'} is24Hour minimumDate={open === 'date' ? startOfToday() : undefined} accentColor="#a8520e" onValueChange={(_, date) => pick(open, date, value)} />
       )}
     </View>
   );
@@ -115,10 +115,10 @@ export default function LeavingAtInput({ value, onChange, editable, invalid }: P
 
 const styles = StyleSheet.create({
   track: { flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 26, borderWidth: 1, borderColor: '#b8c3cf', backgroundColor: '#fff' },
-  thumb: { position: 'absolute', top: 3, bottom: 3, borderRadius: 22, backgroundColor: '#163f36' },
+  thumb: { position: 'absolute', top: 3, bottom: 3, borderRadius: 22, backgroundColor: '#a8520e' },
   segment: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 },
   date: { flex: 1, minWidth: 0 },
-  now: { color: '#163f36', fontSize: 16, fontWeight: '700' },
+  now: { color: '#a8520e', fontSize: 16, fontWeight: '700' },
   value: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   text: { color: '#182332' },
   placeholder: { color: '#737d8b' },
