@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
+import RoutesManager from './src/routes/RoutesManager';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
 
@@ -55,7 +56,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       {/* skip the maps while a crash report is open, in case a map is what crashed */}
-      {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : <RadarMap />}
+      {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : (
+        <View style={styles.fill}>
+          <RadarMap />
+          <RoutesManager />
+        </View>
+      )}
       <StatusBar style="light" />
     </SafeAreaProvider>
   );
