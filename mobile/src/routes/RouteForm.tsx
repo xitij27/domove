@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MAX_LOCATION_LENGTH, MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type RouteDraft, type RouteErrors } from './model';
 
-type Props = { onSave: (draft: RouteDraft) => Promise<void>; onCancel: () => void; loading: boolean; onBusyChange: (busy: boolean) => void };
+type Props = { onSave: (draft: RouteDraft) => Promise<void>; onCancel: () => void; onBusyChange: (busy: boolean) => void };
 
-export default function RouteForm({ onSave, onCancel, loading, onBusyChange }: Props) {
+export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [start, setStart] = useState('');
   const [destination, setDestination] = useState('');
   const [mode, setMode] = useState<RouteDraft['mode']>('');
@@ -16,7 +16,7 @@ export default function RouteForm({ onSave, onCancel, loading, onBusyChange }: P
   const [saveError, setSaveError] = useState<string | null>(null);
 
   async function save() {
-    if (submitting.current || loading) return;
+    if (submitting.current) return;
     const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.label) };
     const validation = validateRoute(draft);
     setErrors(validation);
@@ -74,8 +74,8 @@ export default function RouteForm({ onSave, onCancel, loading, onBusyChange }: P
         </View>
         {errors.mode && <ErrorText message={errors.mode} />}
         {saveError && <ErrorText message={saveError} />}
-        <Pressable accessibilityRole="button" accessibilityLabel="Ready" accessibilityState={{ disabled: busy || loading, busy }} disabled={busy || loading} onPress={save} style={[styles.primary, (busy || loading) && styles.disabled]}>
-          <Text style={styles.primaryText}>{busy ? 'Saving…' : loading ? 'Loading routes…' : 'Ready'}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ready" accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
+          <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Ready'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={busy} onPress={onCancel} style={styles.secondary}>
           <Text style={styles.secondaryText}>Cancel</Text>

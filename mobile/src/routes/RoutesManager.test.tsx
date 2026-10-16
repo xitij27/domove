@@ -1,5 +1,4 @@
-import { act } from 'react';
-import { createRoot, type Root, type TestInstance } from 'test-renderer';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
 import type { RouteDraft, SavedRoute } from './model';
@@ -7,45 +6,30 @@ import type { RouteDraft, SavedRoute } from './model';
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.setTimeout(15000);
 
-let root: Root;
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: null }, destination: { label: 'Park', coordinate: null }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
-function text(node: TestInstance): string {
-  return node.children.map((child) => typeof child === 'string' ? child : text(child)).join('');
+function mount() {
+  return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
 }
-function button(label: string) {
-  const found = root.container.queryAll((node) => node.props.accessibilityRole === 'button' && (node.props.accessibilityLabel === label || text(node) === label));
-  expect(found).toHaveLength(1);
-  return found[0];
-}
-async function press(label: string) {
-  const target = button(label);
-  expect(target.props.accessibilityState?.disabled).not.toBe(true);
-  await act(async () => { target.props.onClick({ nativeEvent: {} }); });
+async function press(name: string) {
+  const button = screen.getByRole('button', { name });
+  expect(button).toBeEnabled();
+  await fireEvent.press(button);
 }
 async function enter(label: string, value: string) {
-  const input = root.container.queryAll((node) => node.props.accessibilityLabel === label && typeof node.props.onChangeText === 'function');
-  expect(input).toHaveLength(1);
-  await act(async () => { input[0].props.onChangeText(value); });
-}
-async function mode(label: string) {
-  const radio = root.container.queryAll((node) => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === label);
-  await act(async () => { radio[0].props.onClick({ nativeEvent: {} }); });
-}
-async function mount() {
-  root = createRoot();
-  await act(async () => { root.render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />); });
+  await fireEvent.changeText(screen.getByLabelText(label), value);
 }
 async function fill(start = 'Station', destination = 'Park') {
   await press('Create Route');
   await enter('Starting location', start);
   await enter('Final destination', destination);
-  await mode('Bicycle');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
 }
 
-beforeEach(async () => {
+beforeEach(() => {
   persisted = [];
   onBusyChange.mockReset();
   repository = {
@@ -62,12 +46,11 @@ beforeEach(async () => {
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
   };
-  await mount();
 });
-afterEach(async () => { await act(async () => { root.unmount(); }); });
 
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {
-  expect(text(root.container)).toContain('No saved routes yet');
+  const { unmount } = await mount();
+  expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
   await fill();
   await press('+ Add stop');
   await enter('Intermediate stop 1', 'Cafe');
@@ -78,71 +61,96 @@ test('creates multiple routes, removes individual stops, reloads and deletes', a
   await press('Remove stop 2');
   await press('Ready');
   expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ waypoints: ['Cafe', 'Library'] }));
-  expect(text(root.container)).toContain('Via Cafe → Library');
+  expect(screen.getByText('Via Cafe → Library')).toBeOnTheScreen();
   await fill('Home', 'Work');
   await press('Ready');
   expect(persisted).toHaveLength(2);
-  await act(async () => { root.unmount(); });
+  await unmount();
   await mount();
-  expect(text(root.container)).toContain('Station → Park');
-  expect(text(root.container)).toContain('Home → Work');
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+  expect(screen.getByText('Home → Work')).toBeOnTheScreen();
   await press('Delete route from Station to Park');
-  expect(text(root.container)).not.toContain('Station → Park');
-  expect(text(root.container)).toContain('Home → Work');
+  expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
+  expect(screen.getByText('Home → Work')).toBeOnTheScreen();
   await press('Refresh routes');
   expect(persisted).toHaveLength(1);
-  expect(text(root.container)).not.toContain('Station → Park');
+  expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
 });
 
 test('validates required fields and keeps the draft when save fails', async () => {
+  await mount();
   await press('Create Route');
   await press('Ready');
-  expect(text(root.container)).toContain('Enter a starting location.');
-  expect(text(root.container)).toContain('Enter a final destination.');
-  expect(text(root.container)).toContain('Select a transportation mode.');
+  expect(screen.getByText('Enter a starting location.')).toBeOnTheScreen();
+  expect(screen.getByText('Enter a final destination.')).toBeOnTheScreen();
+  expect(screen.getByText('Select a transportation mode.')).toBeOnTheScreen();
   expect(repository.create).not.toHaveBeenCalled();
   await enter('Starting location', 'Home');
   await enter('Final destination', 'Work');
-  await mode('Car');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Car' }));
   repository.create.mockRejectedValueOnce(new Error('Offline. Try again.'));
   await press('Ready');
-  expect(text(root.container)).toContain('Offline. Try again.');
+  expect(screen.getByText('Offline. Try again.')).toBeOnTheScreen();
   await press('Ready');
-  expect(text(root.container)).toContain('Home → Work');
+  expect(screen.getByText('Home → Work')).toBeOnTheScreen();
 });
 
 test('blocks double taps while a save is pending', async () => {
+  await mount();
   await fill();
   let resolve!: (route: SavedRoute) => void;
   repository.create.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-  const ready = button('Ready');
-  await act(async () => { ready.props.onClick({ nativeEvent: {} }); ready.props.onClick({ nativeEvent: {} }); });
-  expect(repository.create).toHaveBeenCalledTimes(1);
-  expect(button('Ready').props.accessibilityState.disabled).toBe(true);
+  // The returned promise settles when the press handler does, i.e. after the save.
+  const pressing = fireEvent.press(screen.getByRole('button', { name: 'Ready' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Ready' })).toBeDisabled());
+  expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled();
   expect(onBusyChange).toHaveBeenLastCalledWith(true);
-  await act(async () => { resolve({ id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: null }, destination: { label: 'Park', coordinate: null }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00Z' }); });
-  expect(text(root.container)).toContain('Station → Park');
+  persisted.unshift(stationToPark);
+  await act(async () => { resolve(stationToPark); await pressing; });
+  expect(repository.create).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
   expect(onBusyChange).toHaveBeenLastCalledWith(false);
 });
 
+test('a route saved while the list is still loading stays listed', async () => {
+  let finishFirstLoad!: (routes: SavedRoute[]) => void;
+  repository.list.mockImplementationOnce(() => new Promise((done) => { finishFirstLoad = done; }));
+  await mount();
+  await fill();
+  await press('Ready');
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+  // The first request started before the save, so its result must not replace the list.
+  await act(async () => { finishFirstLoad([]); });
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+});
+
 test('failed deletion keeps the route and permits retry', async () => {
+  await mount();
   await fill();
   await press('Ready');
   repository.delete.mockRejectedValueOnce(new Error('Cannot delete while offline.'));
   await press('Delete route from Station to Park');
-  expect(text(root.container)).toContain('Cannot delete while offline.');
-  expect(text(root.container)).toContain('Station → Park');
+  expect(screen.getByText('Cannot delete while offline.')).toBeOnTheScreen();
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
   await press('Delete route from Station to Park');
-  expect(text(root.container)).not.toContain('Station → Park');
+  expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
+});
+
+test('a location saved without a label gets a generic name', async () => {
+  persisted = [{ ...stationToPark, destination: { label: null, coordinate: { latitude: 51.49, longitude: 7.48 } } }];
+  await mount();
+  expect(screen.getByText('Station → Final destination')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Delete route from Station to Final destination' })).toBeOnTheScreen();
 });
 
 test('cancelling discards the draft and load failures can be retried', async () => {
+  await mount();
   await fill();
   await press('Cancel');
   expect(repository.create).not.toHaveBeenCalled();
   repository.list.mockRejectedValueOnce(new Error('Cannot load routes.'));
   await press('Refresh routes');
-  expect(text(root.container)).toContain('Cannot load routes.');
+  expect(screen.getByText('Cannot load routes.')).toBeOnTheScreen();
   await press('Retry loading routes');
-  expect(text(root.container)).toContain('No saved routes yet');
+  expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
 });

@@ -6,7 +6,8 @@ export const TRANSPORT_MODES = {
 
 export type TransportMode = keyof typeof TRANSPORT_MODES;
 export type Coordinate = { latitude: number; longitude: number };
-export type RouteLocation = { label: string; coordinate: Coordinate | null };
+/** The database guarantees a label, a coordinate or both. */
+export type RouteLocation = { label: string | null; coordinate: Coordinate | null };
 export type RouteWaypoint = RouteLocation & { id: string; sequence: number };
 
 /** Coordinates stay null until a location is resolved by a consuming feature. */

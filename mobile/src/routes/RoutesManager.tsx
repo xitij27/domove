@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RouteForm from './RouteForm';
 import { routesRepository, type RoutesRepository } from './api';
-import { TRANSPORT_MODES, type RouteDraft, type SavedRoute } from './model';
+import { TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 export default function RoutesManager() {
   const insets = useSafeAreaInsets();
@@ -65,10 +65,18 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     return () => { active.current = false; loadGeneration.current = generation + 1; };
   }, [load]);
 
+  function refresh() {
+    setLoading(true);
+    setError(null);
+    void load();
+  }
+
   async function save(draft: RouteDraft) {
     const saved = await repository.create(draft);
     setRoutes((current) => [saved, ...current.filter((route) => route.id !== saved.id)]);
     setCreating(false);
+    // Supersedes a list request that started before the save and would not include it.
+    refresh();
   }
 
   async function remove(id: string) {
@@ -100,7 +108,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
         </Pressable>
       </View>
       {creating ? (
-        <RouteForm loading={loading} onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
+        <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
       ) : (
         <FlatList
           data={routes}
@@ -110,11 +118,11 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
             <View style={styles.header}>
               <Text accessibilityRole="header" style={styles.title}>Your routes</Text>
               <Text style={styles.hint}>Your next journey starts here.</Text>
-              <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={() => setCreating(true)} style={styles.primary}>
+              <Pressable accessibilityRole="button" disabled={!!deleting} onPress={() => setCreating(true)} style={styles.primary}>
                 <Text style={styles.primaryText}>Create Route</Text>
               </Pressable>
               {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-              <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={() => { setLoading(true); setError(null); void load(); }} style={styles.secondary}>
+              <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={refresh} style={styles.secondary}>
                 <Text style={styles.secondaryText}>{error ? 'Retry loading routes' : 'Refresh routes'}</Text>
               </Pressable>
               {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#163f36" />}
@@ -124,10 +132,10 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
-              <Text style={styles.cardTitle}>{item.start.label} → {item.destination.label}</Text>
-              {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => stop.label).join(' → ')}</Text>}
+              <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
+              {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${item.start.label} to ${item.destination.label}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
                 <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>
               </Pressable>
             </View>
@@ -136,6 +144,11 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       )}
     </View>
   );
+}
+
+/** Locations saved with only a coordinate have no label. */
+function place(location: RouteLocation, fallback: string) {
+  return location.label ?? fallback;
 }
 
 function message(error: unknown) {
