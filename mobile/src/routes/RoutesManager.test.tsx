@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import RoutesManager, { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
 import type { RouteDraft, SavedRoute } from './model';
@@ -54,6 +55,8 @@ function stored(id: string, draft: RouteDraft): SavedRoute {
 }
 
 beforeEach(() => {
+  // Every delete is confirmed unless a test says otherwise.
+  jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => buttons?.find((button) => button.style === 'destructive')?.onPress?.());
   persisted = [];
   onBusyChange.mockReset();
   repository = {
@@ -317,6 +320,20 @@ test('a route saved while the list is still loading stays listed', async () => {
   // The first request started before the save, so its result must not replace the list.
   await act(async () => { finishFirstLoad([]); });
   expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+});
+
+test('deleting asks first, and cancelling keeps the route', async () => {
+  persisted = [stationToPark];
+  await mount();
+  await screen.findByText('Station → Park');
+  jest.mocked(Alert.alert).mockImplementationOnce((_title, _message, buttons) => buttons?.find((button) => button.style === 'cancel')?.onPress?.());
+  await press('Delete route from Station to Park');
+  expect(Alert.alert).toHaveBeenCalledWith('Delete this route?', expect.stringContaining('Station → Park'), expect.any(Array));
+  expect(repository.delete).not.toHaveBeenCalled();
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+  await press('Delete route from Station to Park');
+  await waitFor(() => expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen());
+  expect(repository.delete).toHaveBeenCalledWith('1');
 });
 
 test('failed deletion keeps the route and permits retry', async () => {

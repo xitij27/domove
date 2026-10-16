@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Platform, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
@@ -312,7 +312,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
                   <Pressable accessibilityRole="button" accessibilityLabel={`Edit route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} disabled={loading || !!deleting} onPress={() => setForm({ route: item })} style={styles.edit} hitSlop={8}>
                     <MaterialIcons name="edit" size={22} color="#1f63c6" />
                   </Pressable>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={8}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => confirmDelete(item, () => remove(item.id))} style={styles.delete} hitSlop={8}>
                     {deleting === item.id ? <ActivityIndicator size="small" color="#a52621" /> : <MaterialIcons name="delete-outline" size={24} color="#a52621" />}
                   </Pressable>
                 </View>
@@ -323,6 +323,20 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       )}
     </View>
   );
+}
+
+function confirmDelete(route: SavedRoute, onConfirm: () => void) {
+  const title = 'Delete this route?';
+  const body = `${place(route.start, 'Starting location')} → ${place(route.destination, 'Final destination')} and its alerts will be removed.`;
+  // react-native-web's Alert.alert does nothing.
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${body}`)) onConfirm();
+    return;
+  }
+  Alert.alert(title, body, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: onConfirm },
+  ]);
 }
 
 /** Locations saved with only a coordinate have no label. */
