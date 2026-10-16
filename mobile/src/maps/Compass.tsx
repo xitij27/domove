@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { Coordinate } from '../routes/model';
 import { PALETTES, type MapTheme } from '../theme';
 
-// What the compass needs from either map, besides the heading it reports through `onHeadingChange`.
-export type MapHandle = { pointNorth: () => void };
+// What the app needs from either map, besides what it reports through `onHeadingChange` and `onCenterChange`.
+export type MapHandle = {
+  pointNorth: () => void;
+  /** Zooms in to street level on `center`, or on the map's middle, unpadded; resolves to the point now in the middle. */
+  zoomTo: (center: Coordinate | null) => Promise<Coordinate>;
+};
 export const POINT_NORTH_MS = 300;
+export const STREET_ZOOM = 16;
+export const MOVE_MS = 400;
 
 const SIZE = 48; // as wide as the day/night switch above it
 const NEEDLE = 10; // length of each half

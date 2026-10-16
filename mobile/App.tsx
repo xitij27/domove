@@ -8,7 +8,8 @@ import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
-import { TRANSPORT_MODES, type SavedRoute } from './src/routes/model';
+import PlacePicker from './src/routes/PlacePicker';
+import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
@@ -70,6 +71,10 @@ export default function App() {
   const closeRoute = useCallback(() => setViewing(null), []);
   const routeDeleted = useCallback((id: string) => setViewing((route) => (route?.id === id ? null : route)), []);
   const routeUpdated = useCallback((updated: SavedRoute) => setViewing((route) => (route?.id === updated.id ? updated : route)), []);
+  // A place in the route form being chosen on the map, which then has the screen to itself.
+  const [picking, setPicking] = useState<PlacePick | null>(null);
+  const endPick = useCallback(() => setPicking(null), []);
+  const mapCovered = routesOpen && !picking;
 
   useEffect(() => startNotificationRuntime(), []);
 
@@ -95,10 +100,10 @@ export default function App() {
       {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : (
         <View style={styles.fill}>
           {/* the raised routes sheet covers the map, so screen readers skip it */}
-          <View style={styles.fill} importantForAccessibility={routesOpen ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={routesOpen}>
-            <RadarMap route={viewing} onCloseRoute={closeRoute} />
+          <View style={styles.fill} importantForAccessibility={mapCovered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={mapCovered}>
+            <RadarMap route={viewing} onCloseRoute={closeRoute} picking={picking} onEndPick={endPick} />
           </View>
-          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteUpdated={routeUpdated} onRouteDeleted={routeDeleted} />
+          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteUpdated={routeUpdated} onRouteDeleted={routeDeleted} onPickOnMap={setPicking} hidden={!!picking} />
         </View>
       )}
     </SafeAreaProvider>
@@ -123,7 +128,12 @@ function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void 
 }
 
 // memo: opening the routes sheet re-renders App, which shouldn't redraw the map and its pins.
-const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRoute: () => void }) {
+const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPick }: {
+  route: SavedRoute | null;
+  onCloseRoute: () => void;
+  picking: PlacePick | null;
+  onEndPick: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -154,8 +164,20 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedR
 
   useEffect(load, [load]);
 
-  const onRoute = useRouteOnMap(route);
+  const routeOnMap = useRouteOnMap(route);
+  // A place for a new route is chosen among every site, not only the shown route's.
+  const onRoute = picking ? null : routeOnMap;
   const alerts = useRouteAlerts(route?.id ?? null);
+
+  // The map's middle while choosing a place, where the pin is; null while the map moves.
+  const [center, setCenter] = useState<Coordinate | null>(null);
+  useEffect(() => {
+    if (picking) map.current?.zoomTo(picking.initial).then(setCenter, () => {});
+  }, [picking]);
+  const endPick = useCallback(() => {
+    setCenter(null);
+    onEndPick();
+  }, [onEndPick]);
   // On a route, only the sites on its way: none until the backend says which.
   const nearby = onRoute ? sites.filter((s) => onRoute.siteIds?.has(s.id)) : sites;
   const selectedAlert = alerts && selected ? siteAlert(alerts, selected.id) : null;
@@ -192,9 +214,11 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedR
         onSelect={setSelected}
         theme={theme}
         onHeadingChange={(h) => heading.setValue(h)}
-        bottomInset={SHEET_RADIUS}
+        // while choosing a place the routes sheet is hidden, leaving only the system bar over the map's bottom
+        bottomInset={picking ? insets.bottom : SHEET_RADIUS}
         route={onRoute?.overlay ?? null}
         routePadding={routePadding}
+        onCenterChange={picking ? setCenter : undefined}
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
@@ -212,7 +236,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedR
             </Pressable>
           ))}
           {loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}
-          {MapboxSitesMap && GOOGLE_OK && (
+          {/* the other map would open elsewhere than the pin */}
+          {MapboxSitesMap && GOOGLE_OK && !picking && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Map provider: ${mapboxOn ? 'Mapbox' : 'Google'}. Tap to switch.`}
@@ -229,15 +254,17 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedR
         <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
       </View>
 
+      {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
+
       <View style={styles.bottom}>
-        {error && (
+        {error && !picking && (
           <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
             <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
             <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
           </Pressable>
         )}
 
-        {selected && !error && (
+        {selected && !error && !picking && (
           <View style={[styles.card, surface]}>
             <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
             <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>

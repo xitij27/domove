@@ -1,16 +1,23 @@
-import { MAX_LOCATION_LENGTH, type Place } from './model';
+import { MAX_LOCATION_LENGTH, type Coordinate, type Place } from './model';
 
 // shortcut: komoot's public Photon, called directly (fair use, no cache); move behind backend/api with an edge cache if usage grows
 // Photon is free, needs no key, and its OSM results may be stored; Mapbox's free geocoding may not be stored.
-const PHOTON_URL = 'https://photon.komoot.io/api/';
+const PHOTON = 'https://photon.komoot.io';
 const SHOWN = 5;
 
 /** Place suggestions for the typed text, nearest to Dortmund's centre first. */
 export async function searchPlaces(query: string, signal?: AbortSignal): Promise<Place[]> {
   // Photon often lists one place several times (e.g. a station's sign and its stop), so ask for more than shown.
-  const res = await fetch(`${PHOTON_URL}?q=${encodeURIComponent(query)}&lat=51.514&lon=7.468&lang=de&limit=10`, { signal });
+  const res = await fetch(`${PHOTON}/api/?q=${encodeURIComponent(query)}&lat=51.514&lon=7.468&lang=de&limit=10`, { signal });
   if (!res.ok) throw new Error(`Place search: HTTP ${res.status}`);
   return toPlaces(await res.json());
+}
+
+/** The name of the place nearest a point on the map, or null where Photon knows none. */
+export async function placeNameAt({ latitude, longitude }: Coordinate, signal?: AbortSignal): Promise<string | null> {
+  const res = await fetch(`${PHOTON}/reverse?lat=${latitude}&lon=${longitude}&lang=de`, { signal });
+  if (!res.ok) throw new Error(`Place lookup: HTTP ${res.status}`);
+  return toPlaces(await res.json())[0]?.label ?? null;
 }
 
 type PhotonProperties = Partial<Record<'name' | 'street' | 'housenumber' | 'city', unknown>>;

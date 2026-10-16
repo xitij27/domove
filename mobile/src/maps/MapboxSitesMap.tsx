@@ -1,17 +1,20 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Mapbox, { Camera, CircleLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
+import type { Coordinate } from '../routes/model';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
-import { POINT_NORTH_MS, type MapHandle } from './Compass';
+import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
 
 const FIT_ROUTE_MS = 600;
+// Camera padding outlives the move that set it, such as a route's fit.
+const NO_PADDING = { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
-export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, ref }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -19,11 +22,19 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
   bottomInset: number; // covered by what lies over the map's bottom edge
   route: RouteOverlay | null;
   routePadding: RoutePadding; // on top of bottomInset
+  /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
+  onCenterChange?: (center: Coordinate | null) => void;
   ref?: Ref<MapHandle>;
 }) {
+  const mapView = useRef<MapView>(null);
   const camera = useRef<Camera>(null);
   useImperativeHandle(ref, () => ({
     pointNorth: () => camera.current?.setCamera({ heading: 0, animationDuration: POINT_NORTH_MS, animationMode: 'easeTo' }),
+    zoomTo: async (center) => {
+      const [longitude, latitude] = center ? [center.longitude, center.latitude] : await mapView.current!.getCenter();
+      camera.current?.setCamera({ centerCoordinate: [longitude, latitude], zoomLevel: STREET_ZOOM, padding: NO_PADDING, animationDuration: MOVE_MS, animationMode: 'easeTo' });
+      return { latitude, longitude };
+    },
   }), []);
 
   // Brings a route into view when it opens and again when its routed path replaces the straight line.
@@ -79,14 +90,22 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
 
   return (
     <MapView
+      ref={mapView}
       style={StyleSheet.absoluteFill}
       styleURL="mapbox://styles/mapbox/standard"
       scaleBarEnabled={false}
       // keeps the Mapbox logo and attribution in sight
       logoPosition={{ bottom: bottomInset + 8, left: 8 }}
       attributionPosition={{ bottom: bottomInset + 8, right: 8 }}
-      onPress={() => onSelect(null)}
-      onCameraChanged={(state) => onHeadingChange(state.properties.heading)}
+      onPress={(feature) => {
+        if (onCenterChange) camera.current?.setCamera({ centerCoordinate: feature.geometry.coordinates, animationDuration: MOVE_MS, animationMode: 'easeTo' });
+        else onSelect(null);
+      }}
+      onCameraChanged={(state) => { onHeadingChange(state.properties.heading); onCenterChange?.(null); }}
+      onMapIdle={(state) => {
+        const [longitude, latitude] = state.properties.center;
+        onCenterChange?.({ latitude, longitude });
+      }}
     >
       <StyleImport id="basemap" existing config={{ lightPreset: theme, showPointOfInterestLabels: false }} />
       <Camera ref={camera} defaultSettings={{ centerCoordinate: [7.4653, 51.5136], zoomLevel: 11 }} />
