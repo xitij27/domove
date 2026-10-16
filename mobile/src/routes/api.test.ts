@@ -2,8 +2,12 @@ import { createRoutesRepository } from './api';
 import type { RouteDraft, SavedRoute } from './model';
 
 const id = '12345678-1234-1234-1234-123456789abc';
-const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: null }, destination: { label: 'Park', coordinate: null }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
-const draft: RouteDraft = { start: ' Station ', destination: 'Park ', mode: 'bike', waypoints: [' Cafe ', ' ', 'Library'] };
+const at = { latitude: 51.51, longitude: 7.46 };
+const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
+const draft: RouteDraft = {
+  start: { label: ' Station ', coordinate: at }, destination: { label: 'Park ', coordinate: at }, mode: 'bike',
+  waypoints: [{ label: ' Cafe ', coordinate: at }, { label: ' ', coordinate: null }, { label: 'Library', coordinate: at }],
+};
 const originalFetch = globalThis.fetch;
 const fetchMock = jest.fn();
 const newId = jest.fn(() => id);
@@ -21,7 +25,10 @@ test('creates a route and its ordered stops in one atomic RPC', async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(fetchMock).toHaveBeenCalledWith('https://example.supabase.co/rest/v1/rpc/create_saved_route', expect.objectContaining({
     method: 'POST', headers: expect.objectContaining({ apikey: 'public-test-key' }),
-    body: JSON.stringify({ p_id: id, p_start_label: 'Station', p_finish_label: 'Park', p_modality: 'bike', p_waypoints: ['Cafe', 'Library'] }),
+    body: JSON.stringify({
+      p_id: id, p_start: { label: 'Station', coordinate: at }, p_finish: { label: 'Park', coordinate: at }, p_modality: 'bike',
+      p_waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }],
+    }),
   }));
 });
 
@@ -48,12 +55,14 @@ test('a changed draft is a new save with a new ID', async () => {
   const fresh = createRoutesRepository('https://example.supabase.co', 'public-test-key', () => ids.shift()!);
   fetchMock.mockResolvedValueOnce(response(null, 500)).mockResolvedValueOnce(response(null, 500));
   await expect(fresh.create(draft)).rejects.toThrow('HTTP 500');
-  await expect(fresh.create({ ...draft, destination: 'Library' })).rejects.toThrow('HTTP 500');
+  await expect(fresh.create({ ...draft, destination: { label: 'Library', coordinate: at } })).rejects.toThrow('HTTP 500');
   expect(sentId(1)).not.toBe(sentId(0));
 });
 
 test('invalid forms never send requests', async () => {
-  await expect(repository.create({ start: '', destination: '', mode: '', waypoints: [] })).rejects.toThrow('starting location');
+  const blank = { label: '', coordinate: null };
+  await expect(repository.create({ start: blank, destination: blank, mode: '', waypoints: [] })).rejects.toThrow('starting location');
+  await expect(repository.create({ ...draft, start: { label: 'Station', coordinate: null } })).rejects.toThrow('Pick a place');
   expect(fetchMock).not.toHaveBeenCalled();
 });
 

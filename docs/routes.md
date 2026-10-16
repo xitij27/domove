@@ -7,25 +7,33 @@
    1. `20261016150000_routes.sql`
    2. `20261016151000_create_delete_routes.sql`
    3. `20261016152000_saved_routes_hardening.sql`
+   4. `20261016153000_routes_require_coordinates.sql`
 
-   The team database already runs all three; see [Team database](#team-database).
+   The team database already runs all of them; see [Team database](#team-database).
    The second file was renamed from `20261016160000_create_delete_routes.sql`
    so it no longer shares a version with the obstacles branch; its content is
    unchanged. The third adds table constraints, so it fails if a route has a start
    time without weekdays (or the reverse) or repeats a weekday. Routes created by
-   the app never do.
+   the app never do. The fourth deletes routes saved without coordinates and
+   then requires a coordinate for every place.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
 3. Run `cd mobile`, `npm ci`, then `npm start` and open the existing Android/iOS
    development build. Native build instructions are in the root README.
 
-The app footer offers **Create Route** and **Saved routes**. Enter a starting
-location and final destination, select Pedestrian, Bicycle or Car, optionally
+The app footer offers **Create Route** and **Saved routes**. Type a starting
+location and final destination and pick each from the suggestions, select Pedestrian, Bicycle or Car, optionally
 add/remove stops, then tap **Ready**. The saved list opens after a successful save.
 Delete removes a route immediately after the server confirms the deletion. A
 failed deletion leaves it visible, with a retryable error. Close returns to the
 existing app; Cancel returns from the form to the list without saving.
+
+Suggestions come from [Photon](https://photon.komoot.io) (OpenStreetMap data,
+free, no key), nearest to Dortmund first, from the third character on. Only a
+picked suggestion gives a place its coordinate; typing over it removes the
+coordinate again, and **Ready** asks to pick one. That way every saved route can
+be checked against construction sites (#5).
 
 The form trims location text, ignores blank stops and requires a mode. Labels
 allow up to 200 characters, and routes allow up to 50 intermediate stops.
@@ -69,10 +77,10 @@ import type { SavedRoute } from './routes/model';
 
 const routes: SavedRoute[] = await routesRepository.list();
 const route = await routesRepository.create({
-  start: 'Dortmund Hauptbahnhof',
-  destination: 'Westfalenpark, Dortmund',
+  start: { label: 'Hauptbahnhof Dortmund', coordinate: { latitude: 51.5168, longitude: 7.4593 } },
+  destination: { label: 'Westfalenpark, Dortmund', coordinate: { latitude: 51.4951, longitude: 7.4754 } },
   mode: 'bike',
-  waypoints: ['Friedensplatz, Dortmund'],
+  waypoints: [{ label: 'Friedensplatz, Dortmund', coordinate: { latitude: 51.5119, longitude: 7.4669 } }],
 });
 await routesRepository.delete(route.id);
 ```
@@ -89,22 +97,20 @@ type SavedRoute = {
 };
 type RouteLocation = {
   label: string | null;
-  coordinate: { latitude: number; longitude: number } | null;
+  coordinate: { latitude: number; longitude: number };
 };
 ```
 
 Visit `start`, then `waypoints` in array order, then `destination`.
-Every location has a label, a coordinate or both. Routes created by the app
-always have labels; a location written with only a coordinate has a null label,
-and the list shows a generic name for it.
-Coordinates are **null until resolved**; never interpret null as `(0, 0)`.
-Map/calculation features can resolve labels and populate the existing PostGIS
+Every location has a coordinate, stored in the PostGIS columns
 `routes.start_location`, `routes.finish_location` and `route_waypoints.location`
-columns. The read projection automatically reflects those coordinates. No
-geocoder, route calculation, map visualization or obstacle analysis is added here.
+(all `not null`). Routes created by the app always have labels; a location
+written with only a coordinate has a null label, and the list shows a generic
+name for it. No route calculation, map visualization or obstacle analysis is
+added here.
 
-The existing schema required coordinates and a recurring schedule. These
-migrations allow null coordinates, and a route without a schedule has neither
+The existing schema required a recurring schedule. These migrations make it
+optional: a route without a schedule has neither
 `start_time` nor `weekdays`. A scheduled route has both, with no repeated day.
 Existing scheduled/spatial rows, indexes and enum values are preserved.
 Consumers must handle these optional values. Scheduling remains in the underlying
@@ -122,8 +128,10 @@ stored route instead of saving it twice. A changed draft gets a new ID.
   (`or=(created_at.lt.<createdAt>,and(created_at.eq.<createdAt>,id.lt.<id>))`),
   so routes added or deleted meanwhile do not shift the pages.
 - `POST /rest/v1/rpc/create_saved_route` takes `p_id` (a UUID chosen by the app),
-  `p_start_label`, `p_finish_label`, `p_modality` and optional
-  `p_waypoints: string[]`, and returns one `SavedRoute`. Route and child inserts
+  `p_start`, `p_finish`, `p_modality` and optional `p_waypoints` (an array), and
+  returns one `SavedRoute`. Each place has the read shape
+  `{ "label": "…", "coordinate": { "latitude": …, "longitude": … } }`; a missing,
+  non-numeric or out-of-range coordinate is rejected. Route and child inserts
   run in one transaction, so a failed stop cannot leave a partial route. Calling
   it again with an existing `p_id` returns that route unchanged. Invalid input
   returns HTTP 400 with code `22023` and a message the app shows as-is.

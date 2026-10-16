@@ -2,14 +2,19 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
 import type { RouteDraft, SavedRoute } from './model';
+import { searchPlaces } from './places';
 
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+// Every search suggests exactly the typed text.
+jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
 jest.setTimeout(15000);
+
+const at = { latitude: 51.51, longitude: 7.46 };
 
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: null }, destination: { label: 'Park', coordinate: null }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
   return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
@@ -22,10 +27,15 @@ async function press(name: string) {
 async function enter(label: string, value: string) {
   await fireEvent.changeText(screen.getByLabelText(label), value);
 }
+/** Types a place and picks the suggestion with the same text. */
+async function pick(label: string, value: string) {
+  await enter(label, value);
+  await fireEvent.press(await screen.findByRole('button', { name: value }));
+}
 async function fill(start = 'Station', destination = 'Park') {
   await press('Create Route');
-  await enter('Starting location', start);
-  await enter('Final destination', destination);
+  await pick('Starting location', start);
+  await pick('Final destination', destination);
   await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
 }
 
@@ -36,10 +46,10 @@ beforeEach(() => {
     list: jest.fn(async () => [...persisted]),
     create: jest.fn(async (draft: RouteDraft) => {
       const route: SavedRoute = {
-        id: String(persisted.length + 1), name: `${draft.start} → ${draft.destination}`,
-        start: { label: draft.start.trim(), coordinate: null }, destination: { label: draft.destination.trim(), coordinate: null },
+        id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
+        start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
         mode: draft.mode as SavedRoute['mode'], createdAt: '2026-10-16T12:00:00Z',
-        waypoints: draft.waypoints.filter((label) => label.trim()).map((label, sequence) => ({ id: String(sequence), label: label.trim(), sequence, coordinate: null })),
+        waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
       };
       persisted.unshift(route);
       return route;
@@ -53,14 +63,14 @@ test('creates multiple routes, removes individual stops, reloads and deletes', a
   expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
   await fill();
   await press('+ Add stop');
-  await enter('Intermediate stop 1', 'Cafe');
+  await pick('Intermediate stop 1', 'Cafe');
   await press('+ Add stop');
-  await enter('Intermediate stop 2', 'Remove me');
+  await pick('Intermediate stop 2', 'Remove me');
   await press('+ Add stop');
-  await enter('Intermediate stop 3', 'Library');
+  await pick('Intermediate stop 3', 'Library');
   await press('Remove stop 2');
   await press('Ready');
-  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ waypoints: ['Cafe', 'Library'] }));
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }] }));
   expect(screen.getByText('Via Cafe → Library')).toBeOnTheScreen();
   await fill('Home', 'Work');
   await press('Ready');
@@ -85,14 +95,41 @@ test('validates required fields and keeps the draft when save fails', async () =
   expect(screen.getByText('Enter a final destination.')).toBeOnTheScreen();
   expect(screen.getByText('Select a transportation mode.')).toBeOnTheScreen();
   expect(repository.create).not.toHaveBeenCalled();
-  await enter('Starting location', 'Home');
-  await enter('Final destination', 'Work');
+  await pick('Starting location', 'Home');
+  await pick('Final destination', 'Work');
   await fireEvent.press(screen.getByRole('radio', { name: 'Car' }));
   repository.create.mockRejectedValueOnce(new Error('Offline. Try again.'));
   await press('Ready');
   expect(screen.getByText('Offline. Try again.')).toBeOnTheScreen();
   await press('Ready');
   expect(screen.getByText('Home → Work')).toBeOnTheScreen();
+});
+
+test('only places picked from the suggestions can be saved', async () => {
+  await mount();
+  await press('Create Route');
+  await enter('Starting location', 'Station');
+  await pick('Final destination', 'Park');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Bicycle' }));
+  await press('Ready');
+  expect(screen.getByText('Pick a place from the suggestions.')).toBeOnTheScreen();
+  // Typing over a picked place drops its coordinate too.
+  await pick('Starting location', 'Station');
+  await enter('Final destination', 'Parks');
+  await press('Ready');
+  expect(screen.getByText('Pick a place from the suggestions.')).toBeOnTheScreen();
+  expect(repository.create).not.toHaveBeenCalled();
+  await fireEvent.press(await screen.findByRole('button', { name: 'Parks' }));
+  await press('Ready');
+  expect(screen.getByText('Station → Parks')).toBeOnTheScreen();
+});
+
+test('says when suggestions cannot be loaded', async () => {
+  jest.mocked(searchPlaces).mockRejectedValueOnce(new Error('offline'));
+  await mount();
+  await press('Create Route');
+  await enter('Starting location', 'Station');
+  expect(await screen.findByText('Could not load suggestions. Check your connection.')).toBeOnTheScreen();
 });
 
 test('blocks double taps while a save is pending', async () => {

@@ -1,8 +1,9 @@
-# TODO: route ownership and required coordinates
+# TODO: route ownership
 
-These two problems came out of the review of PR #7 (create and delete routes).
-The rest of that review is fixed in the PR; these were deferred because they
-change the database design and need decisions from the team. Until they are
+This problem came out of the review of PR #7 (create and delete routes). The rest
+of that review is fixed in the PR, including required coordinates
+(`20261016153000_routes_require_coordinates.sql`); this one was deferred because
+it changes the database design and needs decisions from the team. Until it is
 done, treat saved routes as demo data.
 
 ## 1. Every install can read, edit and delete every route
@@ -59,45 +60,6 @@ is bundled in the APK, so anyone who extracts it can:
    of open policies.
 4. Add pgTAP tests: user B cannot see, change or delete user A's routes or
    stops, and `anon` can no longer read or write either table.
-
-## 2. Routes are saved without coordinates
-
-The app saves only the text the user typed; `start_location`,
-`finish_location` and every `route_waypoints.location` stay NULL. The obstacle
-detector on the `5-calculate-obstacles-on-routes` branch needs them:
-
-- `backend/src/lib/detect.ts` calls `mustParse(route.startWkt, "start")`, which
-  throws for every route created by the app, so none of them is ever checked for
-  obstacles. Each run also logs one error per route and one
-  "skipping unparsable waypoint" per stop.
-- `backend/src/db/schema.ts` on that branch still declares these columns
-  `.notNull()` and re-creates `routes_weekdays_not_empty`, so its Drizzle schema
-  no longer matches the database.
-
-**Plan**
-
-1. Look up coordinates when the route is saved. The app already ships a Mapbox
-   token, so use Mapbox geocoding or search in the form, or call it behind the
-   Vercel API in `backend/`. An autocomplete lets the user pick the right place
-   instead of silently taking the top match.
-2. Change `create_saved_route` to take a coordinate for the start, the
-   destination and every stop.
-3. Geocode or delete the existing label-only rows, then require coordinates
-   again:
-
-   ```sql
-   alter table public.routes
-     alter column start_location set not null,
-     alter column finish_location set not null;
-   alter table public.route_waypoints alter column location set not null;
-   ```
-
-   The `routes_start_present`, `routes_finish_present` and
-   `route_waypoints_location_present` checks become redundant then.
-4. Agree the final constraints with the owner of the obstacles branch and update
-   its Drizzle schema to match: `routes_weekdays_distinct` and
-   `routes_schedule_complete` replace `routes_weekdays_not_empty`, and the
-   coordinate columns' nullability follows step 3.
 
 ## Considered and not planned
 

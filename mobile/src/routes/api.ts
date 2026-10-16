@@ -74,8 +74,8 @@ export function createRoutesRepository(
         method: 'POST',
         body: JSON.stringify({
           p_id: id,
-          p_start_label: clean.start,
-          p_finish_label: clean.destination,
+          p_start: clean.start,
+          p_finish: clean.destination,
           p_modality: clean.mode,
           p_waypoints: clean.waypoints,
         }),
