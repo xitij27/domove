@@ -1,7 +1,9 @@
+import { useImperativeHandle, useRef, type Ref } from 'react';
 import { StyleSheet } from 'react-native';
 import MapView, { Marker, type MapViewProps } from 'react-native-maps';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
+import { POINT_NORTH_MS, type MapHandle } from './Compass';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
 
@@ -29,17 +31,36 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
 
 export const GOOGLE_MAP_STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
-export default function GoogleSitesMap({ sites, onSelect, theme }: {
+export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
+  onHeadingChange: (heading: number) => void;
+  ref?: Ref<MapHandle>;
 }) {
+  const map = useRef<MapView>(null);
+  useImperativeHandle(ref, () => ({
+    pointNorth: () => map.current?.animateCamera({ heading: 0 }, { duration: POINT_NORTH_MS }),
+  }), []);
+
+  // The region events carry no heading, so ask the map for it on every frame of a gesture or animation.
+  const readHeading = () => {
+    map.current?.getCamera().then(
+      (camera) => onHeadingChange(camera.heading),
+      () => {}, // the map is gone, e.g. right after switching to Mapbox
+    );
+  };
+
   return (
     <MapView
+      ref={map}
       style={StyleSheet.absoluteFill}
       initialRegion={DORTMUND}
       customMapStyle={GOOGLE_MAP_STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
       userInterfaceStyle={theme === 'night' ? 'dark' : 'light'}
+      showsCompass={false} // ours replaces it
+      onRegionChange={readHeading}
+      onRegionChangeComplete={readHeading}
       onPress={(e) => e.nativeEvent.action !== 'marker-press' && onSelect(null)}
     >
       {sites.map((s) => (

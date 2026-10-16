@@ -9,6 +9,7 @@
    3. `20261016152000_saved_routes_hardening.sql`
    4. `20261016153000_routes_require_coordinates.sql`
    5. `20261016154000_routes_leaving_time.sql`
+   6. `20261016190000_routes_leaving_date.sql` (after the obstacles migrations)
 
    The team database already runs all of them; see [Team database](#team-database).
    The second file was renamed from `20261016160000_create_delete_routes.sql`
@@ -18,17 +19,24 @@
    the app never do. The fourth deletes routes saved without coordinates and
    then requires a coordinate for every place. The fifth adds the optional
    leaving time, allows a start time without weekdays and lowers the stop limit
-   to 48, so it fails if a route has more than 48 stops.
+   to 48, so it fails if a route has more than 48 stops. The sixth adds the
+   optional leaving date, puts weekdays into the RPC and the read view, and
+   changes no data.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
-3. Run `cd mobile`, `npm ci`, then `npm start` and open the existing Android/iOS
-   development build. Native build instructions are in the root README.
+3. Run `cd mobile`, `npm ci`, then `npm start` and open the Android/iOS
+   development build. The **Leaving at** pickers use
+   `@react-native-community/datetimepicker`, a native module, so a development
+   build from before it was added must be rebuilt once (`npx expo run:android`).
+   Native build instructions are in the root README.
 
 The app footer offers **Create Route** and **Saved routes**. Type a starting
 location and final destination and pick each from the suggestions, select Pedestrian, Bicycle or Car, optionally
-add/remove stops, optionally enter a **Leaving at** time such as `08:30`, then
-tap **Ready**. The saved list opens after a successful save.
+add/remove stops, optionally set **Leaving at**, then tap **Ready**.
+**Leaving at** is one rounded slider: **Now** takes the current date and time;
+the date and the time open the phone's own calendar and clock (on iOS they open
+below the slider), and picking a date asks for the time next; ✕ clears both. The saved list opens after a successful save.
 Delete removes a route immediately after the server confirms the deletion. A
 failed deletion leaves it visible, with a retryable error. Close returns to the
 existing app; Cancel returns from the form to the list without saving.
@@ -43,14 +51,16 @@ The form trims location text, ignores blank stops and requires a mode. Labels
 allow up to 200 characters, and routes allow up to 48 intermediate stops:
 openrouteservice takes at most 50 points, start and destination included. The
 leaving time decides whether daytime-only construction sites count (between 6:00
-and 22:00); without one, the time of planning is used.
+and 22:00); without one, the time of planning is used. A leaving date needs a
+time; without a date, the time means today. Route planning (#12) does not read
+the date yet.
 Saving disables editing, closing and duplicate submissions until the request ends.
 Every request gives up after 15 seconds, so a stalled connection cannot lock
 the screen.
 
 ## Team database
 
-The team project runs all five route migrations. The SQL editor keeps no
+The team project runs all six route migrations. The SQL editor keeps no
 migration history, so this is the record:
 
 | Migration | Applied |
@@ -60,6 +70,7 @@ migration history, so this is the record:
 | `20261016152000_saved_routes_hardening.sql` | 2026-10-16, pasted into the SQL editor |
 | `20261016153000_routes_require_coordinates.sql` | 2026-10-16, after PR #7's checks passed; deleted no routes (the only one had coordinates) |
 | `20261016154000_routes_leaving_time.sql` | 2026-10-16, after PR #7's checks passed; changed no data |
+| `20261016190000_routes_leaving_date.sql` | 2026-10-16, through `SUPABASE_DB_URL` in one transaction, after a rolled-back dry run; changed no data |
 
 Checked after the last one:
 
@@ -76,6 +87,16 @@ Checked after `20261016153000_routes_require_coordinates.sql`: the three locatio
 columns are `not null`, only the jsonb `create_saved_route` exists, and through the
 REST API a save without a coordinate returns HTTP 400 with "Pick the starting
 location from the suggestions.", while a save with coordinates reads them back.
+
+Before `20261016190000_routes_leaving_date.sql`, the team database's
+`create_saved_route` already took a `p_weekdays` parameter and the view returned
+`weekdays`, added outside these migrations. The migration keeps both, so it
+drops either earlier signature. Checked after it: only the eight-argument
+`create_saved_route` exists; in a rolled-back transaction as `anon`, a save with
+a date and a time returns `startDate: "2026-10-20"`, weekdays read back in
+order, and a date without a time, a date with weekdays, or weekdays without a
+time each fail with their message. Both existing routes read back unchanged
+through the REST API (one with Monday to Friday), with `startDate: null`.
 
 Checked after `20261016154000_routes_leaving_time.sql`: only the six-argument
 `create_saved_route` exists. Through the REST API, a save with `p_start_time`
@@ -101,6 +122,7 @@ const route = await routesRepository.create({
   destination: { label: 'Westfalenpark, Dortmund', coordinate: { latitude: 51.4951, longitude: 7.4754 } },
   mode: 'bike',
   startTime: '08:30',               // or '' for no leaving time
+  startDate: '2026-10-20',          // or '' for today; needs startTime
   waypoints: [{ label: 'Friedensplatz, Dortmund', coordinate: { latitude: 51.5119, longitude: 7.4669 } }],
 });
 await routesRepository.delete(route.id);
@@ -113,7 +135,8 @@ type SavedRoute = {
   start: RouteLocation;
   destination: RouteLocation;
   mode: 'pedestrian' | 'bike' | 'car'; // UI label for bike is Bicycle
-  startTime: string | null;         // "HH:MM" leaving time; without weekdays it means today
+  startTime: string | null;         // "HH:MM" leaving time; without weekdays or a date it means today
+  startDate: string | null;         // "YYYY-MM-DD" of a single trip; always with startTime
   waypoints: (RouteLocation & { id: string; sequence: number })[];
   createdAt: string;                // Database-generated ISO timestamp
 };
@@ -134,10 +157,11 @@ added here.
 The existing schema required a recurring schedule. These migrations make it
 optional: a route may have no `start_time` and no `weekdays`, or only a
 `start_time` ("today at this time", the form's **Leaving at**), or both. Weekdays
-always need a start time and never repeat a day. Existing scheduled/spatial rows,
+always need a start time and never repeat a day. A `start_date` (a single trip
+on that day) also needs a start time and cannot be combined with weekdays. Existing scheduled/spatial rows,
 indexes and enum values are preserved. Consumers must handle these optional
-values. Weekdays stay in the underlying tables and can be added to the shared
-projection when a feature needs them.
+values. The view also returns `weekdays` (lowercase day names, `[]` for none),
+which the app's `SavedRoute` type does not read yet.
 
 If `create` fails, calling it again with the same draft reuses the route's ID.
 A save that reached the server before its response was lost therefore returns the
@@ -152,7 +176,9 @@ stored route instead of saving it twice. A changed draft gets a new ID.
   so routes added or deleted meanwhile do not shift the pages.
 - `POST /rest/v1/rpc/create_saved_route` takes `p_id` (a UUID chosen by the app),
   `p_start`, `p_finish`, `p_modality`, optional `p_waypoints` (an array) and
-  optional `p_start_time` (`"HH:MM"`), and returns one `SavedRoute`. Each place has the read shape
+  optional `p_start_time` (`"HH:MM"`), `p_weekdays` (e.g. `["monday"]`, needs
+  `p_start_time`) and `p_start_date` (`"YYYY-MM-DD"`, needs `p_start_time`, not
+  with weekdays), and returns one `SavedRoute`. Each place has the read shape
   `{ "label": "…", "coordinate": { "latitude": …, "longitude": … } }`; a missing,
   non-numeric or out-of-range coordinate is rejected. Route and child inserts
   run in one transaction, so a failed stop cannot leave a partial route. Calling
@@ -216,7 +242,7 @@ supabase stop
 ```
 
 Before demoing, check on a device: create each mode, add several stops, remove a
-middle stop, leave one blank, save two routes, reload the app, delete one, and
+middle stop, leave one blank, tap **Now**, pick a later date and time, save two routes, reload the app, delete one, and
 verify the other remains. Check keyboard scrolling and large text on a small
 screen, plus Close returning to the existing map. Automated component tests and
 an Android bundle export do not replace physical-device/native-build checks.

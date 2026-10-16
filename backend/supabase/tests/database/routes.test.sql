@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(46);
+select plan(52);
 
 -- Inject a child-insert failure to verify that the RPC is atomic.
 create function pg_temp.reject_test_stop() returns trigger language plpgsql as $$
@@ -68,6 +68,18 @@ select lives_ok(
 select is(
   public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', '[]', '07:45') ->> 'startTime',
   '07:45', 'the leaving time is stored and returned as HH:MM');
+select is(
+  public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', p_start_time => '07:45', p_start_date => '2026-10-20') ->> 'startDate',
+  '2026-10-20', 'the leaving date is stored and returned as YYYY-MM-DD');
+select throws_ok(
+  $$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', p_start_date => '2026-10-20')$$,
+  '22023', 'Pick a time for the leaving date.', 'a leaving date needs a time');
+select is(
+  public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', p_start_time => '08:00', p_weekdays => '{monday,friday}') -> 'weekdays',
+  '["monday", "friday"]'::jsonb, 'weekdays are stored and returned in order');
+select throws_ok(
+  $$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), 'car', p_start_time => '08:00', p_weekdays => '{monday}', p_start_date => '2026-10-20')$$,
+  '22023', 'Pick a leaving date or weekdays, not both.', 'a leaving date cannot repeat on weekdays');
 select lives_ok(
   $$select public.create_saved_route(gen_random_uuid(), pg_temp.place('A'), pg_temp.place('B'), mode) from unnest(enum_range(null::public.modality)) as mode$$,
   'every transportation mode can be saved');
@@ -129,6 +141,12 @@ select throws_ok($$insert into routes (start_label, finish_label, start_location
   'a weekday cannot repeat');
 select lives_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, start_time, weekdays) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '08:00', '{monday,wednesday}')$$,
   'a complete schedule is accepted');
+select throws_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, start_date) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '2026-10-20')$$,
+  '23514', 'new row for relation "routes" violates check constraint "routes_start_date_complete"',
+  'the table rejects a date without a time');
+select throws_ok($$insert into routes (start_label, finish_label, start_location, finish_location, modality, start_time, start_date, weekdays) values ('A', 'B', 'POINT(7.46 51.51)', 'POINT(7.46 51.51)', 'car', '08:00', '2026-10-20', '{monday}')$$,
+  '23514', 'new row for relation "routes" violates check constraint "routes_start_date_complete"',
+  'a dated trip cannot also repeat on weekdays');
 
 -- Atomicity
 select throws_ok(

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NotificationSettings from '../notifications/NotificationSettings';
+import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import RouteDetail from './RouteDetail';
 import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatDay, formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 export default function RoutesManager() {
   const insets = useSafeAreaInsets();
@@ -39,6 +41,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [creating, setCreating] = useState(initiallyCreating);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notifying, setNotifying] = useState<SavedRoute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -89,6 +92,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     onBusyChange(true);
     try {
       await repository.delete(id);
+      // Its reminders would otherwise still fire; the next obstacle sync would also drop them.
+      constructionNotifications.forgetRoute(id).catch((e: unknown) => console.warn('Could not cancel the route\'s reminders', e));
       if (active.current) {
         setRoutes((current) => current.filter((route) => route.id !== id));
         setSelectedId((current) => (current === id ? null : current));
@@ -124,6 +129,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
         <RouteDetail route={selected} repository={repository} />
       ) : creating ? (
         <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
+      ) : notifying ? (
+        <NotificationSettings route={notifying} onBack={() => setNotifying(null)} />
       ) : (
         <FlatList
           data={routes}
@@ -155,8 +162,10 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               <TransportModeIcon mode={item.mode} />
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
-              {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}{(item.weekdays ?? []).length > 0 ? ` · ${formatWeekdays(item.weekdays)}` : ''}</Text>}
-              {!item.startTime && (item.weekdays ?? []).length > 0 && <Text style={styles.hint}>Repeats {formatWeekdays(item.weekdays)}</Text>}
+              {item.startTime && <Text style={styles.hint}>Leaving {item.startDate && `${formatDay(item.startDate)} `}at {item.startTime}{item.weekdays.length > 0 && ` · ${formatWeekdays(item.weekdays)}`}</Text>}
+              <Pressable accessibilityRole="button" accessibilityLabel={`Notification preferences for the route to ${place(item.destination, 'Final destination')}`} disabled={!!deleting} onPress={() => setNotifying(item)} style={styles.notify}>
+                <Text style={styles.secondaryText}>Notifications</Text>
+              </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
                 {deleting === item.id ? (
                   <ActivityIndicator size="small" color="#a52621" />
@@ -227,6 +236,7 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#254636', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
+  notify: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
   delete: { alignSelf: 'flex-start', padding: 8, borderRadius: 8 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },

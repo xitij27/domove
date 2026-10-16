@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MAX_WAYPOINTS, TRANSPORT_MODES, WEEKDAYS, WEEKDAY_SHORT_LABELS, validateRoute, type PlaceDraft, type RouteDraft, type RouteErrors, type Weekday } from './model';
+import LeavingAtInput, { type Leaving } from './LeavingAtInput';
 import PlaceInput from './PlaceInput';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
@@ -22,7 +23,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [destination, setDestination] = useState(EMPTY);
   const [mode, setMode] = useState<RouteDraft['mode']>('');
   const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>([]);
-  const [startTime, setStartTime] = useState('');
+  const [leaving, setLeaving] = useState<Leaving>({ startDate: '', startTime: '' });
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const nextId = useRef(0);
   const submitting = useRef(false);
@@ -30,17 +31,24 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [errors, setErrors] = useState<RouteErrors>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // A route either repeats on weekdays or runs once on a date, so picking one drops the other.
   function toggleWeekday(day: Weekday) {
     setWeekdays((current) =>
       current.includes(day)
         ? current.filter((selected) => selected !== day)
         : WEEKDAYS.filter((candidate) => candidate === day || current.includes(candidate)),
     );
+    setLeaving((current) => ({ ...current, startDate: '' }));
+  }
+
+  function changeLeaving(next: Leaving) {
+    setLeaving(next);
+    if (next.startDate) setWeekdays([]);
   }
 
   async function save() {
     if (submitting.current) return;
-    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place), startTime, weekdays };
+    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place), ...leaving, weekdays };
     const validation = validateRoute(draft);
     setErrors(validation);
     setSaveError(null);
@@ -96,8 +104,8 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
         {errors.mode && <ErrorText message={errors.mode} />}
 
         <Text style={styles.label}>Leaving at (optional)</Text>
-        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a time, we check the time the route is planned. A time alone means today; with weekdays the route repeats.</Text>
-        <TextInput accessibilityLabel="Leaving at" value={startTime} onChangeText={setStartTime} editable={!busy} maxLength={5} keyboardType="numbers-and-punctuation" placeholder="e.g. 08:30" placeholderTextColor="#737d8b" style={[styles.input, !!errors.startTime && styles.invalid]} />
+        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a date we assume today; without a time, the time the route is planned. With weekdays the route repeats at that time.</Text>
+        <LeavingAtInput value={leaving} onChange={changeLeaving} editable={!busy} invalid={!!errors.startTime} />
         {errors.startTime && <ErrorText message={errors.startTime} />}
 
         <Text style={styles.label}>Repeat on (optional)</Text>

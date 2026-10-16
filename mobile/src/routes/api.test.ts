@@ -3,10 +3,10 @@ import type { RouteDraft, SavedRoute } from './model';
 
 const id = '12345678-1234-1234-1234-123456789abc';
 const at = { latitude: 51.51, longitude: 7.46 };
-const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: '07:45', weekdays: ['monday', 'wednesday'], waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
+const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: '07:45', startDate: null, weekdays: ['monday', 'wednesday'], waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
 const draft: RouteDraft = {
   start: { label: ' Station ', coordinate: at }, destination: { label: 'Park ', coordinate: at }, mode: 'bike',
-  waypoints: [{ label: ' Cafe ', coordinate: at }, { label: ' ', coordinate: null }, { label: 'Library', coordinate: at }], startTime: '07:45', weekdays: ['monday', 'wednesday'],
+  waypoints: [{ label: ' Cafe ', coordinate: at }, { label: ' ', coordinate: null }, { label: 'Library', coordinate: at }], startTime: '07:45', startDate: '', weekdays: ['monday', 'wednesday'],
 };
 const originalFetch = globalThis.fetch;
 const fetchMock = jest.fn();
@@ -31,6 +31,14 @@ test('creates a route and its ordered stops in one atomic RPC', async () => {
       p_weekdays: ['monday', 'wednesday'],
     }),
   }));
+});
+
+test('a leaving date is sent only when picked', async () => {
+  fetchMock.mockResolvedValue(response(route));
+  await repository.create(draft);
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('p_start_date');
+  await repository.create({ ...draft, startDate: '2026-10-20', weekdays: [] });
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ p_start_date: '2026-10-20', p_weekdays: [] });
 });
 
 test('retrying a failed save reuses its ID, so the server cannot save it twice', async () => {
@@ -62,7 +70,7 @@ test('a changed draft is a new save with a new ID', async () => {
 
 test('invalid forms never send requests', async () => {
   const blank = { label: '', coordinate: null };
-  await expect(repository.create({ start: blank, destination: blank, mode: '', waypoints: [], startTime: '', weekdays: [] })).rejects.toThrow('starting location');
+  await expect(repository.create({ start: blank, destination: blank, mode: '', waypoints: [], startTime: '', startDate: '', weekdays: [] })).rejects.toThrow('starting location');
   await expect(repository.create({ ...draft, start: { label: 'Station', coordinate: null } })).rejects.toThrow('Pick a place');
   expect(fetchMock).not.toHaveBeenCalled();
 });

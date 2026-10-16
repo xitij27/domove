@@ -4,7 +4,7 @@ Live map of current and planned construction sites from the [Dortmund open data 
 
 ## Mobile app (`mobile/`)
 
-The app renders the same data with Google Maps or Mapbox (toggle in the top-right corner), with a day or night map (sun/moon switch below it; the choice is remembered). Mapbox needs native code, so the app runs in a **development build**, not Expo Go.
+The app renders the same data with Google Maps or Mapbox (toggle in the top-right corner), with a day or night map (sun/moon switch below it; the choice is remembered). Below that, a compass points to north on the map while it is turned; tap it to turn the map back to north-up. Mapbox needs native code, so the app runs in a **development build**, not Expo Go.
 
 1. Copy `mobile/.env.example` to `mobile/.env` (gitignored) and fill in:
    - `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: see Backend below.

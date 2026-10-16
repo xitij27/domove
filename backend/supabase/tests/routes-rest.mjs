@@ -29,14 +29,16 @@ try {
     const route = await request('rpc/create_saved_route', 'POST', {
       p_id: id, p_start: place('  REST Station ', 51.5178, 7.4592), p_finish: place('REST Park'), p_modality: mode,
       p_waypoints: [place(' Cafe '), place(''), place('Library')],
-      // only the car route has a leaving time
-      ...(mode === 'car' && { p_start_time: '07:45' }),
+      // only the car route has a leaving time, the bike route a time only
+      ...(mode === 'car' && { p_start_time: '07:45', p_start_date: '2026-10-20' }),
+      ...(mode === 'bike' && { p_start_time: '18:10' }),
     });
     created.push(id);
     assert.equal(route.id, id);
     assert.equal(route.start.label, 'REST Station');
     assert.equal(route.mode, mode);
-    assert.equal(route.startTime, mode === 'car' ? '07:45' : null);
+    assert.equal(route.startTime, { car: '07:45', bike: '18:10' }[mode] ?? null);
+    assert.equal(route.startDate, mode === 'car' ? '2026-10-20' : null);
     assert.deepEqual(route.start.coordinate, { latitude: 51.5178, longitude: 7.4592 });
     assert.ok(route.createdAt);
     assert.deepEqual(route.waypoints.map((stop) => [stop.label, stop.sequence]), [['Cafe', 0], ['Library', 1]]);
@@ -79,7 +81,7 @@ try {
   assert.deepEqual(await request(`saved_routes?id=eq.${deleted}`), []);
   assert.deepEqual(await request(`route_waypoints?route_id=eq.${deleted}`), []);
   assert.equal((await request(`saved_routes?id=eq.${retained}`)).length, 1);
-  console.log('PASS: REST creation with coordinates and leaving time, three modes, ordered stops, idempotent retry, reload, keyset paging, validation, deletion and waypoint cascade.');
+  console.log('PASS: REST creation with coordinates and leaving date and time, three modes, ordered stops, idempotent retry, reload, keyset paging, validation, deletion and waypoint cascade.');
 } finally {
   for (const id of created) await request(`routes?id=eq.${id}`, 'DELETE');
 }

@@ -9,6 +9,7 @@ const route: SavedRoute = {
   destination: { label: 'Park', coordinate: at(51.52, 7.48) },
   mode: 'bike',
   startTime: null,
+  startDate: null,
   weekdays: [],
   waypoints: [
     { id: 'w2', label: 'Second', sequence: 2, coordinate: at(51.515, 7.47) },

@@ -1,18 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
-import type { RouteDraft, SavedRoute } from './model';
+import { formatDay, type RouteDraft, type SavedRoute } from './model';
 import { searchPlaces } from './places';
+import { constructionNotifications } from '../notifications/runtime';
 
-jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
-jest.mock('@expo/vector-icons/MaterialIcons', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { View } = require('react-native');
-  function MockMaterialIcons({ accessibilityLabel }: { accessibilityLabel?: string }) {
-    return <View accessibilityLabel={accessibilityLabel} />;
-  }
-  return MockMaterialIcons;
-});
+// expo-font needs expo-asset, which only Expo's Metro config resolves.
+jest.mock('@expo/vector-icons/MaterialIcons', () => 'MaterialIcons');
 jest.mock('react-native-maps', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View } = require('react-native');
@@ -21,8 +15,10 @@ jest.mock('react-native-maps', () => {
   const Polyline = () => <View />;
   return { __esModule: true, default: MapView, Marker, Polyline };
 });
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 // Every search suggests exactly the typed text.
 jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
+jest.mock('../notifications/runtime', () => ({ constructionNotifications: { forgetRoute: jest.fn(async () => undefined) } }));
 jest.setTimeout(15000);
 
 const at = { latitude: 51.51, longitude: 7.46 };
@@ -30,7 +26,7 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, weekdays: [], waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, startDate: null, weekdays: [], waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
   return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
@@ -65,7 +61,7 @@ beforeEach(() => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
         start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
-        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, weekdays: [...(draft.weekdays ?? [])], createdAt: '2026-10-16T12:00:00Z',
+        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, startDate: draft.startDate.trim() || null, weekdays: [...draft.weekdays], createdAt: '2026-10-16T12:00:00Z',
         waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
       };
       persisted.unshift(route);
@@ -99,6 +95,7 @@ test('creates multiple routes, removes individual stops, reloads and deletes', a
   await press('Delete route from Station to Park');
   expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
   expect(screen.getByText('Home → Work')).toBeOnTheScreen();
+  expect(constructionNotifications.forgetRoute).toHaveBeenCalledWith('1');
   await press('Refresh routes');
   expect(persisted).toHaveLength(1);
   expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
@@ -141,20 +138,50 @@ test('only places picked from the suggestions can be saved', async () => {
   expect(screen.getByText('Station → Parks')).toBeOnTheScreen();
 });
 
-test('an optional leaving time is checked, saved and listed', async () => {
-  await mount();
-  await fill();
-  await enter('Leaving at', '8.30');
-  await press('Ready');
-  expect(screen.getByText('Enter a time like 08:30, or leave it empty.')).toBeOnTheScreen();
-  expect(repository.create).not.toHaveBeenCalled();
-  await enter('Leaving at', '08:30');
-  await press('Ready');
-  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30' }));
-  expect(screen.getByText('Leaving at 08:30')).toBeOnTheScreen();
+/** Picks a value in the open iOS picker, as the native picker reports it. */
+async function choose(date: Date) {
+  await fireEvent(screen.getByTestId('leaving-picker'), 'change', { nativeEvent: { timestamp: date.getTime() } });
+}
+
+test('Now fills in the current day and time, which are saved and listed', async () => {
+  jest.useFakeTimers({ now: new Date(2026, 9, 16, 14, 52), advanceTimers: true });
+  try {
+    await mount();
+    await fill();
+    await press('Leave now');
+    expect(screen.getByRole('button', { name: 'Leave now' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Leaving time' })).toHaveAccessibilityValue({ text: '14:52' });
+    await press('Ready');
+    expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '2026-10-16', startTime: '14:52' }));
+    expect(await screen.findByText(`Leaving ${formatDay('2026-10-16')} at 14:52`)).toBeOnTheScreen();
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
-test('weekday tags toggle and need a leaving time', async () => {
+test('a picked day asks for a time next, and Clear removes both', async () => {
+  await mount();
+  await fill();
+  await press('Leaving date');
+  await choose(new Date(2099, 9, 20));
+  expect(screen.getByRole('button', { name: 'Leaving date' })).toHaveAccessibilityValue({ text: formatDay('2099-10-20') });
+  expect(screen.getByRole('button', { name: 'Leaving time' })).toBeExpanded();
+  await press('Ready');
+  expect(screen.getByText('Pick a time for the leaving date.')).toBeOnTheScreen();
+  expect(repository.create).not.toHaveBeenCalled();
+
+  await choose(new Date(2099, 9, 20, 7, 15));
+  await press('Clear leaving time');
+  expect(screen.getByRole('button', { name: 'Leaving time' })).toHaveAccessibilityValue({ text: 'Time' });
+  expect(screen.queryByTestId('leaving-picker')).toBeNull();
+  await press('Leaving time');
+  await choose(new Date(2099, 9, 20, 7, 15));
+  await press('Ready');
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '', startTime: '07:15' }));
+  expect(await screen.findByText('Leaving at 07:15')).toBeOnTheScreen();
+});
+
+test('weekday tags need a leaving time and replace a picked date, and the other way round', async () => {
   await mount();
   await fill();
   await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
@@ -163,18 +190,20 @@ test('weekday tags toggle and need a leaving time', async () => {
   await press('Ready');
   expect(screen.getByText('Select a leaving time for the selected days.')).toBeOnTheScreen();
   expect(repository.create).not.toHaveBeenCalled();
-  await enter('Leaving at', '08:30');
-  await press('Ready');
-  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30', weekdays: ['monday', 'wednesday'] }));
-  expect(screen.getByText('Leaving at 08:30 · Mon · Wed')).toBeOnTheScreen();
-  // Toggling a selected day off removes it again.
-  await fill('Home', 'Work');
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
+
+  // A date is a single trip, so it drops the days; a day drops the date again and keeps the time.
+  await press('Leaving date');
+  await choose(new Date(2099, 9, 20));
   expect(screen.getByRole('checkbox', { name: 'Monday' })).not.toBeChecked();
-  await enter('Leaving at', '09:00');
+  await choose(new Date(2099, 9, 20, 8, 30));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Wednesday' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Friday' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Friday' }));
+  expect(screen.getByRole('checkbox', { name: 'Friday' })).not.toBeChecked();
   await press('Ready');
-  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ weekdays: [] }));
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '', startTime: '08:30', weekdays: ['monday', 'wednesday'] }));
+  expect(await screen.findByText('Leaving at 08:30 · Mon · Wed')).toBeOnTheScreen();
 });
 
 test('says when suggestions cannot be loaded', async () => {
