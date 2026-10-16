@@ -136,14 +136,14 @@ function RadarMap() {
       </View>
 
       {error && (
-        <Pressable style={[styles.card, { bottom: insets.bottom + 12 }]} onPress={load} accessibilityRole="button">
+        <Pressable style={styles.card} onPress={load} accessibilityRole="button">
           <Text style={styles.title}>Could not load construction sites</Text>
           <Text style={styles.meta}>{error} — tap to retry</Text>
         </Pressable>
       )}
 
       {selected && !error && (
-        <View style={[styles.card, { bottom: insets.bottom + 12 }]}>
+        <View style={styles.card}>
           <Text style={[styles.meta, { color: COLORS[selected.status] }]}>{LABELS[selected.status]}</Text>
           <Text style={styles.title}>{selected.title}</Text>
           <Text style={styles.meta}>{selected.period}</Text>
@@ -161,7 +161,8 @@ const styles = StyleSheet.create({
   chipOff: { opacity: 0.45 },
   switch: { marginLeft: 'auto' },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  card: { position: 'absolute', left: 12, right: 12, backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  // no safe-area inset at the bottom: the route launcher below the map already clears it
+  card: { position: 'absolute', left: 12, right: 12, bottom: 12, backgroundColor: '#fff', borderRadius: 12, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   title: { fontSize: 16, fontWeight: '600' },
   meta: { color: '#555' },
   crash: { backgroundColor: '#111', paddingHorizontal: 16, gap: 8 },
