@@ -151,9 +151,8 @@ supabase init
 mkdir -p supabase/migrations supabase/tests
 cp "$REPO"/backend/supabase/migrations/*routes*.sql supabase/migrations/
 cp -r "$REPO"/backend/supabase/tests/database supabase/tests/
-supabase db start
-supabase test db
 supabase start
+supabase test db
 eval "$(supabase status -o env)"
 SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" node "$REPO/backend/supabase/tests/routes-rest.mjs"
 supabase stop
