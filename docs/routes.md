@@ -10,6 +10,7 @@
    4. `20261016153000_routes_require_coordinates.sql`
    5. `20261016154000_routes_leaving_time.sql`
    6. `20261016190000_routes_leaving_date.sql` (after the obstacles migrations)
+   7. `20261016200000_update_saved_route.sql`
 
    The team database already runs all of them; see [Team database](#team-database).
    The second file was renamed from `20261016160000_create_delete_routes.sql`
@@ -21,6 +22,7 @@
    leaving time, allows a start time without weekdays and lowers the stop limit
    to 48, so it fails if a route has more than 48 stops. The sixth adds the
    optional leaving date, puts weekdays into the RPC and the read view, and
+   changes no data. The seventh adds `update_saved_route` for editing and
    changes no data.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
@@ -41,7 +43,10 @@ phone's clock (on iOS it opens below the days), and optionally tap the round
 until a day is picked, then sums the days up, e.g. "Weekdays" or "Mon, Wed".
 Picking a day before a time opens the clock; ✕ clears both. The saved list
 opens after a successful save, and each route reads e.g. "Leaving at 07:15 · Weekdays".
-Delete removes a route immediately after the server confirms the deletion. A
+Each saved route has a blue pencil and a trash button. The pencil opens the form
+filled in with the route; **Save changes** replaces it in place, keeping its
+place in the list, and a route shown on the map is redrawn.
+The trash button removes a route immediately after the server confirms the deletion. A
 failed deletion leaves it visible, with a retryable error. Close, pulling the
 sheet down or Android's back button lowers it to the map again, except while a
 save or deletion is still running; Cancel returns from the form to the list
@@ -206,6 +211,11 @@ stored route instead of saving it twice. A changed draft gets a new ID.
   run in one transaction, so a failed stop cannot leave a partial route. Calling
   it again with an existing `p_id` returns that route unchanged. Invalid input
   returns HTTP 400 with code `22023` and a message the app shows as-is.
+- `POST /rest/v1/rpc/update_saved_route` (`routesRepository.update(id, draft)`)
+  takes the same arguments and checks, with `p_id` naming the route to change,
+  and returns the changed `SavedRoute`. Its places, mode, leaving time and stops
+  are replaced in one transaction; its ID and `createdAt` stay. A missing route
+  returns code `22023`. The obstacles job routes it again on its next run.
 - `DELETE /rest/v1/routes?id=eq.<uuid>` deletes the route. The existing foreign
   key cascades deletion to all its stops.
 - `GET /rest/v1/obstacles?route_id=eq.<uuid>&select=construction_site_id`

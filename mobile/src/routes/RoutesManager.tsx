@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -80,11 +81,12 @@ function createSheet(y: Animated.Value, show: (open: Open) => void) {
 }
 
 /** The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form. */
-export default function RoutesManager({ repository, onOpenChange, onViewRoute, onRouteDeleted }: {
+export default function RoutesManager({ repository, onOpenChange, onViewRoute, onRouteUpdated, onRouteDeleted }: {
   repository?: RoutesRepository;
   onOpenChange?: (open: boolean) => void;
   /** Shows a saved route on the map below; the sheet lowers out of its way. */
   onViewRoute?: (route: SavedRoute) => void;
+  onRouteUpdated?: (route: SavedRoute) => void;
   onRouteDeleted?: (id: string) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -144,6 +146,7 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
             onClose={sheet.lower}
             onBusyChange={sheet.setBusy}
             onView={onViewRoute && ((route) => { sheet.lower(); onViewRoute(route); })}
+            onUpdated={onRouteUpdated}
             onDeleted={onRouteDeleted}
             repository={repository}
           />
@@ -153,17 +156,19 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
   );
 }
 
-export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, onView, onDeleted, repository = routesRepository }: {
+export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, onView, onUpdated, onDeleted, repository = routesRepository }: {
   initiallyCreating?: boolean;
   onClose: () => void;
   onBusyChange: (busy: boolean) => void;
   onView?: (route: SavedRoute) => void;
+  onUpdated?: (route: SavedRoute) => void;
   onDeleted?: (id: string) => void;
   repository?: RoutesRepository;
 }) {
   const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
-  const [creating, setCreating] = useState(initiallyCreating);
+  // The form is open while set: empty to create a route, or with the route being edited.
+  const [form, setForm] = useState<{ route?: SavedRoute } | null>(initiallyCreating ? {} : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -202,8 +207,17 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   async function save(draft: RouteDraft) {
     const saved = await repository.create(draft);
     setRoutes((current) => [saved, ...current.filter((route) => route.id !== saved.id)]);
-    setCreating(false);
+    setForm(null);
     // Supersedes a list request that started before the save and would not include it.
+    refresh();
+  }
+
+  async function update(id: string, draft: RouteDraft) {
+    const saved = await repository.update(id, draft);
+    // It keeps its place in the list.
+    setRoutes((current) => current.map((route) => (route.id === saved.id ? saved : route)));
+    onUpdated?.(saved);
+    setForm(null);
     refresh();
   }
 
@@ -239,8 +253,13 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
       </View>
-      {creating ? (
-        <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
+      {form ? (
+        <RouteForm
+          route={form.route}
+          onSave={(draft) => (form.route ? update(form.route.id, draft) : save(draft))}
+          onCancel={() => setForm(null)}
+          onBusyChange={(value) => { setSaving(value); onBusyChange(value); }}
+        />
       ) : (
         <FlatList
           data={routes}
@@ -250,7 +269,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
             <View style={styles.header}>
               <Text accessibilityRole="header" style={styles.title}>Your routes</Text>
               <Text style={styles.hint}>Your next journey starts here.</Text>
-              <Pressable accessibilityRole="button" disabled={!!deleting} onPress={() => setCreating(true)} style={styles.primary}>
+              <Pressable accessibilityRole="button" disabled={!!deleting} onPress={() => setForm({})} style={styles.primary}>
                 <Text style={styles.primaryText}>Create Route</Text>
               </Pressable>
               {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
@@ -274,46 +293,19 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
                     <Text style={styles.secondaryText}>Map & alerts</Text>
                   </Pressable>
                 )}
-                <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
-                  {deleting === item.id ? (
-                    <ActivityIndicator size="small" color="#a52621" />
-                  ) : (
-                    <TrashIcon color="#a52621" />
-                  )}
-                </Pressable>
+                <View style={styles.iconActions}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Edit route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} disabled={loading || !!deleting} onPress={() => setForm({ route: item })} style={styles.edit} hitSlop={8}>
+                    <MaterialIcons name="edit" size={22} color="#1f63c6" />
+                  </Pressable>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={8}>
+                    {deleting === item.id ? <ActivityIndicator size="small" color="#a52621" /> : <MaterialIcons name="delete-outline" size={24} color="#a52621" />}
+                  </Pressable>
+                </View>
               </View>
             </View>
           )}
         />
       )}
-    </View>
-  );
-}
-
-/** Simple trash-bin glyph drawn with Views so no icon font is needed. */
-function TrashIcon({ color = '#a52621', size = 20 }: { color?: string; size?: number }) {
-  const line = size * 0.09;
-  return (
-    <View style={{ width: size, height: size + 2, alignItems: 'center' }}>
-      <View style={{ width: size * 0.4, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
-      <View style={{ width: size * 0.9, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
-      <View
-        style={{
-          width: size * 0.7,
-          height: size * 0.68,
-          borderWidth: line,
-          borderColor: color,
-          borderTopWidth: 0,
-          borderBottomLeftRadius: 3,
-          borderBottomRightRadius: 3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-evenly',
-        }}
-      >
-        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
-        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
-      </View>
     </View>
   );
 }
@@ -347,9 +339,11 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   show: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
-  delete: { alignSelf: 'center', padding: 8, borderRadius: 8 },
+  iconActions: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  edit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: '#e3eefc' },
+  delete: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },
 });
