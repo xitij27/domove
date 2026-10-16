@@ -61,9 +61,10 @@ jobs:
 
       # Starts the database (applying the migrations) and the REST API in one go:
       # after `supabase db start`, `supabase start` would not start the other services.
+      # Auth stays on because `supabase status` only reports the API keys with it.
       - name: Start Supabase with the migrations
         working-directory: ${{ env.PROJECT }}
-        run: supabase start -x gotrue,realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
 
       - name: Run the pgTAP tests
         working-directory: ${{ env.PROJECT }}
@@ -72,6 +73,7 @@ jobs:
       - name: Run the REST smoke test
         working-directory: ${{ env.PROJECT }}
         run: |
+          supabase status -o env | cut -d= -f1
           eval "$(supabase status -o env)"
           SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}" \
             node "$GITHUB_WORKSPACE/backend/supabase/tests/routes-rest.mjs"
