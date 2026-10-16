@@ -59,7 +59,7 @@ beforeEach(() => {
       return route;
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
-    obstacleSiteIds: jest.fn(async () => []),
+    obstacleSiteIds: jest.fn(async (_routeId: string): Promise<string[]> => []),
   };
 });
 
