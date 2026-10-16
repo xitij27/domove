@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F2971C",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -24,7 +24,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@rnmapbox/maps"
+      "@rnmapbox/maps",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F2971C",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
     ]
   }
 }
