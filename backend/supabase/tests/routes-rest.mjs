@@ -49,6 +49,13 @@ try {
   const rows = await request('saved_routes?select=route&order=created_at.desc,id.desc&limit=100');
   for (const id of created) assert.equal(rows.filter(({ route }) => route.id === id).length, 1);
 
+  // The next page after a route, with the cursor mobile/src/routes/api.ts sends.
+  const { createdAt, id: newest } = rows.find(({ route }) => route.id === created[2]).route;
+  const cursor = `(created_at.lt."${createdAt}",and(created_at.eq."${createdAt}",id.lt.${newest}))`;
+  const after = await request(`saved_routes?select=route&order=created_at.desc,id.desc&limit=100&or=${encodeURIComponent(cursor)}`);
+  assert.ok(!after.some(({ route }) => route.id === newest));
+  for (const id of created.slice(0, 2)) assert.ok(after.some(({ route }) => route.id === id));
+
   // Validation errors carry the message the app shows.
   const invalid = await fetch(`${url}/rest/v1/rpc/create_saved_route`, {
     method: 'POST', headers,
@@ -65,7 +72,7 @@ try {
   assert.deepEqual(await request(`saved_routes?id=eq.${deleted}`), []);
   assert.deepEqual(await request(`route_waypoints?route_id=eq.${deleted}`), []);
   assert.equal((await request(`saved_routes?id=eq.${retained}`)).length, 1);
-  console.log('PASS: REST creation, three modes, ordered stops, idempotent retry, reload, validation, deletion and waypoint cascade.');
+  console.log('PASS: REST creation, three modes, ordered stops, idempotent retry, reload, keyset paging, validation, deletion and waypoint cascade.');
 } finally {
   for (const id of created) await request(`routes?id=eq.${id}`, 'DELETE');
 }
