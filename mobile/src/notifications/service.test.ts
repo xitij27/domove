@@ -71,6 +71,25 @@ test('a delivered reminder is not sent again', async () => {
   expect(ctx.scheduled).toHaveLength(1);
 });
 
+test('reports each site\'s reminder on a route as scheduled or sent, and none while alerts are off or blocked', async () => {
+  const ctx = setup();
+  const started = { ...bridge, siteId: 's3', startsOn: '2026-10-01' };
+  await ctx.service.sync([bridge, started, school]);
+  expect(await ctx.service.remindersOn('r1')).toEqual([]);
+  await ctx.service.setSettings('r1', week);
+  expect(await ctx.service.remindersOn('r1')).toEqual([
+    { siteId: 's1', at: new Date(2026, 9, 23, 9).getTime(), sent: false },
+    { siteId: 's3', at: new Date(2026, 9, 16, 9).getTime(), sent: false },
+  ]);
+  ctx.clock.now = new Date(2026, 9, 16, 12);
+  await ctx.service.setSettings('r1', { ...week, preference: 'DISABLED' });
+  expect(await ctx.service.remindersOn('r1')).toEqual([{ siteId: 's3', at: new Date(2026, 9, 16, 9).getTime(), sent: true }]);
+  const blocked = setup(false);
+  await blocked.service.sync([bridge]);
+  await blocked.service.setSettings('r1', week);
+  expect(await blocked.service.remindersOn('r1')).toEqual([]);
+});
+
 test('obstacles gone from the backend and deleted routes lose their reminders', async () => {
   const ctx = setup();
   await ctx.service.setSettings('r1', week);

@@ -90,6 +90,16 @@ test('deletes only the selected route, including successful repeated deletes', a
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
+test('lists the construction sites on the way of one route, skipping malformed rows', async () => {
+  fetchMock.mockResolvedValueOnce(response([{ construction_site_id: 'site-1' }, { construction_site_id: 7 }, null, { construction_site_id: 'site-2' }]));
+  await expect(repository.obstacleSiteIds(id)).resolves.toEqual(['site-1', 'site-2']);
+  expect(fetchMock).toHaveBeenCalledWith(`https://example.supabase.co/rest/v1/obstacles?route_id=eq.${id}&select=construction_site_id`, expect.anything());
+  await expect(repository.obstacleSiteIds('invalid&id=not.is.null')).rejects.toThrow('invalid ID');
+  fetchMock.mockResolvedValueOnce(response({ unexpected: true }));
+  await expect(repository.obstacleSiteIds(id)).rejects.toThrow('invalid list');
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 test('shows the server validation message', async () => {
   fetchMock.mockResolvedValueOnce(response({ code: '22023', message: 'Final destination must contain 1 to 200 characters.' }, 400));
   await expect(repository.create(draft)).rejects.toThrow('Final destination must contain 1 to 200 characters.');

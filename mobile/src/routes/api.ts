@@ -5,6 +5,8 @@ export type RoutesRepository = {
   list: () => Promise<SavedRoute[]>;
   create: (draft: RouteDraft) => Promise<SavedRoute>;
   delete: (id: string) => Promise<void>;
+  /** IDs of the construction sites the backend's job found on the way of a route; none until it has checked it. */
+  obstacleSiteIds: (routeId: string) => Promise<string[]>;
 };
 
 // React Native's fetch never times out on its own, and the route screens stay
@@ -87,12 +89,22 @@ export function createRoutesRepository(
       return route;
     },
     async delete(id) {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-        throw new Error('This route has an invalid ID. Refresh the list and try again.');
-      }
+      checkId(id);
       await request(`routes?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
+    async obstacleSiteIds(routeId) {
+      checkId(routeId);
+      const rows = await request(`obstacles?route_id=eq.${encodeURIComponent(routeId)}&select=construction_site_id`);
+      if (!Array.isArray(rows)) throw new Error('The server returned an invalid list of construction sites.');
+      return rows.flatMap((row) => (typeof row?.construction_site_id === 'string' ? [row.construction_site_id] : []));
+    },
   };
+}
+
+function checkId(id: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('This route has an invalid ID. Refresh the list and try again.');
+  }
 }
 
 function parseJson(text: string): unknown {

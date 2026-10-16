@@ -1,9 +1,10 @@
-import { useImperativeHandle, useRef, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { StyleSheet } from 'react-native';
-import MapView, { Marker, type MapViewProps } from 'react-native-maps';
+import MapView, { Marker, Polyline, type MapViewProps } from 'react-native-maps';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { POINT_NORTH_MS, type MapHandle } from './Compass';
+import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
 
@@ -31,18 +32,27 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
 
 const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
-export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, ref }: {
+export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
   onHeadingChange: (heading: number) => void;
   bottomInset: number; // covered by what lies over the map's bottom edge
+  route: RouteOverlay | null;
+  routePadding: RoutePadding; // on top of bottomInset
   ref?: Ref<MapHandle>;
 }) {
   const map = useRef<MapView>(null);
+  const [ready, setReady] = useState(false);
   useImperativeHandle(ref, () => ({
     pointNorth: () => map.current?.animateCamera({ heading: 0 }, { duration: POINT_NORTH_MS }),
   }), []);
+
+  // Brings a route into view when it opens and again when its routed path replaces the straight line.
+  // Fitting before the map has a size fails, so wait for it.
+  useEffect(() => {
+    if (ready && route) map.current?.fitToCoordinates(routePoints(route), { edgePadding: routePadding, animated: true });
+  }, [ready, route, routePadding]);
 
   // The region events carry no heading, so ask the map for it on every frame of a gesture or animation.
   const readHeading = () => {
@@ -63,11 +73,19 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       mapPadding={{ top: 0, right: 0, bottom: bottomInset, left: 0 }} // keeps the Google logo in sight
       onRegionChange={readHeading}
       onRegionChangeComplete={readHeading}
+      onMapReady={() => setReady(true)}
       onPress={(e) => e.nativeEvent.action !== 'marker-press' && onSelect(null)}
     >
+      {route && <Polyline coordinates={route.path} strokeWidth={7} strokeColor={CASING_COLORS[theme]} zIndex={1} />}
+      {route && <Polyline coordinates={route.path} strokeWidth={4} strokeColor={LINE_COLORS[theme]} zIndex={2} />}
       {sites.map((s) => (
         <Marker key={s.id} coordinate={s.coordinate} pinColor={COLORS[s.status]} onPress={() => onSelect(s)} />
       ))}
+      {route && <Marker coordinate={route.start.coordinate} pinColor={STOP_COLORS.start} title="Start" description={route.start.label ?? undefined} />}
+      {route?.stops.map((stop, index) => (
+        <Marker key={index} coordinate={stop.coordinate} pinColor={STOP_COLORS.stop} title={`Stop ${index + 1}`} description={stop.label ?? undefined} />
+      ))}
+      {route && <Marker coordinate={route.destination.coordinate} pinColor={STOP_COLORS.destination} title="Destination" description={route.destination.label ?? undefined} />}
     </MapView>
   );
 }

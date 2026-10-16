@@ -47,6 +47,20 @@ sheet down or Android's back button lowers it to the map again, except while a
 save or deletion is still running; Cancel returns from the form to the list
 without saving.
 
+**Map & alerts** lowers the sheet and draws the route on the map behind it (no
+second map): the path, a green start, teal stops and a violet destination. The
+camera fits the route, and the map then shows only the construction sites on
+its way, the ones the obstacles job stored for it in `obstacles` (see
+[notifications.md](notifications.md)). The Current/Planned chips count and
+filter those. A card at the bottom names the route and how many sites lie on
+the way, and holds the route's construction alerts; a site's card says when
+its alert comes (see [notifications.md](notifications.md)). The route card's ✕
+or Android's back button shows every site again. Deleting the
+route also closes it. The path comes from the same FOSSGIS OSRM request as
+`private.route_requests`, so it is the line the obstacles were matched against;
+until it answers, or if it fails, a straight line joins the stops. A route the
+job has not checked yet shows no sites.
+
 Suggestions come from [Photon](https://photon.komoot.io) (OpenStreetMap data,
 free, no key), nearest to Dortmund first, from the third character on. Only a
 picked suggestion gives a place its coordinate; typing over it removes the
@@ -159,8 +173,8 @@ Every location has a coordinate, stored in the PostGIS columns
 `routes.start_location`, `routes.finish_location` and `route_waypoints.location`
 (all `not null`). Routes created by the app always have labels; a location
 written with only a coordinate has a null label, and the list shows a generic
-name for it. No route calculation, map visualization or obstacle analysis is
-added here.
+name for it. Route calculation and obstacle analysis happen in the backend's
+obstacles job; **Map & alerts** only draws a route and reads the job's results.
 
 The existing schema required a recurring schedule. These migrations make it
 optional: a route may have no `start_time` and no `weekdays`, or only a
@@ -194,6 +208,9 @@ stored route instead of saving it twice. A changed draft gets a new ID.
   returns HTTP 400 with code `22023` and a message the app shows as-is.
 - `DELETE /rest/v1/routes?id=eq.<uuid>` deletes the route. The existing foreign
   key cascades deletion to all its stops.
+- `GET /rest/v1/obstacles?route_id=eq.<uuid>&select=construction_site_id`
+  (`routesRepository.obstacleSiteIds`) lists the sites on a route's way, which
+  **Map & alerts** keeps on the map.
 
 The 200-character and 48-stop limits are also table constraints, so they hold
 for writes that do not go through the RPC.
