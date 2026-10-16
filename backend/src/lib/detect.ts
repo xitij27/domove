@@ -1,13 +1,16 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { parsePointWkt } from "../db/geo";
-import type { Modality } from "../db/schema";
+import type { Modality, Weekday } from "../db/schema";
+import { isSiteActiveOnRoute, siteActiveOnRoute } from "./dateAlignment";
 import {
   fetchAllSites,
   syncConstructionSites,
   type SyncSummary,
 } from "./dortmundApi";
 import { fetchRouteLine, routeLineEwkt, type LngLat } from "./routing";
+
+export { isSiteActiveOnRoute, siteActiveOnRoute };
 
 /**
  * Backend event loop: construction sites vs. user routes → obstacles.
@@ -19,11 +22,13 @@ import { fetchRouteLine, routeLineEwkt, type LngLat } from "./routing";
  *   3. Resolve each route to a full polyline via the routing engine
  *      (start → waypoints → finish, modality-aware).
  *   4. Match sites whose area (or, while geom is null, whose centroid
- *      buffered by the area-equivalent radius, else SITE_FALLBACK_RADIUS_M)
- *      intersects the route line buffered by ROUTE_BUFFER_M.
+ *      buffered by the area-equivalent radius sqrt(area/pi) — or the global
+ *      SITE_FALLBACK_RADIUS_M when no area is known either)
+ *      intersects the route line buffered by ROUTE_BUFFER_M, AND whose active
+ *      dates line up with the route's travel days (via private.site_active_on_route).
  *   5. Upsert one obstacles row per (route, site) hit, refresh
  *      distance_meters/detected_at on re-hits, delete rows that no
- *      longer intersect.
+ *      longer intersect or have expired.
  */
 
 const ROUTE_BUFFER_M = Number(process.env.ROUTE_BUFFER_M ?? 30);
@@ -76,6 +81,10 @@ interface RouteRow {
   modality: Modality;
   startWkt: string;
   finishWkt: string;
+  // Weekly repetition (empty = no repetition) and single-trip date
+  // (null = no fixed date). See backend/supabase/migrations/*_routes*.sql.
+  weekdays: Weekday[];
+  startDate: string | null;
 }
 
 interface WaypointRow {
@@ -91,32 +100,89 @@ function mustParse(wkt: string, what: string): LngLat {
   return pt;
 }
 
-async function findHits(
+export async function findHits(
   routeLine: LngLat[],
+  weekdays: Weekday[] = [],
+  startDate: string | null = null,
 ): Promise<RouteHit[]> {
   const db = getDb();
   const ewkt = routeLineEwkt(routeLine);
+  const weekdaysList = Array.isArray(weekdays) ? weekdays : [];
+  const weekdaysSql =
+    weekdaysList.length > 0
+      ? sql`ARRAY[${sql.join(
+          weekdaysList.map((w) => sql`${w}::public.weekday`),
+          sql`, `,
+        )}]::public.weekday[]`
+      : sql`'{}'::public.weekday[]`;
+  const startDateSql = startDate ? sql`${startDate}::date` : sql`null::date`;
+
   // Sites match on their stored polygon area. While geom is null (e.g. a
   // site whose feed polygon was unusable), fall back to buffering the
   // centroid by the area-equivalent radius sqrt(area/pi) — or the global
   // SITE_FALLBACK_RADIUS_M when no area is known either.
-  const rows = await db.execute<{ site_id: string; dist: number | null }>(sql`
-    select
-      cs.id as site_id,
-      ST_Distance(${ewkt}::geography, cs.location)::float8 as dist
-    from public.construction_sites cs
-    where ST_Intersects(
-      coalesce(
-        cs.geom,
-        ST_Buffer(
-          cs.location,
-          coalesce(sqrt(cs.area_sqm / pi()), ${SITE_FALLBACK_RADIUS_M})
-        )
-      ),
-      ST_Buffer(${ewkt}::geography, ${ROUTE_BUFFER_M})
-    )
-  `);
-  return rows.map((r) => ({ siteId: r.site_id, distanceMeters: r.dist }));
+  //
+  // Sites must also line up with the route's travel days (#5):
+  // - single trips: date inside [starts_on, ends_on]
+  // - weekly routes: upcoming active day on one of its weekdays
+  // - unscheduled routes: active today
+  // - NULL dates stay open-ended; expired sites (ends_on < today) never match.
+  try {
+    const rows = await db.execute<{ site_id: string; dist: number | null }>(sql`
+      select
+        cs.id as site_id,
+        ST_Distance(${ewkt}::geography, cs.location)::float8 as dist
+      from public.construction_sites cs
+      where ST_Intersects(
+        coalesce(
+          cs.geom,
+          ST_Buffer(
+            cs.location,
+            coalesce(sqrt(cs.area_sqm / pi()), ${SITE_FALLBACK_RADIUS_M})
+          )
+        ),
+        ST_Buffer(${ewkt}::geography, ${ROUTE_BUFFER_M})
+      )
+      and private.site_active_on_route(
+        ${weekdaysSql},
+        ${startDateSql},
+        cs.starts_on,
+        cs.ends_on
+      )
+    `);
+    return rows.map((r) => ({ siteId: r.site_id, distanceMeters: r.dist }));
+  } catch {
+    // Fall back to in-process date filtering if private.site_active_on_route is not
+    // yet defined in the database (e.g. pending migration run).
+    const rows = await db.execute<{
+      site_id: string;
+      dist: number | null;
+      starts_on: string | null;
+      ends_on: string | null;
+    }>(sql`
+      select
+        cs.id as site_id,
+        ST_Distance(${ewkt}::geography, cs.location)::float8 as dist,
+        to_char(cs.starts_on, 'YYYY-MM-DD') as starts_on,
+        to_char(cs.ends_on, 'YYYY-MM-DD') as ends_on
+      from public.construction_sites cs
+      where ST_Intersects(
+        coalesce(
+          cs.geom,
+          ST_Buffer(
+            cs.location,
+            coalesce(sqrt(cs.area_sqm / pi()), ${SITE_FALLBACK_RADIUS_M})
+          )
+        ),
+        ST_Buffer(${ewkt}::geography, ${ROUTE_BUFFER_M})
+      )
+    `);
+    return rows
+      .filter((r) =>
+        isSiteActiveOnRoute(weekdaysList, startDate, r.starts_on, r.ends_on),
+      )
+      .map((r) => ({ siteId: r.site_id, distanceMeters: r.dist }));
+  }
 }
 
 async function reconcileObstacles(
@@ -188,7 +254,9 @@ export async function runDetectionPass(): Promise<PassSummary> {
         id,
         modality,
         ST_AsText(start_location) as "startWkt",
-        ST_AsText(finish_location) as "finishWkt"
+        ST_AsText(finish_location) as "finishWkt",
+        coalesce(weekdays, '{}') as weekdays,
+        to_char(start_date, 'YYYY-MM-DD') as "startDate"
       from public.routes
       order by created_at asc
     `);
@@ -224,7 +292,7 @@ export async function runDetectionPass(): Promise<PassSummary> {
           mustParse(route.finishWkt, "finish"),
         ];
         const line = await fetchRouteLine(stops, route.modality);
-        const hits = await findHits(line);
+        const hits = await findHits(line, route.weekdays, route.startDate);
         const { written, pruned } = await reconcileObstacles(route.id, hits);
         obstaclesWritten += written;
         obstaclesPruned += pruned;

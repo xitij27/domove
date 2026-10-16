@@ -39,6 +39,7 @@ app.get('/api/routes', async (c) => {
         startLabel: routes.startLabel,
         finishLabel: routes.finishLabel,
         startTime: routes.startTime,
+        startDate: routes.startDate,
         weekdays: routes.weekdays,
         modality: routes.modality,
         createdAt: routes.createdAt,

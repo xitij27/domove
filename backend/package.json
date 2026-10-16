@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types src/lib/dateAlignment.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

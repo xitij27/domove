@@ -79,7 +79,8 @@ export const routes = pgTable(
     startLabel: text("start_label"),
     finishLabel: text("finish_label"),
     // time of day only, no date — "HH:MM:SS" string
-    startTime: time("start_time").notNull(),
+    startTime: time("start_time"),
+    startDate: date("start_date"),
     weekdays: weekdayEnum("weekdays").array().notNull().default(sql`'{}'`),
     modality: modalityEnum("modality").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -87,8 +88,14 @@ export const routes = pgTable(
       .defaultNow(),
   },
   (t) => [
-    // keep cardinality 1..7 in sync with supabase/migrations/*_routes.sql
-    check("routes_weekdays_not_empty", sql`cardinality(${t.weekdays}) between 1 and 7`),
+    check(
+      "routes_schedule_complete",
+      sql`cardinality(${t.weekdays}) = 0 or ${t.startTime} is not null`,
+    ),
+    check(
+      "routes_start_date_complete",
+      sql`${t.startDate} is null or (${t.startTime} is not null and cardinality(${t.weekdays}) = 0)`,
+    ),
     // NOTE: the GiST indexes on start/finish_location and the GIN index on
     // weekdays live in the Supabase SQL migration (drizzle can't express
     // index methods like gist/gin). This schema intentionally doesn't
