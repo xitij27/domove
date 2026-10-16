@@ -98,7 +98,7 @@ export default function LeavingAtInput({ value, onChange, editable, invalid }: P
         </View>
       </View>
       {open && Platform.OS !== 'android' && (
-        <DateTimePicker testID="leaving-picker" value={pickerValue(value.startTime)} mode="time" display="spinner" is24Hour accentColor="#163f36" onValueChange={(_, date) => onChange({ ...value, startTime: toTime(date) })} />
+        <DateTimePicker testID="leaving-picker" value={pickerValue(value.startTime)} mode="time" display="spinner" is24Hour accentColor="#a8520e" onValueChange={(_, date) => onChange({ ...value, startTime: toTime(date) })} />
       )}
     </View>
   );
@@ -110,14 +110,14 @@ const styles = StyleSheet.create({
   time: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 10, minHeight: 48 },
   clock: { fontSize: 40, fontWeight: '600', color: '#182332', fontVariant: ['tabular-nums'] },
   placeholder: { color: '#9aa5b1' },
-  prompt: { color: '#163f36', fontSize: 16, fontWeight: '600' },
+  prompt: { color: '#a8520e', fontSize: 16, fontWeight: '600' },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   repeatRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
   repeatLabel: { color: '#182332', fontSize: 15, fontWeight: '600' },
   summary: { color: '#526173', flexShrink: 1, textAlign: 'right' },
   days: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
   day: { flex: 1, maxWidth: 44, aspectRatio: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9eef2' },
-  dayOn: { backgroundColor: '#163f36' },
+  dayOn: { backgroundColor: '#a8520e' },
   dayText: { color: '#354455', fontSize: 15, fontWeight: '700' },
   dayTextOn: { color: '#fff' },
   invalid: { borderColor: '#b42318' },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
@@ -220,7 +220,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     // The sheet already starts below the status bar.
     <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
-        <Text style={styles.brand}>DO:MOVE</Text>
+        <Image accessible accessibilityRole="image" accessibilityLabel="do.move" source={require('../../assets/domovelogo.png')} style={styles.brand} />
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
@@ -245,7 +245,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={refresh} style={styles.secondary}>
                 <Text style={styles.secondaryText}>{error ? 'Retry loading routes' : 'Refresh routes'}</Text>
               </Pressable>
-              {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#163f36" />}
+              {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#a8520e" />}
             </View>
           }
           ListEmptyComponent={!loading && !error ? <View style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></View> : undefined}
@@ -286,19 +286,20 @@ const styles = StyleSheet.create({
   handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#c3ccd5' },
   launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 12, paddingTop: 4, justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
-  brand: { color: '#163f36', fontWeight: '800', letterSpacing: 2, fontSize: 16 },
+  // The logo file is 960×170.
+  brand: { height: 26, aspectRatio: 960 / 170 },
   close: { paddingVertical: 16, paddingHorizontal: 12 },
   list: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { gap: 12, marginBottom: 8 },
   title: { fontSize: 30, color: '#182332', fontWeight: '700' },
   hint: { color: '#526173', lineHeight: 22 },
-  primary: { backgroundColor: '#163f36', padding: 15, borderRadius: 14, alignItems: 'center' },
+  primary: { backgroundColor: '#a8520e', padding: 15, borderRadius: 14, alignItems: 'center' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   secondary: { backgroundColor: '#e9eef2', padding: 15, borderRadius: 14, alignItems: 'center' },
-  secondaryText: { color: '#254636', fontWeight: '600' },
+  secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  badge: { color: '#246049', fontWeight: '700' },
+  badge: { color: '#8a4510', fontWeight: '700' },
   date: { color: '#627080', fontSize: 12 },
   notify: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
   delete: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#fff0ed', borderRadius: 10 },

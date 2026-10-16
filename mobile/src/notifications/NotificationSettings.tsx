@@ -57,7 +57,7 @@ export default function NotificationSettings({ route, onBack }: { route: SavedRo
       <Text style={styles.route}>{route.start.label ?? 'Starting location'} → {route.destination.label ?? 'Final destination'}</Text>
       <Text style={styles.hint}>We check your routes for construction each time you open the app, and remind you on this phone.</Text>
       <Text style={styles.label}>When should we notify you?</Text>
-      {loading ? <ActivityIndicator accessibilityLabel="Loading notification preference" color="#163f36" /> :
+      {loading ? <ActivityIndicator accessibilityLabel="Loading notification preference" color="#a8520e" /> :
         (Object.entries(PREFERENCES) as [NotificationPreference, string][]).map(([value, label]) => (
           <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected.preference === value }} accessibilityLabel={label}
             onPress={() => { setSelected({ ...selected, preference: value }); setMessage(null); }} style={[styles.option, selected.preference === value && styles.selected]}>
@@ -84,18 +84,18 @@ export default function NotificationSettings({ route, onBack }: { route: SavedRo
 const styles = StyleSheet.create({
   section: { padding: 20, gap: 13, width: '100%', maxWidth: 640, alignSelf: 'center' },
   back: { paddingVertical: 10, alignSelf: 'flex-start' },
-  backText: { color: '#254636', fontWeight: '700' },
+  backText: { color: '#7c3d0e', fontWeight: '700' },
   title: { fontSize: 28, fontWeight: '700', color: '#182332' },
   hint: { color: '#526173', lineHeight: 21 },
-  route: { fontSize: 18, fontWeight: '600', color: '#163f36', paddingVertical: 8 },
+  route: { fontSize: 18, fontWeight: '600', color: '#a8520e', paddingVertical: 8 },
   label: { fontSize: 16, fontWeight: '600', color: '#182332' },
   option: { backgroundColor: '#fff', borderColor: '#dce3e8', borderWidth: 1, borderRadius: 13, padding: 17, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
-  selected: { borderColor: '#163f36', backgroundColor: '#eef5f1' },
+  selected: { borderColor: '#a8520e', backgroundColor: '#fdf0e1' },
   circle: { width: 20, height: 20, borderWidth: 2, borderColor: '#687782', borderRadius: 10 },
-  circleSelected: { borderColor: '#163f36', borderWidth: 6 },
+  circleSelected: { borderColor: '#a8520e', borderWidth: 6 },
   optionText: { fontSize: 16, color: '#182332' },
   input: { backgroundColor: '#fff', borderColor: '#dce3e8', borderWidth: 1, borderRadius: 13, padding: 14, fontSize: 16, color: '#182332' },
-  primary: { backgroundColor: '#163f36', borderRadius: 13, padding: 16, alignItems: 'center' },
+  primary: { backgroundColor: '#a8520e', borderRadius: 13, padding: 16, alignItems: 'center' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   secondary: { backgroundColor: '#e9eef2', borderRadius: 13, padding: 14, alignItems: 'center' },
   success: { color: '#246049', lineHeight: 21 },
