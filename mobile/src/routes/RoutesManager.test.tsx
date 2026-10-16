@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
-import type { RouteDraft, SavedRoute } from './model';
+import { formatDay, type RouteDraft, type SavedRoute } from './model';
 import { searchPlaces } from './places';
 import { constructionNotifications } from '../notifications/runtime';
 
+// expo-font needs expo-asset, which only Expo's Metro config resolves.
+jest.mock('@expo/vector-icons/MaterialIcons', () => 'MaterialIcons');
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 // Every search suggests exactly the typed text.
 jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
@@ -16,7 +18,7 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, startDate: null, waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
   return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
@@ -50,7 +52,7 @@ beforeEach(() => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
         start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
-        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, createdAt: '2026-10-16T12:00:00Z',
+        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, startDate: draft.startDate.trim() || null, createdAt: '2026-10-16T12:00:00Z',
         waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
       };
       persisted.unshift(route);
@@ -127,17 +129,47 @@ test('only places picked from the suggestions can be saved', async () => {
   expect(screen.getByText('Station → Parks')).toBeOnTheScreen();
 });
 
-test('an optional leaving time is checked, saved and listed', async () => {
+/** Picks a value in the open iOS picker, as the native picker reports it. */
+async function choose(date: Date) {
+  await fireEvent(screen.getByTestId('leaving-picker'), 'change', { nativeEvent: { timestamp: date.getTime() } });
+}
+
+test('Now fills in the current day and time, which are saved and listed', async () => {
+  jest.useFakeTimers({ now: new Date(2026, 9, 16, 14, 52), advanceTimers: true });
+  try {
+    await mount();
+    await fill();
+    await press('Leave now');
+    expect(screen.getByRole('button', { name: 'Leave now' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Leaving time' })).toHaveAccessibilityValue({ text: '14:52' });
+    await press('Ready');
+    expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '2026-10-16', startTime: '14:52' }));
+    expect(await screen.findByText(`Leaving ${formatDay('2026-10-16')} at 14:52`)).toBeOnTheScreen();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('a picked day asks for a time next, and Clear removes both', async () => {
   await mount();
   await fill();
-  await enter('Leaving at', '8.30');
+  await press('Leaving date');
+  await choose(new Date(2099, 9, 20));
+  expect(screen.getByRole('button', { name: 'Leaving date' })).toHaveAccessibilityValue({ text: formatDay('2099-10-20') });
+  expect(screen.getByRole('button', { name: 'Leaving time' })).toBeExpanded();
   await press('Ready');
-  expect(screen.getByText('Enter a time like 08:30, or leave it empty.')).toBeOnTheScreen();
+  expect(screen.getByText('Pick a time for the leaving date.')).toBeOnTheScreen();
   expect(repository.create).not.toHaveBeenCalled();
-  await enter('Leaving at', '08:30');
+
+  await choose(new Date(2099, 9, 20, 7, 15));
+  await press('Clear leaving time');
+  expect(screen.getByRole('button', { name: 'Leaving time' })).toHaveAccessibilityValue({ text: 'Time' });
+  expect(screen.queryByTestId('leaving-picker')).toBeNull();
+  await press('Leaving time');
+  await choose(new Date(2099, 9, 20, 7, 15));
   await press('Ready');
-  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30' }));
-  expect(screen.getByText('Leaving at 08:30')).toBeOnTheScreen();
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startDate: '', startTime: '07:15' }));
+  expect(await screen.findByText('Leaving at 07:15')).toBeOnTheScreen();
 });
 
 test('says when suggestions cannot be loaded', async () => {

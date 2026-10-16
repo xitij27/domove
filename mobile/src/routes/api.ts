@@ -79,6 +79,8 @@ export function createRoutesRepository(
           p_modality: clean.mode,
           p_waypoints: clean.waypoints,
           p_start_time: clean.startTime,
+          // left out without a date, so saving works before the leaving-date migration is applied
+          p_start_date: clean.startDate ?? undefined,
         }),
       }) as SavedRoute | null;
       if (route?.id !== id) throw new Error('Could not confirm the saved route. Refresh the list before trying again.');
