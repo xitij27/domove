@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Construction Site Radar",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.domove.radar"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F2971C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.domove.radar"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@rnmapbox/maps",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F2971C",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
+    ]
+  }
+}
