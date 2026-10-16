@@ -234,7 +234,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     // The sheet already starts below the status bar.
     <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
-        <Image accessible accessibilityRole="image" accessibilityLabel="do.move" source={require('../../assets/domovelogo.png')} style={styles.brand} />
+        <Image accessible accessibilityRole="image" accessibilityLabel="do.move" source={require('../../assets/domovelogo.png')} resizeMode="contain" style={styles.brand} />
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 12, paddingTop: 4, justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
   // The logo file is 960×170.
-  brand: { height: 26, aspectRatio: 960 / 170 },
+  brand: { width: 102, height: 18 },
   close: { paddingVertical: 16, paddingHorizontal: 12 },
   list: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { gap: 12, marginBottom: 8 },
