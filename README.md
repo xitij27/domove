@@ -19,8 +19,15 @@ Rebuild (step 2) only when native config or native packages change; JS changes r
 
 Checks: `npm test`, `npx tsc --noEmit`, `npx expo lint`.
 
-## Backend (`supabase/`)
+## Backend (`backend/supabase/`)
 
 Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city feeds every hour (`private.sync_construction_sites()`), so there is no server to deploy.
 
-Apply a new migration by pasting the file from `supabase/migrations/` into the Supabase SQL editor and running it.
+Apply a new migration by pasting the file from `backend/supabase/migrations/` into the Supabase SQL editor and running it.
+
+### API on Vercel (`backend/`)
+
+A small Vercel Function, `GET /api/sites?status=current|planned`, serves the table with a 5-minute edge cache. Vercel Hobby (free) is enough; the hourly sync stays in `pg_cron` because Hobby cron jobs only run daily.
+
+Deploy: import the repo in Vercel, set **Root Directory** to `backend`, and add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (see `backend/.env.example`). Check with `cd backend && npm run typecheck`.
+
