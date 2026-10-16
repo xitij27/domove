@@ -8,11 +8,12 @@ import { POINT_NORTH_MS, type MapHandle } from './Compass';
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
 
-export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, ref }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
   onHeadingChange: (heading: number) => void;
+  bottomInset: number; // covered by what lies over the map's bottom edge
   ref?: Ref<MapHandle>;
 }) {
   const camera = useRef<Camera>(null);
@@ -42,6 +43,9 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
       style={StyleSheet.absoluteFill}
       styleURL="mapbox://styles/mapbox/standard"
       scaleBarEnabled={false}
+      // keeps the Mapbox logo and attribution in sight
+      logoPosition={{ bottom: bottomInset + 8, left: 8 }}
+      attributionPosition={{ bottom: bottomInset + 8, right: 8 }}
       onPress={() => onSelect(null)}
       onCameraChanged={(state) => onHeadingChange(state.properties.heading)}
     >

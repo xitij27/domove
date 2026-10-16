@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
@@ -7,24 +7,115 @@ import RouteForm from './RouteForm';
 import { routesRepository, type RoutesRepository } from './api';
 import { formatDay, TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
-export default function RoutesManager() {
+/** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
+export const SHEET_RADIUS = 24;
+// The strip of map left in sight above the raised sheet.
+const RAISED_GAP = 8;
+// JS-driven: a drag has to read where an interrupted spring left the sheet, which a native-driven value can't say at once.
+const SNAP = { useNativeDriver: false, overshootClamping: true, speed: 16, bounciness: 0 } as const;
+
+/** The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form. */
+export default function RoutesManager({ repository, onOpenChange }: {
+  repository?: RoutesRepository;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const insets = useSafeAreaInsets();
-  const [dialog, setDialog] = useState<'list' | 'create' | null>(null);
-  const busy = useRef(false);
-  const close = () => { if (!busy.current) setDialog(null); };
+  // What the raised sheet shows; null while it is lowered to the two buttons.
+  const [open, setOpen] = useState<{ creating: boolean } | null>(null);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [loweredHeight, setLoweredHeight] = useState(0);
+  const travel = Math.max(sheetHeight - loweredHeight, 0);
+  // translateY: 0 is raised, travel is lowered. Starts off screen until the first layout.
+  const y = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  // For the drag handlers, which are made once.
+  const sheet = useRef({ open: false, busy: false, travel: 0, from: 0 }).current;
+
+  const raise = useCallback((creating = false) => {
+    if (!sheet.open) {
+      sheet.open = true;
+      setOpen({ creating });
+    }
+    Animated.spring(y, { toValue: 0, ...SNAP }).start();
+  }, [sheet, y]);
+
+  const lower = useCallback(() => {
+    // Stays up while a save or delete is pending, as the Close button does.
+    if (sheet.busy) return raise();
+    sheet.open = false;
+    setOpen(null);
+    Animated.spring(y, { toValue: sheet.travel, ...SNAP }).start();
+  }, [sheet, y, raise]);
+
+  const pan = useMemo(() => {
+    const settle = (_: unknown, gesture: PanResponderGestureState) => {
+      const at = sheet.from + gesture.dy;
+      if (gesture.vy < -0.3 || (gesture.vy < 0.3 && at < sheet.travel / 2)) raise();
+      else lower();
+    };
+    return PanResponder.create({
+      // Taps still reach the buttons; only a vertical drag moves the sheet, and a lowered one only goes up.
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (sheet.open || gesture.dy < 0),
+      onPanResponderGrant: () => {
+        y.stopAnimation((at) => { sheet.from = at; });
+        // The saved routes come into view as the sheet is pulled up.
+        if (!sheet.open) {
+          sheet.open = true;
+          setOpen({ creating: false });
+        }
+      },
+      onPanResponderMove: (_, gesture) => y.setValue(Math.min(Math.max(sheet.from + gesture.dy, 0), sheet.travel)),
+      onPanResponderRelease: settle,
+      onPanResponderTerminate: settle,
+    });
+  }, [sheet, y, raise, lower]);
+
+  useEffect(() => {
+    sheet.travel = travel;
+    if (!sheet.open && travel > 0) y.setValue(travel);
+  }, [sheet, y, travel]);
+
+  useEffect(() => { onOpenChange?.(open !== null); }, [open, onOpenChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { lower(); return true; });
+    return () => subscription.remove();
+  }, [open, lower]);
+
   return (
     <>
-      <View style={[styles.launcher, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Pressable accessibilityRole="button" onPress={() => setDialog('list')} style={styles.secondary}>
-          <Text style={styles.secondaryText}>Saved routes</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setDialog('create')} style={styles.primary}>
-          <Text style={styles.primaryText}>Create Route</Text>
-        </Pressable>
-      </View>
-      <Modal visible={dialog !== null} animationType="slide" onRequestClose={close}>
-        {dialog !== null && <RoutesPanel initiallyCreating={dialog === 'create'} onClose={close} onBusyChange={(value) => { busy.current = value; }} />}
-      </Modal>
+      {/* The map ends here, so only the sheet's rounded top lies over it while lowered. */}
+      <View style={{ height: Math.max(loweredHeight - SHEET_RADIUS, 0) }} />
+      <Animated.View
+        accessibilityViewIsModal={open !== null}
+        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        style={[styles.sheet, { top: insets.top + RAISED_GAP, transform: [{ translateY: y }] }]}
+      >
+        <View {...pan.panHandlers} onLayout={(e) => { if (!sheet.open) setLoweredHeight(e.nativeEvent.layout.height); }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={open ? 'Lower the routes panel' : 'Raise the routes panel'}
+            accessibilityState={{ expanded: open !== null }}
+            hitSlop={{ top: 12 }}
+            onPress={() => (open ? lower() : raise())}
+            style={styles.grip}
+          >
+            <View style={styles.handle} />
+          </Pressable>
+          {!open && (
+            <View style={[styles.launcher, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+              <Pressable accessibilityRole="button" onPress={() => raise()} style={styles.secondary}>
+                <Text style={styles.secondaryText}>Saved routes</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => raise(true)} style={styles.primary}>
+                <Text style={styles.primaryText}>Create Route</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+        {open && <RoutesPanel initiallyCreating={open.creating} onClose={lower} onBusyChange={(value) => { sheet.busy = value; }} repository={repository} />}
+      </Animated.View>
     </>
   );
 }
@@ -105,7 +196,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   }
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    // The sheet already starts below the status bar.
+    <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
         <Text style={styles.brand}>DO:MOVE</Text>
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
@@ -168,7 +260,10 @@ function message(error: unknown) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f5f7f9' },
-  launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 12, backgroundColor: '#f5f7f9', justifyContent: 'center' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#f5f7f9', borderTopLeftRadius: SHEET_RADIUS, borderTopRightRadius: SHEET_RADIUS, elevation: 12, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: -2 } },
+  grip: { height: 32, alignItems: 'center', justifyContent: 'center' },
+  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#c3ccd5' },
+  launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 12, paddingTop: 4, justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
   brand: { color: '#163f36', fontWeight: '800', letterSpacing: 2, fontSize: 16 },
   close: { paddingVertical: 16, paddingHorizontal: 12 },

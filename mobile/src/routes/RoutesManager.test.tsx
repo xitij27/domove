@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { RoutesPanel } from './RoutesManager';
+import RoutesManager, { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
 import { formatDay, type RouteDraft, type SavedRoute } from './model';
 import { searchPlaces } from './places';
@@ -60,6 +60,23 @@ beforeEach(() => {
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
   };
+});
+
+test('the sheet raises on the form or the saved routes, and Close lowers it', async () => {
+  const onOpenChange = jest.fn();
+  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} />);
+  expect(screen.getByRole('button', { name: 'Raise the routes panel' })).toBeCollapsed();
+  await press('Create Route');
+  expect(screen.getByLabelText('Starting location')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Lower the routes panel' })).toBeExpanded();
+  expect(onOpenChange).toHaveBeenLastCalledWith(true);
+  await press('Close');
+  expect(screen.queryByLabelText('Starting location')).toBeNull();
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  await press('Saved routes');
+  expect(await screen.findByText('No saved routes yet')).toBeOnTheScreen();
+  await press('Lower the routes panel');
+  expect(screen.getByRole('button', { name: 'Create Route' })).toBeOnTheScreen();
 });
 
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {

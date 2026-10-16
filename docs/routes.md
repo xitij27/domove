@@ -31,15 +31,18 @@
    build from before it was added must be rebuilt once (`npx expo run:android`).
    Native build instructions are in the root README.
 
-The app footer offers **Create Route** and **Saved routes**. Type a starting
+The app footer is a sheet below the map with **Create Route** and **Saved routes**.
+Tapping either, or pulling the sheet up, raises it over the map. Type a starting
 location and final destination and pick each from the suggestions, select Pedestrian, Bicycle or Car, optionally
 add/remove stops, optionally set **Leaving at**, then tap **Ready**.
 **Leaving at** is one rounded slider: **Now** takes the current date and time;
 the date and the time open the phone's own calendar and clock (on iOS they open
 below the slider), and picking a date asks for the time next; ✕ clears both. The saved list opens after a successful save.
 Delete removes a route immediately after the server confirms the deletion. A
-failed deletion leaves it visible, with a retryable error. Close returns to the
-existing app; Cancel returns from the form to the list without saving.
+failed deletion leaves it visible, with a retryable error. Close, pulling the
+sheet down or Android's back button lowers it to the map again, except while a
+save or deletion is still running; Cancel returns from the form to the list
+without saving.
 
 Suggestions come from [Photon](https://photon.komoot.io) (OpenStreetMap data,
 free, no key), nearest to Dortmund first, from the third character on. Only a
