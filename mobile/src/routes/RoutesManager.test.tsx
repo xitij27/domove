@@ -3,10 +3,12 @@ import { RoutesPanel } from './RoutesManager';
 import type { RoutesRepository } from './api';
 import type { RouteDraft, SavedRoute } from './model';
 import { searchPlaces } from './places';
+import { constructionNotifications } from '../notifications/runtime';
 
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 // Every search suggests exactly the typed text.
 jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
+jest.mock('../notifications/runtime', () => ({ constructionNotifications: { forgetRoute: jest.fn(async () => undefined) } }));
 jest.setTimeout(15000);
 
 const at = { latitude: 51.51, longitude: 7.46 };
@@ -82,6 +84,7 @@ test('creates multiple routes, removes individual stops, reloads and deletes', a
   await press('Delete route from Station to Park');
   expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();
   expect(screen.getByText('Home → Work')).toBeOnTheScreen();
+  expect(constructionNotifications.forgetRoute).toHaveBeenCalledWith('1');
   await press('Refresh routes');
   expect(persisted).toHaveLength(1);
   expect(screen.queryByText('Station → Park')).not.toBeOnTheScreen();

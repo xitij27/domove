@@ -7,6 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager from './src/routes/RoutesManager';
+import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
@@ -52,6 +53,8 @@ function readCrash(): string | null {
 
 export default function App() {
   const [crash, setCrash] = useState(readCrash);
+
+  useEffect(() => startNotificationRuntime(), []);
 
   const dismissCrash = () => {
     try {
@@ -119,6 +122,17 @@ function RadarMap() {
   }, []);
 
   useEffect(load, [load]);
+
+  // A tapped construction alert opens its site's card, once the sites have loaded.
+  const tapped = useTappedSite();
+  const openedTap = useRef<typeof tapped>(null);
+  useEffect(() => {
+    const site = tapped && tapped !== openedTap.current ? sites.find((s) => s.id === tapped.siteId) : undefined;
+    if (!site) return;
+    openedTap.current = tapped;
+    setShown((current) => ({ ...current, [site.status]: true }));
+    setSelected(site);
+  }, [tapped, sites]);
 
   const SitesMap = mapboxOn && MapboxSitesMap ? MapboxSitesMap : GoogleSitesMap;
 

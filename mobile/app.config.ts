@@ -11,6 +11,7 @@ export default ({ config }: ConfigContext) => ({
     }],
     './plugins/withCrashLog.js',
     './plugins/withGradleJvmArgs.js',
+    ['expo-notifications', { defaultChannel: 'construction-reminders', color: '#163f36' }],
     ['expo-build-properties', {
       android: {
         // react-native-maps pulls in WorkManager 2.9 and with it Room 2.5, whose keep rule lets R8 full mode strip the

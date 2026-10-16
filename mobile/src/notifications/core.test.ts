@@ -1,0 +1,41 @@
+import { notificationContent, reminderDate } from './core';
+import type { RouteNotificationSettings, RouteObstacle } from './model';
+
+const obstacle: RouteObstacle = { routeId: 'r1', siteId: 's1', siteTitle: 'Hohe Straße', destination: 'TU Dortmund', startsOn: '2026-10-30', endsOn: '2026-11-20' };
+const now = new Date(2026, 9, 16, 8);
+const week: RouteNotificationSettings = { preference: 'ONE_WEEK_BEFORE', notificationTime: '09:00' };
+const day: RouteNotificationSettings = { preference: 'ONE_DAY_BEFORE', notificationTime: '18:30' };
+
+test('reminds the chosen lead time before the start, at the notification time', () => {
+  expect(reminderDate(obstacle, week, now)).toEqual(new Date(2026, 9, 23, 9));
+  expect(reminderDate(obstacle, day, now)).toEqual(new Date(2026, 9, 29, 18, 30));
+});
+
+test('disabled routes and finished construction get no reminder', () => {
+  expect(reminderDate(obstacle, { ...week, preference: 'DISABLED' }, now)).toBeNull();
+  expect(reminderDate({ ...obstacle, startsOn: '2026-10-01', endsOn: '2026-10-15' }, week, now)).toBeNull();
+});
+
+test('too late for the lead time, or already under way: the next notification time', () => {
+  const soon = { ...obstacle, startsOn: '2026-10-19' };
+  expect(reminderDate(soon, week, now)).toEqual(new Date(2026, 9, 16, 9));
+  expect(reminderDate(soon, week, new Date(2026, 9, 16, 10))).toEqual(new Date(2026, 9, 17, 9));
+  expect(reminderDate({ ...obstacle, startsOn: '2026-10-01' }, week, now)).toEqual(new Date(2026, 9, 16, 9));
+  expect(reminderDate({ ...obstacle, startsOn: null, endsOn: null }, week, now)).toEqual(new Date(2026, 9, 16, 9));
+});
+
+test('no reminder when construction ends before the next notification time', () => {
+  expect(reminderDate({ ...obstacle, startsOn: '2026-10-01', endsOn: '2026-10-16' }, week, new Date(2026, 9, 16, 10))).toBeNull();
+});
+
+test('local wall-clock time survives daylight-saving changes', () => {
+  // Germany leaves summer time on 25 Oct 2026; the reminder still shows 09:00 on the clock.
+  expect(reminderDate({ ...obstacle, startsOn: '2026-11-01', endsOn: null }, week, now)).toEqual(new Date(2026, 9, 25, 9));
+});
+
+test('the message follows issue #4 and says when future work starts', () => {
+  expect(notificationContent(obstacle, now).body).toBe(
+    `There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from ${new Date(2026, 9, 30).toLocaleDateString()}. Tap here to see it.`);
+  expect(notificationContent({ ...obstacle, startsOn: '2026-10-01', destination: null }, now).body).toBe(
+    'There is a Construction Site at Hohe Straße on your Route. Tap here to see it.');
+});

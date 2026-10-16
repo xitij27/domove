@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NotificationSettings from '../notifications/NotificationSettings';
+import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import { routesRepository, type RoutesRepository } from './api';
 import { TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
@@ -36,6 +38,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [creating, setCreating] = useState(initiallyCreating);
+  const [notifying, setNotifying] = useState<SavedRoute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -86,6 +89,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     onBusyChange(true);
     try {
       await repository.delete(id);
+      // Its reminders would otherwise still fire; the next obstacle sync would also drop them.
+      constructionNotifications.forgetRoute(id).catch((e: unknown) => console.warn('Could not cancel the route\'s reminders', e));
       if (active.current) {
         setRoutes((current) => current.filter((route) => route.id !== id));
         setError(null);
@@ -109,6 +114,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       </View>
       {creating ? (
         <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
+      ) : notifying ? (
+        <NotificationSettings route={notifying} onBack={() => setNotifying(null)} />
       ) : (
         <FlatList
           data={routes}
@@ -136,6 +143,9 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Notification preferences for the route to ${place(item.destination, 'Final destination')}`} disabled={!!deleting} onPress={() => setNotifying(item)} style={styles.notify}>
+                <Text style={styles.secondaryText}>Notifications</Text>
+              </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
                 <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>
               </Pressable>
@@ -174,6 +184,7 @@ const styles = StyleSheet.create({
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
   badge: { color: '#246049', fontWeight: '700' },
   date: { color: '#627080', fontSize: 12 },
+  notify: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
   delete: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#fff0ed', borderRadius: 10 },
   deleteText: { color: '#a52621', fontWeight: '600' },
   error: { color: '#a52621', lineHeight: 21 },
