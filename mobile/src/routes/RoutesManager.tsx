@@ -3,8 +3,9 @@ import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
+import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatLeaving, TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatLeaving, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 /** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
 export const SHEET_RADIUS = 24;
@@ -262,11 +263,10 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           ListEmptyComponent={!loading && !error ? <View style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></View> : undefined}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
+              <TransportModeIcon mode={item.mode} />
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
-              <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
               <View style={styles.actions}>
                 {/* The route's construction sites and their alerts are all on the map. */}
                 {onView && (
@@ -274,14 +274,46 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
                     <Text style={styles.secondaryText}>Map & alerts</Text>
                   </Pressable>
                 )}
-                <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
-                  <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
+                  {deleting === item.id ? (
+                    <ActivityIndicator size="small" color="#a52621" />
+                  ) : (
+                    <TrashIcon color="#a52621" />
+                  )}
                 </Pressable>
               </View>
             </View>
           )}
         />
       )}
+    </View>
+  );
+}
+
+/** Simple trash-bin glyph drawn with Views so no icon font is needed. */
+function TrashIcon({ color = '#a52621', size = 20 }: { color?: string; size?: number }) {
+  const line = size * 0.09;
+  return (
+    <View style={{ width: size, height: size + 2, alignItems: 'center' }}>
+      <View style={{ width: size * 0.4, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
+      <View style={{ width: size * 0.9, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
+      <View
+        style={{
+          width: size * 0.7,
+          height: size * 0.68,
+          borderWidth: line,
+          borderColor: color,
+          borderTopWidth: 0,
+          borderBottomLeftRadius: 3,
+          borderBottomRightRadius: 3,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-evenly',
+        }}
+      >
+        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
+        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
+      </View>
     </View>
   );
 }
@@ -315,12 +347,9 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  badge: { color: '#8a4510', fontWeight: '700' },
-  date: { color: '#627080', fontSize: 12 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   show: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
-  delete: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#fff0ed', borderRadius: 10 },
-  deleteText: { color: '#a52621', fontWeight: '600' },
+  delete: { alignSelf: 'center', padding: 8, borderRadius: 8 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },
 });

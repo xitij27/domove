@@ -15,7 +15,7 @@ The app renders the same data with Google Maps or Mapbox (toggle in the top-righ
    - locally with Android Studio installed: `npx expo run:android`.
 
    For a sideloadable release APK, every push to `main` runs the **Android APK** workflow (`.github/workflows/android-apk.yml`), and it can also be started by hand from the Actions tab; download the APK from the run's artifacts. It needs the three `EXPO_PUBLIC_MAPBOX_TOKEN` / `EXPO_PUBLIC_SUPABASE_*` values as repository secrets (`gh secret set <NAME>`). If a release APK crashes at launch, see [docs/android-launch-crash.md](docs/android-launch-crash.md).
-3. `cd mobile && npx expo start`, then open the project from the dev app.
+3. `cd mobile && npx expo start --go` for Expo Go (`--go` matters: this project uses `expo-dev-client`, so a plain `npx expo start` serves a development-build manifest that Expo Go fails to load with "failed to download remote update" / "Something went wrong"). Use a plain `npx expo start` only with the dev build from step 2. If the phone can't reach the server on your Wi-Fi, add `--tunnel`.
 
 Rebuild (step 2) only when native config or native packages change; JS changes reload live.
 

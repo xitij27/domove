@@ -39,9 +39,16 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
   defaultErrorHandler(error, isFatal);
 });
 
-// Mapbox needs a development build; in Expo Go its native module is missing and importing it throws.
-const MapboxSitesMap: typeof GoogleSitesMap | null =
-  NativeModules.RNMBXModule != null ? require('./src/maps/MapboxSitesMap').default : null;
+// Mapbox needs a development build; in Expo Go its native module is missing and importing it
+// throws, which would redbox the whole app on launch, so never let that escape.
+let MapboxSitesMap: typeof GoogleSitesMap | null = null;
+if (NativeModules.RNMBXModule != null) {
+  try {
+    MapboxSitesMap = require('./src/maps/MapboxSitesMap').default;
+  } catch {
+    MapboxSitesMap = null;
+  }
+}
 
 // Google Maps on Android needs our own key, except in Expo Go (no Mapbox there), which brings one.
 const GOOGLE_OK = MapboxSitesMap == null || Platform.OS === 'ios' || !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
