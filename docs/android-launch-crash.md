@@ -152,9 +152,16 @@ Commit `7cb0a30` adds `.github/workflows/android-apk.yml`. It builds the same ki
 
 **Gotcha:** a run reads secrets when it starts. The first run started at 14:09:48 UTC, before the secrets were added at 14:11 UTC, so it was cancelled and re-run.
 
-### Uncommitted change in the working tree
+### Gradle runs out of metaspace
 
-When this report was written, `mobile/plugins/withGradleJvmArgs.js` and a line registering it in `mobile/app.config.ts` were uncommitted. They raise Gradle's metaspace limit to 1024 MB; the heap stays at 2048 MB. They were made outside this debugging work and aren't part of `7cb0a30` or of the tested APK.
+The fix build (CI run 38913536813) ran with the template's JVM settings and Gradle logged:
+
+```text
+The currently configured max heap space is '2 GiB' and the configured max metaspace is '512 MiB'.
+Daemon will be stopped at the end of the build after running out of JVM Metaspace
+```
+
+The build still succeeded, but Gradle can't reuse a daemon that ran out of metaspace. `mobile/plugins/withGradleJvmArgs.js`, committed after this report, raises the metaspace limit to 1024 MB and keeps the heap at 2048 MB (`org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=1024m`). It isn't part of `7cb0a30` or of the tested APK.
 
 ## 4. Smaller problems found along the way
 
