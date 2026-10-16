@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, NativeModules, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline, type Region } from 'react-native-maps';
 import type { RoutesRepository, RouteObstacle } from './api';
 import { routesRepository } from './api';
@@ -9,6 +9,19 @@ import { type Coordinate, type SavedRoute } from './model';
 import { COLORS } from '../sites';
 import { GOOGLE_MAP_STYLES } from '../maps/GoogleSitesMap';
 import { loadTheme } from '../theme';
+import type MapboxRouteMapType from '../maps/MapboxRouteMap';
+
+// Mapbox needs a development build; in Expo Go its native module is missing and importing it
+// throws, so fall back to the Google map there (same guard as App.tsx).
+let MapboxRouteMap: typeof MapboxRouteMapType | null = null;
+if (NativeModules.RNMBXModule != null) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    MapboxRouteMap = require('../maps/MapboxRouteMap').default;
+  } catch {
+    MapboxRouteMap = null;
+  }
+}
 
 export default function RouteDetail({ route, repository = routesRepository }: {
   route: SavedRoute;
@@ -55,14 +68,25 @@ export default function RouteDetail({ route, repository = routesRepository }: {
         <Text accessibilityRole="alert" style={styles.error}>{obstacleError}</Text>
       )}
       {!loaded && <ActivityIndicator accessibilityLabel="Loading obstacles" color="#163f36" />}
-      <View style={styles.map} accessibilityLabel={`Map of route from ${route.start.label ?? 'start'} to ${route.destination.label ?? 'destination'}`}>
+      <View testID="route-map" style={styles.map} accessibilityLabel={`Map of route from ${route.start.label ?? 'start'} to ${route.destination.label ?? 'destination'}`}>
+        {MapboxRouteMap ? (
+          <MapboxRouteMap
+            path={path}
+            start={route.start}
+            destination={route.destination}
+            stops={stops}
+            sites={sites}
+            theme={theme}
+          />
+        ) : (
         <MapView
           style={StyleSheet.absoluteFill}
           initialRegion={region}
           customMapStyle={GOOGLE_MAP_STYLES[theme]}
           userInterfaceStyle={theme === 'night' ? 'dark' : 'light'}
         >
-          <Polyline coordinates={path} strokeWidth={4} strokeColor={theme === 'night' ? '#7fd6a8' : '#163f36'} />
+          <Polyline coordinates={path} strokeWidth={7} strokeColor="#ffffff" zIndex={1} />
+          <Polyline coordinates={path} strokeWidth={4} strokeColor={theme === 'night' ? '#d2ffe3' : '#163f36'} zIndex={2} />
           <Marker coordinate={route.start.coordinate} pinColor="#2e7d32" title="Start" description={route.start.label ?? undefined} />
           {stops.map((stop, index) => (
             <Marker
@@ -84,6 +108,7 @@ export default function RouteDetail({ route, repository = routesRepository }: {
             />
           ))}
         </MapView>
+        )}
       </View>
       {loaded && obstacles.length > 0 && (
         <View style={styles.list}>

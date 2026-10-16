@@ -157,7 +157,6 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}{(item.weekdays ?? []).length > 0 ? ` · ${formatWeekdays(item.weekdays)}` : ''}</Text>}
               {!item.startTime && (item.weekdays ?? []).length > 0 && <Text style={styles.hint}>Repeats {formatWeekdays(item.weekdays)}</Text>}
-              <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
                 {deleting === item.id ? (
                   <ActivityIndicator size="small" color="#a52621" />
@@ -228,7 +227,6 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#254636', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  date: { color: '#627080', fontSize: 12 },
   delete: { alignSelf: 'flex-start', padding: 8, borderRadius: 8 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },

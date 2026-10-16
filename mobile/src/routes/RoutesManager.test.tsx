@@ -16,7 +16,7 @@ jest.mock('@expo/vector-icons/MaterialIcons', () => {
 jest.mock('react-native-maps', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View } = require('react-native');
-  const MapView = ({ children }: { children?: React.ReactNode }) => <View testID="route-map">{children}</View>;
+  const MapView = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   const Marker = () => <View />;
   const Polyline = () => <View />;
   return { __esModule: true, default: MapView, Marker, Polyline };
