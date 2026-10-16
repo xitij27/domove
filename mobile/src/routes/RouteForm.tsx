@@ -13,7 +13,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [destination, setDestination] = useState(EMPTY);
   const [mode, setMode] = useState<RouteDraft['mode']>('');
   const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>([]);
-  const [leaving, setLeaving] = useState<Leaving>({ startDate: '', startTime: '' });
+  const [leaving, setLeaving] = useState<Leaving>({ startTime: '', weekdays: [] });
   const nextId = useRef(0);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -80,7 +80,7 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
         {errors.mode && <ErrorText message={errors.mode} />}
 
         <Text style={styles.label}>Leaving at (optional)</Text>
-        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a date we assume today; without a time, the time the route is planned.</Text>
+        <Text style={styles.hint}>Some construction sites close the road only during the day. Set when you leave, and pick days if you make this trip regularly.</Text>
         <LeavingAtInput value={leaving} onChange={setLeaving} editable={!busy} invalid={!!errors.startTime} />
         {errors.startTime && <ErrorText message={errors.startTime} />}
         {saveError && <ErrorText message={saveError} />}
