@@ -36,12 +36,13 @@ const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_ST
 const PX = Platform.OS === 'android' ? PixelRatio.get() : 1;
 const EDGE_PADDING = { top: ROUTE_PADDING.top * PX, right: ROUTE_PADDING.right * PX, bottom: ROUTE_PADDING.bottom * PX, left: ROUTE_PADDING.left * PX };
 
-export default function GoogleSitesMap({ sites, route, onSelect, theme, onHeadingChange, ref }: {
+export default function GoogleSitesMap({ sites, route, onSelect, theme, onHeadingChange, bottomInset, ref }: {
   sites: Site[];
   route: RouteLine | null;
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
   onHeadingChange: (heading: number) => void;
+  bottomInset: number; // covered by what lies over the map's bottom edge
   ref?: Ref<MapHandle>;
 }) {
   const map = useRef<MapView>(null);
@@ -71,6 +72,7 @@ export default function GoogleSitesMap({ sites, route, onSelect, theme, onHeadin
       customMapStyle={STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
       userInterfaceStyle={theme === 'night' ? 'dark' : 'light'}
       showsCompass={false} // ours replaces it
+      mapPadding={{ top: 0, right: 0, bottom: bottomInset, left: 0 }} // keeps the Google logo in sight
       onRegionChange={readHeading}
       onRegionChangeComplete={readHeading}
       onPress={(e) => e.nativeEvent.action !== 'marker-press' && onSelect(null)}

@@ -31,21 +31,25 @@
    build from before it was added must be rebuilt once (`npx expo run:android`).
    Native build instructions are in the root README.
 
-The app footer offers **Create Route** and **Saved routes**. Type a starting
+The app footer is a sheet below the map with **Create Route** and **Saved routes**.
+Tapping either, or pulling the sheet up, raises it over the map. Type a starting
 location and final destination and pick each from the suggestions, select Pedestrian, Bicycle or Car, optionally
 add/remove stops, optionally set **Leaving at**, then tap **Ready**.
-**Leaving at** is one rounded slider: **Now** takes the current date and time;
-the date and the time open the phone's own calendar and clock (on iOS they open
-below the slider), and picking a date asks for the time next; ✕ clears both.
-**Repeat on** weekday tags make the route repeat at that time instead of running
-once: picking a day clears the date, and picking a date clears the days. The saved list opens after a successful save.
-Tapping a saved route closes the list and shows the route on the main map: its
+**Leaving at** works like setting an alarm: tap the large time to open the
+phone's clock (on iOS it opens below the days), and optionally tap the round
+**M T W T F S S** buttons to repeat on those days. It reads "Doesn't repeat"
+until a day is picked, then sums the days up, e.g. "Weekdays" or "Mon, Wed".
+Picking a day before a time opens the clock; ✕ clears both. The saved list
+opens after a successful save, and each route reads e.g. "Leaving at 07:15 · Weekdays".
+Tapping a saved route lowers the sheet and shows the route on the main map: its
 line (from the public OSRM router, straight between the stops until it answers),
 start, stops and destination, and only the construction sites on it. The card at
 the bottom counts them; ✕ returns to all sites.
 Delete removes a route immediately after the server confirms the deletion. A
-failed deletion leaves it visible, with a retryable error. Close returns to the
-existing app; Cancel returns from the form to the list without saving.
+failed deletion leaves it visible, with a retryable error. Close, pulling the
+sheet down or Android's back button lowers it to the map again, except while a
+save or deletion is still running; Cancel returns from the form to the list
+without saving.
 
 Suggestions come from [Photon](https://photon.komoot.io) (OpenStreetMap data,
 free, no key), nearest to Dortmund first, from the third character on. Only a
@@ -57,9 +61,11 @@ The form trims location text, ignores blank stops and requires a mode. Labels
 allow up to 200 characters, and routes allow up to 48 intermediate stops:
 openrouteservice takes at most 50 points, start and destination included. The
 leaving time decides whether daytime-only construction sites count (between 6:00
-and 22:00); without one, the time of planning is used. A leaving date needs a
-time; without a date, the time means today. Route planning (#12) does not read
-the date yet.
+and 22:00); without one, the time of planning is used. It is set like an alarm:
+a time from the phone's clock and, optionally, the days it repeats on. A route
+doesn't repeat until days are picked, and days need a time; without days, the
+time means today. The app no longer sends a leaving date, though the database
+still accepts one.
 Saving disables editing, closing and duplicate submissions until the request ends.
 Every request gives up after 15 seconds, so a stalled connection cannot lock
 the screen.
@@ -128,7 +134,7 @@ const route = await routesRepository.create({
   destination: { label: 'Westfalenpark, Dortmund', coordinate: { latitude: 51.4951, longitude: 7.4754 } },
   mode: 'bike',
   startTime: '08:30',               // or '' for no leaving time
-  startDate: '2026-10-20',          // or '' for today; needs startTime
+  weekdays: ['monday', 'friday'],   // or [] to not repeat; needs startTime
   waypoints: [{ label: 'Friedensplatz, Dortmund', coordinate: { latitude: 51.5119, longitude: 7.4669 } }],
 });
 await routesRepository.delete(route.id);
@@ -141,8 +147,8 @@ type SavedRoute = {
   start: RouteLocation;
   destination: RouteLocation;
   mode: 'pedestrian' | 'bike' | 'car'; // UI label for bike is Bicycle
-  startTime: string | null;         // "HH:MM" leaving time; without weekdays or a date it means today
-  startDate: string | null;         // "YYYY-MM-DD" of a single trip; always with startTime
+  startTime: string | null;         // "HH:MM" leaving time; without weekdays it means today
+  weekdays: Weekday[];              // Days the trip repeats on, Monday first; [] when it doesn't
   waypoints: (RouteLocation & { id: string; sequence: number })[];
   createdAt: string;                // Database-generated ISO timestamp
 };

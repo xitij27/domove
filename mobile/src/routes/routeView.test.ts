@@ -6,7 +6,7 @@ import type { Site } from '../sites';
 
 const at = (latitude: number, longitude: number) => ({ latitude, longitude });
 const route: SavedRoute = {
-  id: '1', name: 'Station → Park', mode: 'bike', startTime: null, startDate: null, weekdays: [], createdAt: '2026-10-16T12:00:00Z',
+  id: '1', name: 'Station → Park', mode: 'bike', startTime: null, weekdays: [], createdAt: '2026-10-16T12:00:00Z',
   start: { label: 'Station', coordinate: at(51.51, 7.46) }, destination: { label: 'Park', coordinate: at(51.52, 7.48) },
   waypoints: [{ id: 'w1', label: 'Cafe', sequence: 0, coordinate: at(51.515, 7.47) }],
 };

@@ -6,27 +6,18 @@ export const TRANSPORT_MODES = {
 
 export type TransportMode = keyof typeof TRANSPORT_MODES;
 
+/** In the backend's weekday enum order, Monday first. */
 export const WEEKDAYS = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
+  { day: 'monday', name: 'Monday', short: 'Mon', letter: 'M' },
+  { day: 'tuesday', name: 'Tuesday', short: 'Tue', letter: 'T' },
+  { day: 'wednesday', name: 'Wednesday', short: 'Wed', letter: 'W' },
+  { day: 'thursday', name: 'Thursday', short: 'Thu', letter: 'T' },
+  { day: 'friday', name: 'Friday', short: 'Fri', letter: 'F' },
+  { day: 'saturday', name: 'Saturday', short: 'Sat', letter: 'S' },
+  { day: 'sunday', name: 'Sunday', short: 'Sun', letter: 'S' },
 ] as const;
 
-export type Weekday = (typeof WEEKDAYS)[number];
-
-export const WEEKDAY_SHORT_LABELS: Record<Weekday, string> = {
-  monday: 'Mon',
-  tuesday: 'Tue',
-  wednesday: 'Wed',
-  thursday: 'Thu',
-  friday: 'Fri',
-  saturday: 'Sat',
-  sunday: 'Sun',
-};
+export type Weekday = (typeof WEEKDAYS)[number]['day'];
 export type Coordinate = { latitude: number; longitude: number };
 /** Every saved location has a coordinate; the label can be null. */
 export type RouteLocation = { label: string | null; coordinate: Coordinate };
@@ -38,11 +29,9 @@ export type SavedRoute = {
   start: RouteLocation;
   destination: RouteLocation;
   mode: TransportMode;
-  /** "HH:MM" when the user leaves; without weekdays or a date it means today. */
+  /** "HH:MM" when the user leaves; without weekdays it means today. */
   startTime: string | null;
-  /** "YYYY-MM-DD" of a single trip; always comes with a startTime. */
-  startDate: string | null;
-  /** Empty means the route runs once; otherwise it repeats on these days. */
+  /** The days the trip repeats on, Monday first; never set without a startTime. */
   weekdays: Weekday[];
   waypoints: RouteWaypoint[];
   createdAt: string;
@@ -59,16 +48,14 @@ export type RouteDraft = {
   waypoints: PlaceDraft[];
   /** "HH:MM", or empty for no time. */
   startTime: string;
-  /** "YYYY-MM-DD", or empty for today; needs a startTime. */
-  startDate: string;
-  /** Days the route repeats on; needs a startTime and no startDate. */
+  /** The days the trip repeats on, in any order; needs a startTime. */
   weekdays: Weekday[];
 };
 
 export const MAX_LOCATION_LENGTH = 200;
 // openrouteservice takes 50 points, start and destination included
 export const MAX_WAYPOINTS = 48;
-export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints' | 'startTime' | 'weekdays', string>>;
+export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints' | 'startTime', string>>;
 
 export function validateRoute(draft: RouteDraft): RouteErrors {
   const errors: RouteErrors = {};
@@ -83,25 +70,13 @@ export function validateRoute(draft: RouteDraft): RouteErrors {
     errors.waypoints = 'Use 200 characters or fewer for each stop.';
   } else if (stops.some((stop) => !stop.coordinate)) errors.waypoints = 'Pick each stop from the suggestions.';
   const time = draft.startTime.trim();
-  const day = draft.startDate.trim();
   if (time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) errors.startTime = 'Use a leaving time like 08:30.';
-  else if (day && !parseDay(day)) errors.startTime = 'Use a leaving date like 2026-10-16.';
-  else if (day && !time) errors.startTime = 'Pick a time for the leaving date.';
-  const days = draft.weekdays;
-  if (days.some((d) => !Object.hasOwn(WEEKDAY_SHORT_LABELS, d))) {
-    errors.weekdays = 'Select valid weekdays.';
-  } else if (new Set(days).size !== days.length) {
-    errors.weekdays = 'Select each weekday only once.';
-  } else if (days.length > 0 && !time) {
-    errors.weekdays = 'Select a leaving time for the selected days.';
-  } else if (days.length > 0 && day) {
-    errors.weekdays = 'Pick a leaving date or weekdays, not both.';
-  }
+  else if (draft.weekdays.length && !time) errors.startTime = 'Pick a time for the repeat days.';
   return errors;
 }
 
 export function normalizeRoute(draft: RouteDraft): {
-  start: Place; destination: Place; mode: TransportMode; waypoints: Place[]; startTime: string | null; startDate: string | null; weekdays: Weekday[];
+  start: Place; destination: Place; mode: TransportMode; waypoints: Place[]; startTime: string | null; weekdays: Weekday[];
 } {
   const errors = validateRoute(draft);
   if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
@@ -113,31 +88,26 @@ export function normalizeRoute(draft: RouteDraft): {
     mode: draft.mode as TransportMode,
     waypoints: draft.waypoints.filter(isFilled).map(clean),
     startTime: draft.startTime.trim() || null,
-    startDate: draft.startDate.trim() || null,
-    weekdays: [...draft.weekdays],
+    // In week order and each day once, as the backend checks
+    weekdays: WEEKDAYS.map(({ day }) => day).filter((day) => draft.weekdays.includes(day)),
   };
 }
 
-/** "YYYY-MM-DD" as a local calendar day (not UTC midnight), or null if there is no such day. */
-export function parseDay(day: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
-  if (!match) return null;
-  const [year, month, date] = match.slice(1).map(Number);
-  const parsed = new Date(year, month - 1, date);
-  // Date rolls 2026-02-30 over into March
-  return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === date ? parsed : null;
+/** "Every day", "Weekdays", "Weekends" or the days such as "Mon, Wed, Fri"; null for no days. */
+export function repeatSummary(weekdays: readonly Weekday[]) {
+  const days = WEEKDAYS.filter(({ day }) => weekdays.includes(day)).map(({ short }) => short).join(', ');
+  if (!days) return null;
+  if (days === 'Mon, Tue, Wed, Thu, Fri, Sat, Sun') return 'Every day';
+  if (days === 'Mon, Tue, Wed, Thu, Fri') return 'Weekdays';
+  if (days === 'Sat, Sun') return 'Weekends';
+  return days;
 }
 
-/** A short local day such as "Fri, 16 Oct". */
-export function formatDay(day: string) {
-  return parseDay(day)?.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) ?? day;
-}
-
-/** Short labels for the selected days, in calendar order (Mon … Sun). */
-export function formatWeekdays(days: Weekday[]): string {
-  return WEEKDAYS.filter((day) => days.includes(day))
-    .map((day) => WEEKDAY_SHORT_LABELS[day])
-    .join(' · ');
+/** "Leaving at 07:15 · Weekdays", or null for a route without a leaving time. */
+export function formatLeaving({ startTime, weekdays }: Pick<SavedRoute, 'startTime' | 'weekdays'>) {
+  if (!startTime) return null;
+  const repeat = repeatSummary(weekdays);
+  return repeat ? `Leaving at ${startTime} · ${repeat}` : `Leaving at ${startTime}`;
 }
 
 /** Blank stops are ignored. */

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -7,7 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
-import RoutesManager from './src/routes/RoutesManager';
+import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import type { SavedRoute } from './src/routes/model';
 import { obstacleSummary, useRouteView } from './src/routes/routeView';
 import TransportModeIcon from './src/routes/TransportModeIcon';
@@ -64,7 +64,10 @@ function readCrash(): string | null {
 
 export default function App() {
   const [crash, setCrash] = useState(readCrash);
+  const [routesOpen, setRoutesOpen] = useState(false);
   const [route, setRoute] = useState<SavedRoute | null>(null);
+  // Stable, so the memoized map skips the re-render opening the routes sheet causes.
+  const closeRoute = useCallback(() => setRoute(null), []);
 
   useEffect(() => startNotificationRuntime(), []);
 
@@ -82,8 +85,11 @@ export default function App() {
       {/* skip the maps while a crash report is open, in case a map is what crashed */}
       {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : (
         <View style={styles.fill}>
-          <RadarMap route={route} onCloseRoute={() => setRoute(null)} />
-          <RoutesManager onShowRoute={setRoute} />
+          {/* the raised routes sheet covers the map, so screen readers skip it */}
+          <View style={styles.fill} importantForAccessibility={routesOpen ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={routesOpen}>
+            <RadarMap route={route} onCloseRoute={closeRoute} />
+          </View>
+          <RoutesManager onOpenChange={setRoutesOpen} onShowRoute={setRoute} />
         </View>
       )}
     </SafeAreaProvider>
@@ -107,8 +113,9 @@ function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void 
   );
 }
 
+// memo: opening the routes sheet re-renders App, which shouldn't redraw the map and its pins.
 // With a route shown, the map draws it and narrows the sites to the ones on it.
-function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRoute: () => void }) {
+const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRoute: () => void }) {
   const insets = useSafeAreaInsets();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +173,7 @@ function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRo
         onSelect={setSelected}
         theme={theme}
         onHeadingChange={(h) => heading.setValue(h)}
+        bottomInset={SHEET_RADIUS}
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
@@ -238,7 +246,7 @@ function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRo
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
   );
-}
+});
 
 // Both options stay visible, so the current mode is never a guess; the highlight slides to the one picked.
 function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: MapTheme) => void }) {
@@ -292,8 +300,9 @@ const styles = StyleSheet.create({
   toggle: { alignSelf: 'flex-end', padding: TOGGLE_PAD, borderRadius: TOGGLE_CELL / 2 + TOGGLE_PAD, borderWidth: StyleSheet.hairlineWidth, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   toggleThumb: { position: 'absolute', top: TOGGLE_PAD, left: TOGGLE_PAD, width: TOGGLE_CELL, height: TOGGLE_CELL, borderRadius: TOGGLE_CELL / 2 },
   toggleCell: { width: TOGGLE_CELL, height: TOGGLE_CELL, alignItems: 'center', justifyContent: 'center' },
-  // no safe-area inset at the bottom: the route launcher below the map already clears it
-  cards: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8, pointerEvents: 'box-none' },
+  // no safe-area inset at the bottom: the routes sheet below the map already clears it, but its rounded top
+  // reaches SHEET_RADIUS over the map
+  cards: { position: 'absolute', left: 12, right: 12, bottom: SHEET_RADIUS + 12, gap: 8, pointerEvents: 'box-none' },
   card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   title: { fontSize: 16, fontWeight: '600' },
   routeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },

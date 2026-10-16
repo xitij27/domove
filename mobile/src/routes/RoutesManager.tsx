@@ -1,32 +1,147 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatDay, formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatLeaving, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
-/** `onShowRoute` puts a saved route on the main map; the routes sheet closes for it. */
-export default function RoutesManager({ onShowRoute }: { onShowRoute: (route: SavedRoute) => void }) {
+/** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
+export const SHEET_RADIUS = 24;
+// The strip of map left in sight above the raised sheet.
+const RAISED_GAP = 8;
+// JS-driven: a drag has to read where an interrupted spring left the sheet, which a native-driven value can't say at once.
+const SNAP = { useNativeDriver: false, overshootClamping: true, speed: 16, bounciness: 0 } as const;
+
+type Open = { creating: boolean } | null;
+
+/**
+ * Raises and lowers the sheet. Its drag state lives here rather than in React state, since the drag
+ * handlers are made once and must always see the latest values.
+ */
+function createSheet(y: Animated.Value, show: (open: Open) => void) {
+  let open = false;
+  let busy = false;
+  let travel = 0;
+  let from = 0;
+
+  function raise(creating = false) {
+    if (!open) {
+      open = true;
+      show({ creating });
+    }
+    Animated.spring(y, { toValue: 0, ...SNAP }).start();
+  }
+
+  function lower() {
+    // Stays up while a save or delete is pending, as the Close button does.
+    if (busy) return raise();
+    open = false;
+    show(null);
+    Animated.spring(y, { toValue: travel, ...SNAP }).start();
+  }
+
+  const settle = (_: unknown, gesture: PanResponderGestureState) => {
+    const at = from + gesture.dy;
+    if (gesture.vy < -0.3 || (gesture.vy < 0.3 && at < travel / 2)) raise();
+    else lower();
+  };
+
+  const { panHandlers } = PanResponder.create({
+    // Taps still reach the buttons; only a vertical drag moves the sheet, and a lowered one only goes up.
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (open || gesture.dy < 0),
+    onPanResponderGrant: () => {
+      y.stopAnimation((at) => { from = at; });
+      // The saved routes come into view as the sheet is pulled up.
+      if (!open) {
+        open = true;
+        show({ creating: false });
+      }
+    },
+    onPanResponderMove: (_, gesture) => y.setValue(Math.min(Math.max(from + gesture.dy, 0), travel)),
+    onPanResponderRelease: settle,
+    onPanResponderTerminate: settle,
+  });
+
+  return {
+    panHandlers,
+    raise,
+    lower,
+    isOpen: () => open,
+    setBusy: (value: boolean) => { busy = value; },
+    /** How far the sheet moves down from raised to lowered; a lowered sheet follows it at once. */
+    setTravel: (value: number) => {
+      travel = value;
+      if (!open && value > 0) y.setValue(value);
+    },
+  };
+}
+
+/**
+ * The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form.
+ * `onShowRoute` puts a saved route on the main map; the sheet lowers for it.
+ */
+export default function RoutesManager({ repository, onOpenChange, onShowRoute }: {
+  repository?: RoutesRepository;
+  onOpenChange?: (open: boolean) => void;
+  onShowRoute: (route: SavedRoute) => void;
+}) {
   const insets = useSafeAreaInsets();
-  const [dialog, setDialog] = useState<'list' | 'create' | null>(null);
-  const busy = useRef(false);
-  const close = () => { if (!busy.current) setDialog(null); };
+  // What the raised sheet shows; null while it is lowered to the two buttons.
+  const [open, setOpen] = useState<Open>(null);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [loweredHeight, setLoweredHeight] = useState(0);
+  const travel = Math.max(sheetHeight - loweredHeight, 0);
+  // translateY: 0 is raised, travel is lowered. Starts off screen until the first layout.
+  const [y] = useState(() => new Animated.Value(Dimensions.get('window').height));
+  const [sheet] = useState(() => createSheet(y, setOpen));
+
+  useEffect(() => { sheet.setTravel(travel); }, [sheet, travel]);
+
+  useEffect(() => { onOpenChange?.(open !== null); }, [open, onOpenChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { sheet.lower(); return true; });
+    return () => subscription.remove();
+  }, [open, sheet]);
+
   return (
     <>
-      <View style={[styles.launcher, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Pressable accessibilityRole="button" onPress={() => setDialog('list')} style={styles.secondary}>
-          <Text style={styles.secondaryText}>Saved routes</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setDialog('create')} style={styles.primary}>
-          <Text style={styles.primaryText}>Create Route</Text>
-        </Pressable>
-      </View>
-      <Modal visible={dialog !== null} animationType="slide" onRequestClose={close}>
-        {dialog !== null && <RoutesPanel initiallyCreating={dialog === 'create'} onClose={close} onShowRoute={(route) => { setDialog(null); onShowRoute(route); }} onBusyChange={(value) => { busy.current = value; }} />}
-      </Modal>
+      {/* The map ends here, so only the sheet's rounded top lies over it while lowered. */}
+      <View style={{ height: Math.max(loweredHeight - SHEET_RADIUS, 0) }} />
+      <Animated.View
+        accessibilityViewIsModal={open !== null}
+        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        style={[styles.sheet, { top: insets.top + RAISED_GAP, transform: [{ translateY: y }] }]}
+      >
+        <View {...sheet.panHandlers} onLayout={(e) => { if (!sheet.isOpen()) setLoweredHeight(e.nativeEvent.layout.height); }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={open ? 'Lower the routes panel' : 'Raise the routes panel'}
+            accessibilityState={{ expanded: open !== null }}
+            hitSlop={{ top: 12 }}
+            onPress={() => (open ? sheet.lower() : sheet.raise())}
+            style={styles.grip}
+          >
+            <View style={styles.handle} />
+          </Pressable>
+          {!open && (
+            <View style={[styles.launcher, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+              <Pressable accessibilityRole="button" onPress={() => sheet.raise()} style={styles.secondary}>
+                <Text style={styles.secondaryText}>Saved routes</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => sheet.raise(true)} style={styles.primary}>
+                <Text style={styles.primaryText}>Create Route</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+        {open && <RoutesPanel initiallyCreating={open.creating} onClose={sheet.lower} onShowRoute={(route) => { sheet.lower(); onShowRoute(route); }} onBusyChange={sheet.setBusy} repository={repository} />}
+      </Animated.View>
     </>
   );
 }
@@ -108,9 +223,10 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
   }
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    // The sheet already starts below the status bar.
+    <View style={[styles.screen, { paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
-        <Text style={styles.brand}>DO:MOVE</Text>
+        <Image accessible accessibilityRole="image" accessibilityLabel="do.move" source={require('../../assets/domovelogo.png')} style={styles.brand} />
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
@@ -135,7 +251,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
               <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={refresh} style={styles.secondary}>
                 <Text style={styles.secondaryText}>{error ? 'Retry loading routes' : 'Refresh routes'}</Text>
               </Pressable>
-              {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#163f36" />}
+              {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#a8520e" />}
             </View>
           }
           ListEmptyComponent={!loading && !error ? <View style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></View> : undefined}
@@ -150,7 +266,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
               <TransportModeIcon mode={item.mode} />
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
-              {item.startTime && <Text style={styles.hint}>Leaving {item.startDate && `${formatDay(item.startDate)} `}at {item.startTime}{item.weekdays.length > 0 && ` · ${formatWeekdays(item.weekdays)}`}</Text>}
+              {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
               <Pressable accessibilityRole="button" accessibilityLabel={`Notification preferences for the route to ${place(item.destination, 'Final destination')}`} disabled={!!deleting} onPress={() => setNotifying(item)} style={styles.notify}>
                 <Text style={styles.secondaryText}>Notifications</Text>
               </Pressable>
@@ -208,18 +324,22 @@ function message(error: unknown) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f5f7f9' },
-  launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 12, backgroundColor: '#f5f7f9', justifyContent: 'center' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#f5f7f9', borderTopLeftRadius: SHEET_RADIUS, borderTopRightRadius: SHEET_RADIUS, elevation: 12, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: -2 } },
+  grip: { height: 32, alignItems: 'center', justifyContent: 'center' },
+  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#c3ccd5' },
+  launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 12, paddingTop: 4, justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
-  brand: { color: '#163f36', fontWeight: '800', letterSpacing: 2, fontSize: 16 },
+  // The logo file is 960×170.
+  brand: { height: 26, aspectRatio: 960 / 170 },
   close: { paddingVertical: 16, paddingHorizontal: 12 },
   list: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { gap: 12, marginBottom: 8 },
   title: { fontSize: 30, color: '#182332', fontWeight: '700' },
   hint: { color: '#526173', lineHeight: 22 },
-  primary: { backgroundColor: '#163f36', padding: 15, borderRadius: 14, alignItems: 'center' },
+  primary: { backgroundColor: '#a8520e', padding: 15, borderRadius: 14, alignItems: 'center' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   secondary: { backgroundColor: '#e9eef2', padding: 15, borderRadius: 14, alignItems: 'center' },
-  secondaryText: { color: '#254636', fontWeight: '600' },
+  secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
   notify: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },

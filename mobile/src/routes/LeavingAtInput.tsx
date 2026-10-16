@@ -1,129 +1,125 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type LayoutRectangle } from 'react-native';
-import { formatDay, parseDay, type RouteDraft } from './model';
+import { useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { repeatSummary, WEEKDAYS, type RouteDraft, type Weekday } from './model';
 
-export type Leaving = Pick<RouteDraft, 'startDate' | 'startTime'>;
-type Mode = 'date' | 'time';
+export type Leaving = Pick<RouteDraft, 'startTime' | 'weekdays'>;
 type Props = { value: Leaving; onChange: (value: Leaving) => void; editable: boolean; invalid: boolean };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const toDay = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const toTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
-/** The picked day and time; today and the current time for what is not picked yet. */
-function pickerValue({ startDate, startTime }: Leaving) {
-  const now = new Date();
-  const value = parseDay(startDate) ?? new Date(now);
-  const [hours, minutes] = startTime ? startTime.split(':').map(Number) : [now.getHours(), now.getMinutes()];
-  value.setHours(hours, minutes, 0, 0);
+/** The picked time, or the current time while none is picked. */
+function pickerValue(time: string) {
+  const value = new Date();
+  if (time) {
+    const [hours, minutes] = time.split(':').map(Number);
+    value.setHours(hours, minutes, 0, 0);
+  }
   return value;
 }
 
-function startOfToday() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-}
-
-/** A pill slider: its thumb sits on "Now", or spans the date and time picked with the system pickers. */
+/** Set like an alarm: a time from the system clock, and optionally the days it repeats on. */
 export default function LeavingAtInput({ value, onChange, editable, invalid }: Props) {
-  const [isNow, setIsNow] = useState(false);
-  // iOS has no picker dialog, so its picker opens below the slider instead
-  const [open, setOpen] = useState<Mode | null>(null);
-  const [layout, setLayout] = useState<Partial<Record<'now' | Mode, LayoutRectangle>>>({});
-  const chosen = !!(value.startDate || value.startTime);
-  const custom = chosen && !isNow;
+  // iOS has no clock dialog, so its clock opens below the days instead
+  const [open, setOpen] = useState(false);
+  const chosen = !!value.startTime || value.weekdays.length > 0;
 
-  const target = !chosen ? undefined : isNow ? layout.now
-    : layout.date && layout.time && { x: layout.date.x, width: layout.time.x + layout.time.width - layout.date.x };
-  const left = useRef(new Animated.Value(0)).current;
-  const width = useRef(new Animated.Value(0)).current;
-  const [x, w] = [target?.x, target?.width];
-  useEffect(() => {
-    if (x === undefined || w === undefined) return;
-    const spring = (node: Animated.Value, toValue: number) => Animated.spring(node, { toValue, useNativeDriver: false, speed: 18, bounciness: 6 });
-    Animated.parallel([spring(left, x), spring(width, w)]).start();
-  }, [left, width, x, w]);
-
-  const measure = (key: 'now' | Mode) => (event: LayoutChangeEvent) => {
-    const rect = event.nativeEvent.layout;
-    setLayout((current) => ({ ...current, [key]: rect }));
-  };
-
-  function pick(mode: Mode, date: Date, from: Leaving) {
-    const next = mode === 'date' ? { ...from, startDate: toDay(date) } : { ...from, startTime: toTime(date) };
-    setIsNow(false);
-    onChange(next);
-    // a day without a time can't be saved, so the time picker follows
-    if (mode === 'date' && !from.startTime) show('time', next);
-  }
-
-  function show(mode: Mode, from = value) {
-    if (Platform.OS !== 'android') return setOpen((current) => (current === mode ? null : mode));
+  function showClock(from: Leaving) {
+    if (Platform.OS !== 'android') {
+      // the inline clock has no OK button, so the time it opens on counts as picked
+      if (!from.startTime) onChange({ ...from, startTime: toTime(new Date()) });
+      return setOpen(true);
+    }
     DateTimePickerAndroid.open({
-      mode, value: pickerValue(from), is24Hour: true, minimumDate: mode === 'date' ? startOfToday() : undefined,
-      onValueChange: (_, date) => pick(mode, date, from),
+      mode: 'time', value: pickerValue(from.startTime), is24Hour: true,
+      onValueChange: (_, date) => onChange({ ...from, startTime: toTime(date) }),
     });
   }
 
-  function now() {
-    const date = new Date();
-    setIsNow(true);
-    setOpen(null);
-    onChange({ startDate: toDay(date), startTime: toTime(date) });
+  function toggle(day: Weekday) {
+    const adding = !value.weekdays.includes(day);
+    const next = { ...value, weekdays: adding ? [...value.weekdays, day] : value.weekdays.filter((d) => d !== day) };
+    onChange(next);
+    // repeat days need a time, so the clock follows
+    if (adding && !value.startTime) showClock(next);
   }
 
   function clear() {
-    setIsNow(false);
-    setOpen(null);
-    onChange({ startDate: '', startTime: '' });
+    setOpen(false);
+    onChange({ startTime: '', weekdays: [] });
   }
-
-  const tone = (placeholder: boolean) => custom ? styles.selected : placeholder ? styles.placeholder : styles.text;
-  const dateText = value.startDate ? formatDay(value.startDate) : value.startTime ? 'Today' : 'Date';
-  const timeText = value.startTime || 'Time';
 
   return (
     <View>
-      <View style={[styles.track, invalid && styles.invalid, !editable && styles.disabled]}>
-        {chosen && <Animated.View pointerEvents="none" style={[styles.thumb, { left, width }]} />}
-        <Pressable onLayout={measure('now')} accessibilityRole="button" accessibilityLabel="Leave now" accessibilityState={{ selected: chosen && isNow, disabled: !editable }} disabled={!editable} onPress={now} style={styles.segment}>
-          <Text style={[styles.now, chosen && isNow && styles.selected]}>Now</Text>
-        </Pressable>
-        <Pressable onLayout={measure('date')} accessibilityRole="button" accessibilityLabel="Leaving date" accessibilityValue={{ text: dateText }} accessibilityState={{ expanded: open === 'date', disabled: !editable }} disabled={!editable} onPress={() => show('date')} style={[styles.segment, styles.date]}>
-          <MaterialIcons name="event" size={18} style={tone(!chosen)} />
-          <Text numberOfLines={1} style={[styles.value, tone(!chosen)]}>{dateText}</Text>
-        </Pressable>
-        <Pressable onLayout={measure('time')} accessibilityRole="button" accessibilityLabel="Leaving time" accessibilityValue={{ text: timeText }} accessibilityState={{ expanded: open === 'time', disabled: !editable }} disabled={!editable} onPress={() => show('time')} style={styles.segment}>
-          <MaterialIcons name="schedule" size={18} style={tone(!value.startTime)} />
-          <Text style={[styles.value, tone(!value.startTime)]}>{timeText}</Text>
-        </Pressable>
-        {chosen && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear leaving time" disabled={!editable} onPress={clear} style={styles.clear}>
-            <MaterialIcons name="close" size={20} color="#526173" />
+      <View style={[styles.card, invalid && styles.invalid, !editable && styles.disabled]}>
+        <View style={styles.timeRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Leaving time"
+            accessibilityValue={{ text: value.startTime || 'Not set' }}
+            accessibilityState={{ expanded: Platform.OS === 'android' ? undefined : open, disabled: !editable }}
+            disabled={!editable}
+            onPress={() => (open ? setOpen(false) : showClock(value))}
+            style={styles.time}
+          >
+            <Text style={[styles.clock, !value.startTime && styles.placeholder]}>{value.startTime || '--:--'}</Text>
+            {!value.startTime && <Text style={styles.prompt}>Set time</Text>}
           </Pressable>
-        )}
+          {chosen && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Clear leaving time" disabled={!editable} onPress={clear} style={styles.clear}>
+              <MaterialIcons name="close" size={22} color="#526173" />
+            </Pressable>
+          )}
+        </View>
+
+        <View style={styles.repeatRow}>
+          <Text style={styles.repeatLabel}>Repeat</Text>
+          <Text style={styles.summary}>{repeatSummary(value.weekdays) ?? "Doesn't repeat"}</Text>
+        </View>
+        <View style={styles.days}>
+          {WEEKDAYS.map(({ day, name, letter }) => {
+            const on = value.weekdays.includes(day);
+            return (
+              <Pressable
+                key={day}
+                accessibilityRole="checkbox"
+                accessibilityLabel={name}
+                accessibilityState={{ checked: on, disabled: !editable }}
+                disabled={!editable}
+                onPress={() => toggle(day)}
+                style={[styles.day, on && styles.dayOn]}
+              >
+                <Text style={[styles.dayText, on && styles.dayTextOn]}>{letter}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
       {open && Platform.OS !== 'android' && (
-        <DateTimePicker testID="leaving-picker" value={pickerValue(value)} mode={open} display={open === 'date' ? 'inline' : 'spinner'} is24Hour minimumDate={open === 'date' ? startOfToday() : undefined} accentColor="#163f36" onValueChange={(_, date) => pick(open, date, value)} />
+        <DateTimePicker testID="leaving-picker" value={pickerValue(value.startTime)} mode="time" display="spinner" is24Hour accentColor="#a8520e" onValueChange={(_, date) => onChange({ ...value, startTime: toTime(date) })} />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  track: { flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 26, borderWidth: 1, borderColor: '#b8c3cf', backgroundColor: '#fff' },
-  thumb: { position: 'absolute', top: 3, bottom: 3, borderRadius: 22, backgroundColor: '#163f36' },
-  segment: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 },
-  date: { flex: 1, minWidth: 0 },
-  now: { color: '#163f36', fontSize: 16, fontWeight: '700' },
-  value: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
-  text: { color: '#182332' },
-  placeholder: { color: '#737d8b' },
-  selected: { color: '#fff' },
+  card: { padding: 16, gap: 12, borderRadius: 16, borderWidth: 1, borderColor: '#b8c3cf', backgroundColor: '#fff' },
+  timeRow: { flexDirection: 'row', alignItems: 'center' },
+  time: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 10, minHeight: 48 },
+  clock: { fontSize: 40, fontWeight: '600', color: '#182332', fontVariant: ['tabular-nums'] },
+  placeholder: { color: '#9aa5b1' },
+  prompt: { color: '#a8520e', fontSize: 16, fontWeight: '600' },
   clear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  repeatRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
+  repeatLabel: { color: '#182332', fontSize: 15, fontWeight: '600' },
+  summary: { color: '#526173', flexShrink: 1, textAlign: 'right' },
+  days: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  day: { flex: 1, maxWidth: 44, aspectRatio: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9eef2' },
+  dayOn: { backgroundColor: '#a8520e' },
+  dayText: { color: '#354455', fontSize: 15, fontWeight: '700' },
+  dayTextOn: { color: '#fff' },
   invalid: { borderColor: '#b42318' },
   disabled: { opacity: 0.5 },
 });

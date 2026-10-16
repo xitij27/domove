@@ -11,7 +11,7 @@ const ICONS: Record<TransportMode, React.ComponentProps<typeof MaterialIcons>['n
 export default function TransportModeIcon({
   mode,
   size = 22,
-  color = '#246049',
+  color = '#8a4510',
 }: {
   mode: TransportMode;
   size?: number;
