@@ -13,6 +13,8 @@ The app renders the same data with Google Maps or Mapbox (toggle in the top-righ
 2. Build and install the dev app on an Android phone, either:
    - in the cloud: `npx eas-cli@latest build --profile development --platform android` (free Expo account; first run creates `eas.json`; add `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` with `npx eas-cli env:create` since `.env` is not uploaded), or
    - locally with Android Studio installed: `npx expo run:android`.
+
+   For a sideloadable release APK, every push touching `mobile/` runs the **Android APK** workflow (`.github/workflows/android-apk.yml`); download it from the run's artifacts. It needs the three `EXPO_PUBLIC_MAPBOX_TOKEN` / `EXPO_PUBLIC_SUPABASE_*` values as repository secrets (`gh secret set <NAME>`).
 3. `cd mobile && npx expo start`, then open the project from the dev app.
 
 Rebuild (step 2) only when native config or native packages change; JS changes reload live.
