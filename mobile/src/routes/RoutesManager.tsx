@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationSettings from '../notifications/NotificationSettings';
@@ -14,6 +14,71 @@ const RAISED_GAP = 8;
 // JS-driven: a drag has to read where an interrupted spring left the sheet, which a native-driven value can't say at once.
 const SNAP = { useNativeDriver: false, overshootClamping: true, speed: 16, bounciness: 0 } as const;
 
+type Open = { creating: boolean } | null;
+
+/**
+ * Raises and lowers the sheet. Its drag state lives here rather than in React state, since the drag
+ * handlers are made once and must always see the latest values.
+ */
+function createSheet(y: Animated.Value, show: (open: Open) => void) {
+  let open = false;
+  let busy = false;
+  let travel = 0;
+  let from = 0;
+
+  function raise(creating = false) {
+    if (!open) {
+      open = true;
+      show({ creating });
+    }
+    Animated.spring(y, { toValue: 0, ...SNAP }).start();
+  }
+
+  function lower() {
+    // Stays up while a save or delete is pending, as the Close button does.
+    if (busy) return raise();
+    open = false;
+    show(null);
+    Animated.spring(y, { toValue: travel, ...SNAP }).start();
+  }
+
+  const settle = (_: unknown, gesture: PanResponderGestureState) => {
+    const at = from + gesture.dy;
+    if (gesture.vy < -0.3 || (gesture.vy < 0.3 && at < travel / 2)) raise();
+    else lower();
+  };
+
+  const { panHandlers } = PanResponder.create({
+    // Taps still reach the buttons; only a vertical drag moves the sheet, and a lowered one only goes up.
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (open || gesture.dy < 0),
+    onPanResponderGrant: () => {
+      y.stopAnimation((at) => { from = at; });
+      // The saved routes come into view as the sheet is pulled up.
+      if (!open) {
+        open = true;
+        show({ creating: false });
+      }
+    },
+    onPanResponderMove: (_, gesture) => y.setValue(Math.min(Math.max(from + gesture.dy, 0), travel)),
+    onPanResponderRelease: settle,
+    onPanResponderTerminate: settle,
+  });
+
+  return {
+    panHandlers,
+    raise,
+    lower,
+    isOpen: () => open,
+    setBusy: (value: boolean) => { busy = value; },
+    /** How far the sheet moves down from raised to lowered; a lowered sheet follows it at once. */
+    setTravel: (value: number) => {
+      travel = value;
+      if (!open && value > 0) y.setValue(value);
+    },
+  };
+}
+
 /** The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form. */
 export default function RoutesManager({ repository, onOpenChange }: {
   repository?: RoutesRepository;
@@ -21,67 +86,23 @@ export default function RoutesManager({ repository, onOpenChange }: {
 }) {
   const insets = useSafeAreaInsets();
   // What the raised sheet shows; null while it is lowered to the two buttons.
-  const [open, setOpen] = useState<{ creating: boolean } | null>(null);
+  const [open, setOpen] = useState<Open>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
   const [loweredHeight, setLoweredHeight] = useState(0);
   const travel = Math.max(sheetHeight - loweredHeight, 0);
   // translateY: 0 is raised, travel is lowered. Starts off screen until the first layout.
-  const y = useRef(new Animated.Value(Dimensions.get('window').height)).current;
-  // For the drag handlers, which are made once.
-  const sheet = useRef({ open: false, busy: false, travel: 0, from: 0 }).current;
+  const [y] = useState(() => new Animated.Value(Dimensions.get('window').height));
+  const [sheet] = useState(() => createSheet(y, setOpen));
 
-  const raise = useCallback((creating = false) => {
-    if (!sheet.open) {
-      sheet.open = true;
-      setOpen({ creating });
-    }
-    Animated.spring(y, { toValue: 0, ...SNAP }).start();
-  }, [sheet, y]);
-
-  const lower = useCallback(() => {
-    // Stays up while a save or delete is pending, as the Close button does.
-    if (sheet.busy) return raise();
-    sheet.open = false;
-    setOpen(null);
-    Animated.spring(y, { toValue: sheet.travel, ...SNAP }).start();
-  }, [sheet, y, raise]);
-
-  const pan = useMemo(() => {
-    const settle = (_: unknown, gesture: PanResponderGestureState) => {
-      const at = sheet.from + gesture.dy;
-      if (gesture.vy < -0.3 || (gesture.vy < 0.3 && at < sheet.travel / 2)) raise();
-      else lower();
-    };
-    return PanResponder.create({
-      // Taps still reach the buttons; only a vertical drag moves the sheet, and a lowered one only goes up.
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx) && (sheet.open || gesture.dy < 0),
-      onPanResponderGrant: () => {
-        y.stopAnimation((at) => { sheet.from = at; });
-        // The saved routes come into view as the sheet is pulled up.
-        if (!sheet.open) {
-          sheet.open = true;
-          setOpen({ creating: false });
-        }
-      },
-      onPanResponderMove: (_, gesture) => y.setValue(Math.min(Math.max(sheet.from + gesture.dy, 0), sheet.travel)),
-      onPanResponderRelease: settle,
-      onPanResponderTerminate: settle,
-    });
-  }, [sheet, y, raise, lower]);
-
-  useEffect(() => {
-    sheet.travel = travel;
-    if (!sheet.open && travel > 0) y.setValue(travel);
-  }, [sheet, y, travel]);
+  useEffect(() => { sheet.setTravel(travel); }, [sheet, travel]);
 
   useEffect(() => { onOpenChange?.(open !== null); }, [open, onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { lower(); return true; });
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { sheet.lower(); return true; });
     return () => subscription.remove();
-  }, [open, lower]);
+  }, [open, sheet]);
 
   return (
     <>
@@ -92,29 +113,29 @@ export default function RoutesManager({ repository, onOpenChange }: {
         onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
         style={[styles.sheet, { top: insets.top + RAISED_GAP, transform: [{ translateY: y }] }]}
       >
-        <View {...pan.panHandlers} onLayout={(e) => { if (!sheet.open) setLoweredHeight(e.nativeEvent.layout.height); }}>
+        <View {...sheet.panHandlers} onLayout={(e) => { if (!sheet.isOpen()) setLoweredHeight(e.nativeEvent.layout.height); }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={open ? 'Lower the routes panel' : 'Raise the routes panel'}
             accessibilityState={{ expanded: open !== null }}
             hitSlop={{ top: 12 }}
-            onPress={() => (open ? lower() : raise())}
+            onPress={() => (open ? sheet.lower() : sheet.raise())}
             style={styles.grip}
           >
             <View style={styles.handle} />
           </Pressable>
           {!open && (
             <View style={[styles.launcher, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-              <Pressable accessibilityRole="button" onPress={() => raise()} style={styles.secondary}>
+              <Pressable accessibilityRole="button" onPress={() => sheet.raise()} style={styles.secondary}>
                 <Text style={styles.secondaryText}>Saved routes</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => raise(true)} style={styles.primary}>
+              <Pressable accessibilityRole="button" onPress={() => sheet.raise(true)} style={styles.primary}>
                 <Text style={styles.primaryText}>Create Route</Text>
               </Pressable>
             </View>
           )}
         </View>
-        {open && <RoutesPanel initiallyCreating={open.creating} onClose={lower} onBusyChange={(value) => { sheet.busy = value; }} repository={repository} />}
+        {open && <RoutesPanel initiallyCreating={open.creating} onClose={sheet.lower} onBusyChange={sheet.setBusy} repository={repository} />}
       </Animated.View>
     </>
   );
