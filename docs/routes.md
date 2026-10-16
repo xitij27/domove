@@ -8,8 +8,8 @@ the Expo app and Supabase schema. The feature branch is
 
 1. In Supabase, apply `20261016150000_routes.sql` if it has not already been applied,
    then apply `20261016160000_create_delete_routes.sql` from `supabase/migrations/`.
-   The new migration has not been applied to the team's hosted database by this change.
-2. Copy `mobile/.env.example` to `mobile/.env` and set
+   Apply it to each target database before running the app.
+2. Copy `mobile/.env.example` to `mobile/.env.local` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
 3. Run `cd mobile`, `npm ci`, then `npm start` and open the existing Android/iOS
@@ -145,9 +145,10 @@ an Android bundle export do not replace physical-device/native-build checks.
 ## Change inventory
 
 Modified:
-- `README.md`: link to this guide.
+- `README.md`: link to this guide and local environment setup.
 - `mobile/App.tsx`: expose the route manager beside the existing app.
 - `mobile/package.json`, `mobile/package-lock.json`: declare the test renderer.
+- `mobile/.env.example`: template for the ignored local environment file.
 
 Created:
 - `mobile/src/routes/model.ts`: shared types and draft validation.
@@ -164,4 +165,6 @@ Created:
 Verified on 2026-10-16: all 17 Jest tests (including the existing sites test),
 TypeScript, Expo lint, Android JavaScript/Hermes bundle export, SQL assertions
 on PostgreSQL 16/PostGIS 3.5, and the REST smoke test with PostgREST 16.4 passed.
-No physical-device test, signed native build, or hosted Supabase deployment was performed.
+The Issue #1 migration was also applied to the team's Supabase database and a
+create/read/delete request sequence passed through its REST API using the
+publishable key. No physical-device test or signed native build was performed.

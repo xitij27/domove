@@ -6,7 +6,7 @@ Live map of current and planned construction sites from the [Dortmund open data 
 
 The app renders the same data with Google Maps or Mapbox (toggle in the top-right corner). Mapbox needs native code, so the app runs in a **development build**, not Expo Go.
 
-1. Copy `mobile/.env.example` to `mobile/.env` (gitignored) and fill in:
+1. Copy `mobile/.env.example` to `mobile/.env.local` (gitignored) and fill in:
    - `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: see Backend below.
    - `EXPO_PUBLIC_MAPBOX_TOKEN`: Mapbox default public token (free up to 25k monthly users).
    - `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`: Google Cloud key with **Maps SDK for Android** enabled (mobile map loads are free; Google requires a billing account on file).
