@@ -92,6 +92,40 @@ test('shows the server validation message', async () => {
   await expect(repository.delete(id)).rejects.toThrow('HTTP 401');
 });
 
+test('lists obstacles with their construction sites', async () => {
+  fetchMock
+    .mockResolvedValueOnce(response([
+      { construction_site_id: 'site-1', distance_meters: 0, detected_at: '2026-10-16T12:00:00Z' },
+      { construction_site_id: 'site-2', distance_meters: 22.4, detected_at: '2026-10-16T12:00:00Z' },
+    ]))
+    .mockResolvedValueOnce(response([
+      { id: 'site-1', status: 'current', title: 'Road works', owner: null, period: 'Mon–Fri', district: 'Mitte', latitude: 51.51, longitude: 7.47 },
+      { id: 'site-2', status: 'planned', title: 'Bridge', owner: null, period: null, district: null, latitude: 51.52, longitude: 7.48 },
+    ]));
+  await expect(repository.listObstacles(id)).resolves.toEqual([
+    { siteId: 'site-1', distanceMeters: 0, detectedAt: '2026-10-16T12:00:00Z', site: expect.objectContaining({ id: 'site-1', title: 'Road works' }) },
+    { siteId: 'site-2', distanceMeters: 22.4, detectedAt: '2026-10-16T12:00:00Z', site: expect.objectContaining({ id: 'site-2', title: 'Bridge' }) },
+  ]);
+  expect(decodeURIComponent(fetchMock.mock.calls[0][0])).toContain(`obstacles?route_id=eq.${id}`);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test('an obstacle whose site left the feed keeps a null site', async () => {
+  fetchMock
+    .mockResolvedValueOnce(response([{ construction_site_id: 'gone', distance_meters: null, detected_at: '2026-10-16T12:00:00Z' }]))
+    .mockResolvedValueOnce(response([]));
+  await expect(repository.listObstacles(id)).resolves.toEqual([
+    { siteId: 'gone', distanceMeters: null, detectedAt: '2026-10-16T12:00:00Z', site: null },
+  ]);
+});
+
+test('an empty obstacle list needs no site request and rejects bad IDs', async () => {
+  fetchMock.mockResolvedValueOnce(response([]));
+  await expect(repository.listObstacles(id)).resolves.toEqual([]);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  await expect(repository.listObstacles('invalid&id=not.is.null')).rejects.toThrow('invalid ID');
+});
+
 test('gives up on a request that takes too long', async () => {
   jest.useFakeTimers();
   fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {

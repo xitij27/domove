@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RouteForm from './RouteForm';
+import RouteDetail from './RouteDetail';
+import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { TRANSPORT_MODES, formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 export default function RoutesManager() {
   const insets = useSafeAreaInsets();
@@ -36,6 +38,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [creating, setCreating] = useState(initiallyCreating);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       await repository.delete(id);
       if (active.current) {
         setRoutes((current) => current.filter((route) => route.id !== id));
+        setSelectedId((current) => (current === id ? null : current));
         setError(null);
       }
     } catch (e) {
@@ -99,15 +103,26 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     }
   }
 
+  const selected = routes.find((route) => route.id === selectedId) ?? null;
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
-        <Text style={styles.brand}>DO:MOVE</Text>
+        {selected ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to routes" onPress={() => setSelectedId(null)} style={styles.back}>
+            <Text style={styles.backText}>‹ Back</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.brand}>DO:MOVE</Text>
+        )}
+        {selected && <Text style={styles.brand}>DO:MOVE</Text>}
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
       </View>
-      {creating ? (
+      {selected ? (
+        <RouteDetail route={selected} repository={repository} />
+      ) : creating ? (
         <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
       ) : (
         <FlatList
@@ -130,20 +145,58 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           }
           ListEmptyComponent={!loading && !error ? <View style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></View> : undefined}
           renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`}
+              disabled={loading || !!deleting}
+              onPress={() => setSelectedId(item.id)}
+              style={styles.card}
+            >
+              <TransportModeIcon mode={item.mode} />
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}{(item.weekdays ?? []).length > 0 ? ` · ${formatWeekdays(item.weekdays)}` : ''}</Text>}
               {!item.startTime && (item.weekdays ?? []).length > 0 && <Text style={styles.hint}>Repeats {formatWeekdays(item.weekdays)}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
-                <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
+                {deleting === item.id ? (
+                  <ActivityIndicator size="small" color="#a52621" />
+                ) : (
+                  <TrashIcon color="#a52621" />
+                )}
               </Pressable>
-            </View>
+            </Pressable>
           )}
         />
       )}
+    </View>
+  );
+}
+
+/** Simple trash-bin glyph drawn with Views so no icon font is needed. */
+function TrashIcon({ color = '#a52621', size = 20 }: { color?: string; size?: number }) {
+  const line = size * 0.09;
+  return (
+    <View style={{ width: size, height: size + 2, alignItems: 'center' }}>
+      <View style={{ width: size * 0.4, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
+      <View style={{ width: size * 0.9, height: line, borderRadius: line / 2, backgroundColor: color, marginBottom: line * 0.8 }} />
+      <View
+        style={{
+          width: size * 0.7,
+          height: size * 0.68,
+          borderWidth: line,
+          borderColor: color,
+          borderTopWidth: 0,
+          borderBottomLeftRadius: 3,
+          borderBottomRightRadius: 3,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-evenly',
+        }}
+      >
+        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
+        <View style={{ width: line * 0.8, height: '55%', backgroundColor: color, borderRadius: line / 2 }} />
+      </View>
     </View>
   );
 }
@@ -162,6 +215,8 @@ const styles = StyleSheet.create({
   launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 12, backgroundColor: '#f5f7f9', justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
   brand: { color: '#163f36', fontWeight: '800', letterSpacing: 2, fontSize: 16 },
+  back: { paddingVertical: 16, paddingRight: 12 },
+  backText: { color: '#254636', fontWeight: '600' },
   close: { paddingVertical: 16, paddingHorizontal: 12 },
   list: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { gap: 12, marginBottom: 8 },
@@ -173,10 +228,8 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#254636', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  badge: { color: '#246049', fontWeight: '700' },
   date: { color: '#627080', fontSize: 12 },
-  delete: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#fff0ed', borderRadius: 10 },
-  deleteText: { color: '#a52621', fontWeight: '600' },
+  delete: { alignSelf: 'flex-start', padding: 8, borderRadius: 8 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },
 });

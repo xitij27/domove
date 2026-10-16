@@ -1,10 +1,20 @@
 import { uuid } from 'expo';
 import { normalizeRoute, type RouteDraft, type SavedRoute } from './model';
+import { toSites, type Site } from '../sites';
 
 export type RoutesRepository = {
   list: () => Promise<SavedRoute[]>;
   create: (draft: RouteDraft) => Promise<SavedRoute>;
   delete: (id: string) => Promise<void>;
+  /** Construction sites on the way of a route, detected by the backend job. */
+  listObstacles: (routeId: string) => Promise<RouteObstacle[]>;
+};
+
+export type RouteObstacle = {
+  siteId: string;
+  distanceMeters: number | null;
+  detectedAt: string;
+  site: Site | null;
 };
 
 // React Native's fetch never times out on its own, and the route screens stay
@@ -93,6 +103,32 @@ export function createRoutesRepository(
         throw new Error('This route has an invalid ID. Refresh the list and try again.');
       }
       await request(`routes?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    async listObstacles(routeId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routeId)) {
+        throw new Error('This route has an invalid ID. Refresh the list and try again.');
+      }
+      const rows = await request(
+        `obstacles?route_id=eq.${encodeURIComponent(routeId)}&select=construction_site_id,distance_meters,detected_at&order=detected_at.desc`,
+      );
+      if (!Array.isArray(rows)) throw new Error('The server returned an invalid obstacle list.');
+      const obstacles: RouteObstacle[] = rows.flatMap((row): RouteObstacle[] => {
+        if (typeof row?.construction_site_id !== 'string' || typeof row?.detected_at !== 'string') return [];
+        return [{
+          siteId: row.construction_site_id,
+          distanceMeters: typeof row.distance_meters === 'number' ? row.distance_meters : null,
+          detectedAt: row.detected_at,
+          site: null,
+        }];
+      });
+      if (obstacles.length === 0) return obstacles;
+      const ids = [...new Set(obstacles.map((o) => o.siteId))];
+      const siteRows = await request(
+        `construction_sites?select=id,status,title,owner,period,district,latitude,longitude&id=in.(${ids.map((id) => encodeURIComponent(id)).join(',')})`,
+      );
+      if (!Array.isArray(siteRows)) throw new Error('The server returned an invalid obstacle list.');
+      const byId = new Map(toSites(siteRows as Parameters<typeof toSites>[0]).map((site) => [site.id, site]));
+      return obstacles.map((obstacle) => ({ ...obstacle, site: byId.get(obstacle.siteId) ?? null }));
     },
   };
 }
