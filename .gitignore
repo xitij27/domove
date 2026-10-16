@@ -1,0 +1,6 @@
+# Local Claude Code context (transcripts, memory, scratch, plans) — never commit
+.claude/memory/
+.claude/tmp/
+.claude/plans/
+.claude/settings.local.json
+.claude/context/
