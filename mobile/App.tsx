@@ -6,6 +6,7 @@ import { File, Paths } from 'expo-file-system';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
+import { useHasGyroscope, useLocationGranted } from './src/maps/location';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
@@ -147,6 +148,9 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   // Not state: the map reports it on every frame of a turn, and only the compass needs it.
   const heading = useRef(new Animated.Value(0)).current;
   const map = useRef<MapHandle>(null);
+  const located = useLocationGranted();
+  const gyroscope = useHasGyroscope();
+  const [gyroWarned, setGyroWarned] = useState(false);
 
   const changeTheme = (next: MapTheme) => {
     setTheme(next);
@@ -219,6 +223,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         route={onRoute?.overlay ?? null}
         routePadding={routePadding}
         onCenterChange={picking ? setCenter : undefined}
+        showUser={located}
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
@@ -262,6 +267,20 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
             <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
             <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
           </Pressable>
+        )}
+
+        {located && gyroscope === false && !gyroWarned && !picking && (
+          <View style={[styles.card, surface]}>
+            <View style={styles.routeHead}>
+              <View style={styles.routeText}>
+                <Text style={[styles.title, { color: palette.text }]}>No gyroscope in this phone</Text>
+                <Text style={{ color: palette.muted }}>The arrow showing which way you face may be off or jumpy.</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Dismiss the gyroscope warning" hitSlop={8} onPress={() => setGyroWarned(true)} style={styles.routeClose}>
+                <MaterialIcons name="close" size={22} color={palette.muted} />
+              </Pressable>
+            </View>
+          </View>
         )}
 
         {selected && !error && !picking && (

@@ -9,6 +9,7 @@ export default ({ config }: ConfigContext) => ({
       androidGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
       iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     }],
+    ['expo-location', { locationWhenInUsePermission: 'Shows where you are among the construction sites.' }],
     './plugins/withCrashLog.js',
     './plugins/withGradleJvmArgs.js',
     ['expo-notifications', { defaultChannel: 'construction-reminders', color: '#a8520e' }],
