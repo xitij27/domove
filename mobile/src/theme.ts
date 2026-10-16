@@ -11,6 +11,7 @@ export type Palette = {
   muted: string;
   thumb: string; // highlight behind the selected day/night button
   accent: string; // the selected sun or moon
+  north: string; // the compass needle's north half and its "N"
   status: Record<Status, string>; // status label on a card; the pin colours are too faint on white or black
 };
 
@@ -22,6 +23,7 @@ export const PALETTES: Record<MapTheme, Palette> = {
     muted: '#5b6472',
     thumb: '#fff1cc',
     accent: '#c26a00',
+    north: '#d93025',
     status: { current: '#c62828', planned: '#a15c00' },
   },
   night: {
@@ -31,6 +33,7 @@ export const PALETTES: Record<MapTheme, Palette> = {
     muted: '#9aa4b5',
     thumb: '#3a4662',
     accent: '#c3ccff',
+    north: '#ff7b72',
     status: { current: '#ff7b72', planned: '#ffca4d' },
   },
 };
