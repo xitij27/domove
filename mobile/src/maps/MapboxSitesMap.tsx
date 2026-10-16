@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Mapbox, { Camera, CircleLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
+import Mapbox, { Camera, CircleLayer, LineLayer, LocationPuck, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
 import type { Coordinate } from '../routes/model';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
@@ -14,7 +14,7 @@ const FIT_ROUTE_MS = 600;
 // Camera padding outlives the move that set it, such as a route's fit.
 const NO_PADDING = { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
-export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, ref }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -24,6 +24,7 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
   routePadding: RoutePadding; // on top of bottomInset
   /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
   onCenterChange?: (center: Coordinate | null) => void;
+  showUser: boolean; // location is allowed
   ref?: Ref<MapHandle>;
 }) {
   const mapView = useRef<MapView>(null);
@@ -154,6 +155,8 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
           />
         </ShapeSource>
       )}
+      {/* Mapbox reads the compass itself and turns the puck's arrow the way the phone faces. */}
+      {showUser && <LocationPuck puckBearingEnabled puckBearing="heading" />}
     </MapView>
   );
 }
