@@ -10,5 +10,12 @@ export default ({ config }: ConfigContext) => ({
       iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     }],
     './plugins/withCrashLog.js',
+    ['expo-build-properties', {
+      android: {
+        // react-native-maps pulls in WorkManager 2.9 and with it Room 2.5, whose keep rule lets R8 full mode strip the
+        // constructor Room calls by reflection; release builds then crash at launch in WorkManagerInitializer.
+        extraProguardRules: '-keep class * extends androidx.room.RoomDatabase { <init>(); }',
+      },
+    }],
   ],
 });
