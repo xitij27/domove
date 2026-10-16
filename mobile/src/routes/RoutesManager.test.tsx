@@ -14,7 +14,7 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
+const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, weekdays: [], waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
   return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
@@ -48,7 +48,7 @@ beforeEach(() => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
         start: { label: draft.start.label.trim(), coordinate: at }, destination: { label: draft.destination.label.trim(), coordinate: at },
-        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, createdAt: '2026-10-16T12:00:00Z',
+        mode: draft.mode as SavedRoute['mode'], startTime: draft.startTime.trim() || null, weekdays: [...(draft.weekdays ?? [])], createdAt: '2026-10-16T12:00:00Z',
         waypoints: draft.waypoints.filter((stop) => stop.label.trim()).map((stop, sequence) => ({ id: String(sequence), label: stop.label.trim(), sequence, coordinate: at })),
       };
       persisted.unshift(route);
@@ -135,6 +135,29 @@ test('an optional leaving time is checked, saved and listed', async () => {
   await press('Ready');
   expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30' }));
   expect(screen.getByText('Leaving at 08:30')).toBeOnTheScreen();
+});
+
+test('weekday tags toggle and need a leaving time', async () => {
+  await mount();
+  await fill();
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Wednesday' }));
+  expect(screen.getByRole('checkbox', { name: 'Monday' })).toBeChecked();
+  await press('Ready');
+  expect(screen.getByText('Select a leaving time for the selected days.')).toBeOnTheScreen();
+  expect(repository.create).not.toHaveBeenCalled();
+  await enter('Leaving at', '08:30');
+  await press('Ready');
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ startTime: '08:30', weekdays: ['monday', 'wednesday'] }));
+  expect(screen.getByText('Leaving at 08:30 · Mon · Wed')).toBeOnTheScreen();
+  // Toggling a selected day off removes it again.
+  await fill('Home', 'Work');
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Monday' }));
+  expect(screen.getByRole('checkbox', { name: 'Monday' })).not.toBeChecked();
+  await enter('Leaving at', '09:00');
+  await press('Ready');
+  expect(repository.create).toHaveBeenLastCalledWith(expect.objectContaining({ weekdays: [] }));
 });
 
 test('says when suggestions cannot be loaded', async () => {

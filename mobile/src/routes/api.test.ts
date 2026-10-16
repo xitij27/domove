@@ -3,10 +3,10 @@ import type { RouteDraft, SavedRoute } from './model';
 
 const id = '12345678-1234-1234-1234-123456789abc';
 const at = { latitude: 51.51, longitude: 7.46 };
-const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: '07:45', waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
+const route: SavedRoute = { id, name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: '07:45', weekdays: ['monday', 'wednesday'], waypoints: [], createdAt: '2026-10-16T12:00:00.123456+00:00' };
 const draft: RouteDraft = {
   start: { label: ' Station ', coordinate: at }, destination: { label: 'Park ', coordinate: at }, mode: 'bike',
-  waypoints: [{ label: ' Cafe ', coordinate: at }, { label: ' ', coordinate: null }, { label: 'Library', coordinate: at }], startTime: '07:45',
+  waypoints: [{ label: ' Cafe ', coordinate: at }, { label: ' ', coordinate: null }, { label: 'Library', coordinate: at }], startTime: '07:45', weekdays: ['monday', 'wednesday'],
 };
 const originalFetch = globalThis.fetch;
 const fetchMock = jest.fn();
@@ -28,6 +28,7 @@ test('creates a route and its ordered stops in one atomic RPC', async () => {
     body: JSON.stringify({
       p_id: id, p_start: { label: 'Station', coordinate: at }, p_finish: { label: 'Park', coordinate: at }, p_modality: 'bike',
       p_waypoints: [{ label: 'Cafe', coordinate: at }, { label: 'Library', coordinate: at }], p_start_time: '07:45',
+      p_weekdays: ['monday', 'wednesday'],
     }),
   }));
 });
@@ -61,7 +62,7 @@ test('a changed draft is a new save with a new ID', async () => {
 
 test('invalid forms never send requests', async () => {
   const blank = { label: '', coordinate: null };
-  await expect(repository.create({ start: blank, destination: blank, mode: '', waypoints: [], startTime: '' })).rejects.toThrow('starting location');
+  await expect(repository.create({ start: blank, destination: blank, mode: '', waypoints: [], startTime: '', weekdays: [] })).rejects.toThrow('starting location');
   await expect(repository.create({ ...draft, start: { label: 'Station', coordinate: null } })).rejects.toThrow('Pick a place');
   expect(fetchMock).not.toHaveBeenCalled();
 });

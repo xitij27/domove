@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RouteForm from './RouteForm';
 import { routesRepository, type RoutesRepository } from './api';
-import { TRANSPORT_MODES, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { TRANSPORT_MODES, formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
 export default function RoutesManager() {
   const insets = useSafeAreaInsets();
@@ -134,7 +134,8 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
               <Text style={styles.badge}>{TRANSPORT_MODES[item.mode]}</Text>
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
-              {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}</Text>}
+              {item.startTime && <Text style={styles.hint}>Leaving at {item.startTime}{(item.weekdays ?? []).length > 0 ? ` · ${formatWeekdays(item.weekdays)}` : ''}</Text>}
+              {!item.startTime && (item.weekdays ?? []).length > 0 && <Text style={styles.hint}>Repeats {formatWeekdays(item.weekdays)}</Text>}
               <Text style={styles.date}>Created {new Date(item.createdAt).toLocaleDateString()}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete}>
                 <Text style={styles.deleteText}>{deleting === item.id ? 'Deleting…' : 'Delete route'}</Text>

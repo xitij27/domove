@@ -5,6 +5,28 @@ export const TRANSPORT_MODES = {
 } as const;
 
 export type TransportMode = keyof typeof TRANSPORT_MODES;
+
+export const WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export const WEEKDAY_SHORT_LABELS: Record<Weekday, string> = {
+  monday: 'Mon',
+  tuesday: 'Tue',
+  wednesday: 'Wed',
+  thursday: 'Thu',
+  friday: 'Fri',
+  saturday: 'Sat',
+  sunday: 'Sun',
+};
 export type Coordinate = { latitude: number; longitude: number };
 /** Every saved location has a coordinate; the label can be null. */
 export type RouteLocation = { label: string | null; coordinate: Coordinate };
@@ -18,6 +40,8 @@ export type SavedRoute = {
   mode: TransportMode;
   /** "HH:MM" when the user leaves; without weekdays it means today. */
   startTime: string | null;
+  /** Empty means the route runs once (today at startTime); otherwise it repeats on these days. */
+  weekdays: Weekday[];
   waypoints: RouteWaypoint[];
   createdAt: string;
 };
@@ -33,12 +57,14 @@ export type RouteDraft = {
   waypoints: PlaceDraft[];
   /** "HH:MM", or empty for no time. */
   startTime: string;
+  /** Days the route repeats on. Empty means once (today at startTime). */
+  weekdays: Weekday[];
 };
 
 export const MAX_LOCATION_LENGTH = 200;
 // openrouteservice takes 50 points, start and destination included
 export const MAX_WAYPOINTS = 48;
-export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints' | 'startTime', string>>;
+export type RouteErrors = Partial<Record<'start' | 'destination' | 'mode' | 'waypoints' | 'startTime' | 'weekdays', string>>;
 
 export function validateRoute(draft: RouteDraft): RouteErrors {
   const errors: RouteErrors = {};
@@ -54,10 +80,20 @@ export function validateRoute(draft: RouteDraft): RouteErrors {
   } else if (stops.some((stop) => !stop.coordinate)) errors.waypoints = 'Pick each stop from the suggestions.';
   const time = draft.startTime.trim();
   if (time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) errors.startTime = 'Enter a time like 08:30, or leave it empty.';
+  const days = draft.weekdays ?? [];
+  if (days.some((day) => !Object.hasOwn(WEEKDAY_SHORT_LABELS, day))) {
+    errors.weekdays = 'Select valid weekdays.';
+  } else if (new Set(days).size !== days.length) {
+    errors.weekdays = 'Select each weekday only once.';
+  } else if (days.length > 0 && !time) {
+    errors.weekdays = 'Select a leaving time for the selected days.';
+  } else if (days.length > 0 && errors.startTime) {
+    errors.weekdays = 'Select a valid leaving time for the selected days.';
+  }
   return errors;
 }
 
-export function normalizeRoute(draft: RouteDraft): { start: Place; destination: Place; mode: TransportMode; waypoints: Place[]; startTime: string | null } {
+export function normalizeRoute(draft: RouteDraft): { start: Place; destination: Place; mode: TransportMode; waypoints: Place[]; startTime: string | null; weekdays: Weekday[] } {
   const errors = validateRoute(draft);
   if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
   // validateRoute guarantees a coordinate on every place kept here
@@ -68,12 +104,20 @@ export function normalizeRoute(draft: RouteDraft): { start: Place; destination: 
     mode: draft.mode as TransportMode,
     waypoints: draft.waypoints.filter(isFilled).map(clean),
     startTime: draft.startTime.trim() || null,
+    weekdays: [...(draft.weekdays ?? [])],
   };
 }
 
 /** Blank stops are ignored. */
 function isFilled(place: PlaceDraft) {
   return place.label.trim() !== '';
+}
+
+/** Short labels for the selected days, in calendar order (Mon … Sun). */
+export function formatWeekdays(days: Weekday[]): string {
+  return WEEKDAYS.filter((day) => days.includes(day))
+    .map((day) => WEEKDAY_SHORT_LABELS[day])
+    .join(' · ');
 }
 
 function placeError(place: PlaceDraft, missing: string) {

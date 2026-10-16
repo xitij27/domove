@@ -1,9 +1,19 @@
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type PlaceDraft, type RouteDraft, type RouteErrors } from './model';
+import { MAX_WAYPOINTS, TRANSPORT_MODES, WEEKDAYS, WEEKDAY_SHORT_LABELS, validateRoute, type PlaceDraft, type RouteDraft, type RouteErrors, type Weekday } from './model';
 import PlaceInput from './PlaceInput';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
+
+const WEEKDAY_FULL_LABELS: Record<Weekday, string> = {
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  sunday: 'Sunday',
+};
 
 type Props = { onSave: (draft: RouteDraft) => Promise<void>; onCancel: () => void; onBusyChange: (busy: boolean) => void };
 
@@ -13,15 +23,24 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
   const [mode, setMode] = useState<RouteDraft['mode']>('');
   const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>([]);
   const [startTime, setStartTime] = useState('');
+  const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const nextId = useRef(0);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<RouteErrors>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  function toggleWeekday(day: Weekday) {
+    setWeekdays((current) =>
+      current.includes(day)
+        ? current.filter((selected) => selected !== day)
+        : WEEKDAYS.filter((candidate) => candidate === day || current.includes(candidate)),
+    );
+  }
+
   async function save() {
     if (submitting.current) return;
-    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place), startTime };
+    const draft = { start, destination, mode, waypoints: stops.map((stop) => stop.place), startTime, weekdays };
     const validation = validateRoute(draft);
     setErrors(validation);
     setSaveError(null);
@@ -44,13 +63,11 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title} accessibilityRole="header">Create Route</Text>
-        <Text style={styles.hint}>Plan your next journey. Type an address or place name and pick it from the suggestions.</Text>
         <Text style={styles.label}>Starting location</Text>
         <PlaceInput accessibilityLabel="Starting location" value={start} onChange={setStart} editable={!busy} placeholder="e.g. Dortmund Hauptbahnhof" inputStyle={[styles.input, !!errors.start && styles.invalid]} />
         {errors.start && <ErrorText message={errors.start} />}
 
         <Text style={styles.label}>Intermediate stops (optional)</Text>
-        <Text style={styles.hint}>Stops are visited in the order shown. Empty stops are ignored.</Text>
         {stops.map((stop, index) => (
           <View key={stop.id} style={styles.stop}>
             <PlaceInput accessibilityLabel={`Intermediate stop ${index + 1}`} value={stop.place} editable={!busy} placeholder={`Stop ${index + 1}`} style={styles.stopInput} inputStyle={styles.input} onChange={(place) => setStops((current) => current.map((item) => item.id === stop.id ? { ...item, place } : item))} />
@@ -79,9 +96,30 @@ export default function RouteForm({ onSave, onCancel, onBusyChange }: Props) {
         {errors.mode && <ErrorText message={errors.mode} />}
 
         <Text style={styles.label}>Leaving at (optional)</Text>
-        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a time, we check the time the route is planned.</Text>
+        <Text style={styles.hint}>Some construction sites close the road only during the day. Without a time, we check the time the route is planned. A time alone means today; with weekdays the route repeats.</Text>
         <TextInput accessibilityLabel="Leaving at" value={startTime} onChangeText={setStartTime} editable={!busy} maxLength={5} keyboardType="numbers-and-punctuation" placeholder="e.g. 08:30" placeholderTextColor="#737d8b" style={[styles.input, !!errors.startTime && styles.invalid]} />
         {errors.startTime && <ErrorText message={errors.startTime} />}
+
+        <Text style={styles.label}>Repeat on (optional)</Text>
+        <View style={styles.days} accessibilityRole="group" accessibilityLabel="Weekdays">
+          {WEEKDAYS.map((day) => {
+            const selected = weekdays.includes(day);
+            return (
+              <Pressable
+                key={day}
+                accessibilityRole="checkbox"
+                accessibilityLabel={WEEKDAY_FULL_LABELS[day]}
+                accessibilityState={{ checked: selected, disabled: busy }}
+                disabled={busy}
+                onPress={() => toggleWeekday(day)}
+                style={[styles.day, selected && styles.daySelected]}
+              >
+                <Text style={[styles.dayText, selected && styles.daySelectedText]}>{WEEKDAY_SHORT_LABELS[day]}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {errors.weekdays && <ErrorText message={errors.weekdays} />}
         {saveError && <ErrorText message={saveError} />}
         <Pressable accessibilityRole="button" accessibilityLabel="Ready" accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
           <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Ready'}</Text>
@@ -115,6 +153,11 @@ const styles = StyleSheet.create({
   modeSelected: { backgroundColor: '#163f36', borderColor: '#163f36' },
   modeText: { color: '#354455', fontWeight: '600' },
   modeSelectedText: { color: '#fff' },
+  days: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  day: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 20, borderWidth: 1, borderColor: '#b8c3cf', backgroundColor: '#fff', minHeight: 48, justifyContent: 'center' },
+  daySelected: { backgroundColor: '#163f36', borderColor: '#163f36' },
+  dayText: { color: '#354455', fontWeight: '600' },
+  daySelectedText: { color: '#fff' },
   primary: { backgroundColor: '#163f36', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   secondary: { padding: 14, alignItems: 'center', borderRadius: 12, backgroundColor: '#e9eef2' },

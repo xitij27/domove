@@ -59,7 +59,9 @@ export function createRoutesRepository(
       for (;;) {
         const rows = await request(`saved_routes?select=route&order=created_at.desc,id.desc&limit=${PAGE_SIZE}${after}`);
         if (!Array.isArray(rows) || rows.some((row) => !row?.route?.id)) throw new Error('The server returned an invalid route list.');
-        routes.push(...rows.map((row: { route: SavedRoute }) => row.route));
+        // Weekdays are still rolling out on the backend: rows saved before the
+        // projection carry no weekdays, so they read back as one-off routes.
+        routes.push(...rows.map((row: { route: SavedRoute }) => ({ ...row.route, weekdays: row.route.weekdays ?? [] })));
         if (rows.length < PAGE_SIZE) return routes;
         const { createdAt, id } = routes[routes.length - 1];
         after = `&or=${encodeURIComponent(`(created_at.lt."${createdAt}",and(created_at.eq."${createdAt}",id.lt.${id}))`)}`;
@@ -79,6 +81,7 @@ export function createRoutesRepository(
           p_modality: clean.mode,
           p_waypoints: clean.waypoints,
           p_start_time: clean.startTime,
+          p_weekdays: clean.weekdays,
         }),
       }) as SavedRoute | null;
       if (route?.id !== id) throw new Error('Could not confirm the saved route. Refresh the list before trying again.');
