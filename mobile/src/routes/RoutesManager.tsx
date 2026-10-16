@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import TransportModeIcon from './TransportModeIcon';
@@ -80,14 +79,13 @@ function createSheet(y: Animated.Value, show: (open: Open) => void) {
   };
 }
 
-/**
- * The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form.
- * `onShowRoute` puts a saved route on the main map; the sheet lowers for it.
- */
-export default function RoutesManager({ repository, onOpenChange, onShowRoute }: {
+/** The two buttons in a sheet below the map, which pulls up over it with the saved routes or the form. */
+export default function RoutesManager({ repository, onOpenChange, onViewRoute, onRouteDeleted }: {
   repository?: RoutesRepository;
   onOpenChange?: (open: boolean) => void;
-  onShowRoute: (route: SavedRoute) => void;
+  /** Shows a saved route on the map below; the sheet lowers out of its way. */
+  onViewRoute?: (route: SavedRoute) => void;
+  onRouteDeleted?: (id: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   // What the raised sheet shows; null while it is lowered to the two buttons.
@@ -140,23 +138,32 @@ export default function RoutesManager({ repository, onOpenChange, onShowRoute }:
             </View>
           )}
         </View>
-        {open && <RoutesPanel initiallyCreating={open.creating} onClose={sheet.lower} onShowRoute={(route) => { sheet.lower(); onShowRoute(route); }} onBusyChange={sheet.setBusy} repository={repository} />}
+        {open && (
+          <RoutesPanel
+            initiallyCreating={open.creating}
+            onClose={sheet.lower}
+            onBusyChange={sheet.setBusy}
+            onView={onViewRoute && ((route) => { sheet.lower(); onViewRoute(route); })}
+            onDeleted={onRouteDeleted}
+            repository={repository}
+          />
+        )}
       </Animated.View>
     </>
   );
 }
 
-export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, onBusyChange, repository = routesRepository }: {
+export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, onView, onDeleted, repository = routesRepository }: {
   initiallyCreating?: boolean;
   onClose: () => void;
-  onShowRoute: (route: SavedRoute) => void;
   onBusyChange: (busy: boolean) => void;
+  onView?: (route: SavedRoute) => void;
+  onDeleted?: (id: string) => void;
   repository?: RoutesRepository;
 }) {
   const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [creating, setCreating] = useState(initiallyCreating);
-  const [notifying, setNotifying] = useState<SavedRoute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -209,6 +216,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
       await repository.delete(id);
       // Its reminders would otherwise still fire; the next obstacle sync would also drop them.
       constructionNotifications.forgetRoute(id).catch((e: unknown) => console.warn('Could not cancel the route\'s reminders', e));
+      onDeleted?.(id);
       if (active.current) {
         setRoutes((current) => current.filter((route) => route.id !== id));
         setError(null);
@@ -233,8 +241,6 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
       </View>
       {creating ? (
         <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
-      ) : notifying ? (
-        <NotificationSettings route={notifying} onBack={() => setNotifying(null)} />
       ) : (
         <FlatList
           data={routes}
@@ -256,28 +262,27 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, o
           }
           ListEmptyComponent={!loading && !error ? <View style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></View> : undefined}
           renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Show route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')} on the map`}
-              disabled={!!deleting}
-              onPress={() => onShowRoute(item)}
-              style={styles.card}
-            >
+            <View style={styles.card}>
               <TransportModeIcon mode={item.mode} />
               <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
               {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
               {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
-              <Pressable accessibilityRole="button" accessibilityLabel={`Notification preferences for the route to ${place(item.destination, 'Final destination')}`} disabled={!!deleting} onPress={() => setNotifying(item)} style={styles.notify}>
-                <Text style={styles.secondaryText}>Notifications</Text>
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
-                {deleting === item.id ? (
-                  <ActivityIndicator size="small" color="#a52621" />
-                ) : (
-                  <TrashIcon color="#a52621" />
+              <View style={styles.actions}>
+                {/* The route's construction sites and their alerts are all on the map. */}
+                {onView && (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Show the route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')} and its alerts on the map`} disabled={!!deleting} onPress={() => onView(item)} style={styles.show}>
+                    <Text style={styles.secondaryText}>Map & alerts</Text>
+                  </Pressable>
                 )}
-              </Pressable>
-            </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => remove(item.id)} style={styles.delete} hitSlop={12}>
+                  {deleting === item.id ? (
+                    <ActivityIndicator size="small" color="#a52621" />
+                  ) : (
+                    <TrashIcon color="#a52621" />
+                  )}
+                </Pressable>
+              </View>
+            </View>
           )}
         />
       )}
@@ -342,8 +347,9 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
-  notify: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
-  delete: { alignSelf: 'flex-start', padding: 8, borderRadius: 8 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  show: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
+  delete: { alignSelf: 'center', padding: 8, borderRadius: 8 },
   error: { color: '#a52621', lineHeight: 21 },
   empty: { paddingVertical: 40, gap: 10 },
 });

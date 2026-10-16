@@ -1,4 +1,4 @@
-import { fetchRoutePath, routePathUrl, routePlaces } from './routePath';
+import { fetchRoutePath, routePathUrl, straightPath } from './routePath';
 import type { SavedRoute } from './model';
 
 const at = (latitude: number, longitude: number) => ({ latitude, longitude });
@@ -24,8 +24,8 @@ test('asks the bike router for start, stops in order and destination as lon,lat'
   expect(routePathUrl({ ...route, mode: 'pedestrian' })).toContain('/routed-foot/');
 });
 
-test('routePlaces keeps stop order', () => {
-  expect(routePlaces(route).map((place) => place.coordinate)).toEqual([at(51.51, 7.46), at(51.512, 7.465), at(51.515, 7.47), at(51.52, 7.48)]);
+test('straightPath keeps stop order', () => {
+  expect(straightPath(route)).toEqual([at(51.51, 7.46), at(51.512, 7.465), at(51.515, 7.47), at(51.52, 7.48)]);
 });
 
 test('reads the routed path as latitude/longitude points', async () => {
@@ -42,7 +42,7 @@ test.each([
   ['a failed router code', { code: 'NoRoute', routes: [] }],
   ['a missing geometry', { code: 'Ok', routes: [{}] }],
   ['malformed pairs', { code: 'Ok', routes: [{ geometry: { coordinates: [['7.46', '51.51']] } }] }],
-])('rejects %s so the caller falls back to a straight line', async (_name, body) => {
+])('rejects %s so the caller keeps the straight line', async (_name, body) => {
   const fetchImpl = jest.fn(async () => ({ ok: true, status: 200, json: async () => body })) as unknown as typeof fetch;
   await expect(fetchRoutePath(route, fetchImpl)).rejects.toThrow('Could not route');
 });

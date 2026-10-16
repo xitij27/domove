@@ -1,12 +1,12 @@
 import type { Coordinate, RouteLocation, SavedRoute } from './model';
 
-/** Start, stops in order, destination: the places the route passes, and a straight line before routing answers or when it fails. */
+/** Start, stops in order, destination. */
 export function routePlaces(route: SavedRoute): RouteLocation[] {
   const stops = [...route.waypoints].sort((a, b) => a.sequence - b.sequence);
   return [route.start, ...stops, route.destination];
 }
 
-/** Mirrors private.route_requests: start, stops in order, destination as lon,lat. */
+/** Mirrors private.route_requests, so the line drawn is the one the obstacles were matched against. */
 export function routePathUrl(route: SavedRoute): string {
   const profile = route.mode === 'pedestrian' ? 'foot' : route.mode;
   const coords = routePlaces(route)
@@ -20,7 +20,7 @@ type OsrmResponse = {
   routes?: { geometry?: { coordinates?: unknown } }[];
 };
 
-/** The router's path as [latitude, longitude] points. Throws when unusable, so the caller can fall back to a straight line. */
+/** The router's path. Throws when unusable, so the caller can keep the straight line. */
 export async function fetchRoutePath(route: SavedRoute, fetchImpl: typeof fetch = fetch): Promise<Coordinate[]> {
   const res = await fetchImpl(routePathUrl(route));
   if (!res.ok) throw new Error(`Routing: HTTP ${res.status}`);
@@ -36,4 +36,9 @@ export async function fetchRoutePath(route: SavedRoute, fetchImpl: typeof fetch 
     path.push({ longitude: pair[0], latitude: pair[1] });
   }
   return path;
+}
+
+/** Straight line through start, stops in order and destination. Shown until routing answers, and when it fails. */
+export function straightPath(route: SavedRoute): Coordinate[] {
+  return routePlaces(route).map((place) => place.coordinate);
 }

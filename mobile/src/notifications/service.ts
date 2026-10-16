@@ -9,6 +9,8 @@ type StoredState = {
   due: Record<string, number>;
 };
 
+/** A site's reminder as scheduled on the phone: when it fires, or fired. */
+export type SiteReminder = { siteId: string; at: number; sent: boolean };
 export type PendingReminder = { id: string; signature: string };
 export type ReminderPayload = { title: string; body: string; siteId: string; signature: string };
 export type NotificationDriver = {
@@ -109,6 +111,17 @@ export function createNotificationService(storage: TextStorage, driver: Notifica
     },
     obstaclesOn(routeId: string): Promise<RouteObstacle[]> {
       return enqueue(async () => load().obstacles.filter((obstacle) => obstacle.routeId === routeId));
+    },
+    /** Only reminders that were really scheduled, so none while alerts are off or the phone blocks them. */
+    remindersOn(routeId: string): Promise<SiteReminder[]> {
+      return enqueue(async () => {
+        const state = load();
+        const time = now().getTime();
+        return state.obstacles.flatMap((obstacle) => {
+          const at = state.due[obstacleKey(obstacle)];
+          return obstacle.routeId === routeId && at !== undefined ? [{ siteId: obstacle.siteId, at, sent: at <= time }] : [];
+        });
+      });
     },
   };
 }

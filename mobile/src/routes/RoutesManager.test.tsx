@@ -18,11 +18,10 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
-const onShowRoute = jest.fn();
 const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, weekdays: [], waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
-  return render(<RoutesPanel onClose={jest.fn()} onShowRoute={onShowRoute} onBusyChange={onBusyChange} repository={repository} />);
+  return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
 }
 async function press(name: string) {
   const button = screen.getByRole('button', { name });
@@ -47,10 +46,8 @@ async function fill(start = 'Station', destination = 'Park') {
 beforeEach(() => {
   persisted = [];
   onBusyChange.mockReset();
-  onShowRoute.mockReset();
   repository = {
     list: jest.fn(async () => [...persisted]),
-    listObstacles: jest.fn(async (_routeId: string) => []),
     create: jest.fn(async (draft: RouteDraft) => {
       const route: SavedRoute = {
         id: String(persisted.length + 1), name: `${draft.start.label} → ${draft.destination.label}`,
@@ -62,12 +59,13 @@ beforeEach(() => {
       return route;
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
+    obstacleSiteIds: jest.fn(async (_routeId: string): Promise<string[]> => []),
   };
 });
 
 test('the sheet raises on the form or the saved routes, and Close lowers it', async () => {
   const onOpenChange = jest.fn();
-  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} onShowRoute={onShowRoute} />);
+  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} />);
   expect(screen.getByRole('button', { name: 'Raise the routes panel' })).toBeCollapsed();
   await press('Create Route');
   expect(screen.getByLabelText('Starting location')).toBeOnTheScreen();
@@ -80,6 +78,25 @@ test('the sheet raises on the form or the saved routes, and Close lowers it', as
   expect(await screen.findByText('No saved routes yet')).toBeOnTheScreen();
   await press('Lower the routes panel');
   expect(screen.getByRole('button', { name: 'Create Route' })).toBeOnTheScreen();
+});
+
+test('Map & alerts hands the route to the map and lowers the sheet out of its way', async () => {
+  persisted = [stationToPark];
+  const onOpenChange = jest.fn();
+  const onViewRoute = jest.fn();
+  const onRouteDeleted = jest.fn();
+  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} onViewRoute={onViewRoute} onRouteDeleted={onRouteDeleted} />);
+  await press('Saved routes');
+  await screen.findByText('Station → Park');
+  await press('Show the route from Station to Park and its alerts on the map');
+  expect(onViewRoute).toHaveBeenCalledWith(stationToPark);
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  expect(screen.getByRole('button', { name: 'Raise the routes panel' })).toBeCollapsed();
+  // Deleting the route on show takes it off the map too.
+  await press('Saved routes');
+  await screen.findByText('Station → Park');
+  await press('Delete route from Station to Park');
+  await waitFor(() => expect(onRouteDeleted).toHaveBeenCalledWith('1'));
 });
 
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {
@@ -265,16 +282,4 @@ test('cancelling discards the draft and load failures can be retried', async () 
   expect(screen.getByText('Cannot load routes.')).toBeOnTheScreen();
   await press('Retry loading routes');
   expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
-});
-
-test('tapping a route puts it on the map and lowers the sheet', async () => {
-  persisted = [{ ...stationToPark }];
-  const onOpenChange = jest.fn();
-  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} onShowRoute={onShowRoute} />);
-  await press('Saved routes');
-  await screen.findByText('Station → Park');
-  await press('Show route from Station to Park on the map');
-  expect(onShowRoute).toHaveBeenCalledWith(stationToPark);
-  expect(onOpenChange).toHaveBeenLastCalledWith(false);
-  expect(screen.getByRole('button', { name: 'Create Route' })).toBeOnTheScreen();
 });

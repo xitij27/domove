@@ -90,45 +90,21 @@ test('deletes only the selected route, including successful repeated deletes', a
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
+test('lists the construction sites on the way of one route, skipping malformed rows', async () => {
+  fetchMock.mockResolvedValueOnce(response([{ construction_site_id: 'site-1' }, { construction_site_id: 7 }, null, { construction_site_id: 'site-2' }]));
+  await expect(repository.obstacleSiteIds(id)).resolves.toEqual(['site-1', 'site-2']);
+  expect(fetchMock).toHaveBeenCalledWith(`https://example.supabase.co/rest/v1/obstacles?route_id=eq.${id}&select=construction_site_id`, expect.anything());
+  await expect(repository.obstacleSiteIds('invalid&id=not.is.null')).rejects.toThrow('invalid ID');
+  fetchMock.mockResolvedValueOnce(response({ unexpected: true }));
+  await expect(repository.obstacleSiteIds(id)).rejects.toThrow('invalid list');
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 test('shows the server validation message', async () => {
   fetchMock.mockResolvedValueOnce(response({ code: '22023', message: 'Final destination must contain 1 to 200 characters.' }, 400));
   await expect(repository.create(draft)).rejects.toThrow('Final destination must contain 1 to 200 characters.');
   fetchMock.mockResolvedValueOnce(response({ code: '42501', message: 'permission denied for table routes' }, 401));
   await expect(repository.delete(id)).rejects.toThrow('HTTP 401');
-});
-
-test('lists obstacles with their construction sites', async () => {
-  fetchMock
-    .mockResolvedValueOnce(response([
-      { construction_site_id: 'site-1', distance_meters: 0, detected_at: '2026-10-16T12:00:00Z' },
-      { construction_site_id: 'site-2', distance_meters: 22.4, detected_at: '2026-10-16T12:00:00Z' },
-    ]))
-    .mockResolvedValueOnce(response([
-      { id: 'site-1', status: 'current', title: 'Road works', owner: null, period: 'Mon–Fri', district: 'Mitte', latitude: 51.51, longitude: 7.47 },
-      { id: 'site-2', status: 'planned', title: 'Bridge', owner: null, period: null, district: null, latitude: 51.52, longitude: 7.48 },
-    ]));
-  await expect(repository.listObstacles(id)).resolves.toEqual([
-    { siteId: 'site-1', distanceMeters: 0, detectedAt: '2026-10-16T12:00:00Z', site: expect.objectContaining({ id: 'site-1', title: 'Road works' }) },
-    { siteId: 'site-2', distanceMeters: 22.4, detectedAt: '2026-10-16T12:00:00Z', site: expect.objectContaining({ id: 'site-2', title: 'Bridge' }) },
-  ]);
-  expect(decodeURIComponent(fetchMock.mock.calls[0][0])).toContain(`obstacles?route_id=eq.${id}`);
-  expect(fetchMock).toHaveBeenCalledTimes(2);
-});
-
-test('an obstacle whose site left the feed keeps a null site', async () => {
-  fetchMock
-    .mockResolvedValueOnce(response([{ construction_site_id: 'gone', distance_meters: null, detected_at: '2026-10-16T12:00:00Z' }]))
-    .mockResolvedValueOnce(response([]));
-  await expect(repository.listObstacles(id)).resolves.toEqual([
-    { siteId: 'gone', distanceMeters: null, detectedAt: '2026-10-16T12:00:00Z', site: null },
-  ]);
-});
-
-test('an empty obstacle list needs no site request and rejects bad IDs', async () => {
-  fetchMock.mockResolvedValueOnce(response([]));
-  await expect(repository.listObstacles(id)).resolves.toEqual([]);
-  expect(fetchMock).toHaveBeenCalledTimes(1);
-  await expect(repository.listObstacles('invalid&id=not.is.null')).rejects.toThrow('invalid ID');
 });
 
 test('gives up on a request that takes too long', async () => {
