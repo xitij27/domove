@@ -4,6 +4,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager from './src/routes/RoutesManager';
@@ -106,6 +107,9 @@ function RadarMap() {
   const [theme, setTheme] = useState(loadTheme);
   const palette = PALETTES[theme];
   const surface = { backgroundColor: palette.surface, borderColor: palette.border };
+  // Not state: the map reports it on every frame of a turn, and only the compass needs it.
+  const heading = useRef(new Animated.Value(0)).current;
+  const map = useRef<MapHandle>(null);
 
   const changeTheme = (next: MapTheme) => {
     setTheme(next);
@@ -138,7 +142,13 @@ function RadarMap() {
 
   return (
     <View style={styles.fill}>
-      <SitesMap sites={sites.filter((s) => shown[s.status])} onSelect={setSelected} theme={theme} />
+      <SitesMap
+        ref={map}
+        sites={sites.filter((s) => shown[s.status])}
+        onSelect={setSelected}
+        theme={theme}
+        onHeadingChange={(h) => heading.setValue(h)}
+      />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
         <View style={styles.legend}>
@@ -159,7 +169,8 @@ function RadarMap() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Map provider: ${mapboxOn ? 'Mapbox' : 'Google'}. Tap to switch.`}
-              onPress={() => { setSelected(null); setMapboxOn(!mapboxOn); }}
+              // the other map opens pointing north
+              onPress={() => { setSelected(null); setMapboxOn(!mapboxOn); heading.setValue(0); }}
               style={[styles.chip, surface, styles.switch]}
             >
               <Text style={{ color: palette.text }}>{mapboxOn ? 'Mapbox' : 'Google'} ⇄</Text>
@@ -168,6 +179,7 @@ function RadarMap() {
         </View>
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
+        <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
       </View>
 
       {error && (

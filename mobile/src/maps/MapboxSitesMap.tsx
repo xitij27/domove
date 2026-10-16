@@ -1,17 +1,25 @@
-import { useMemo } from 'react';
+import { useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Mapbox, { Camera, CircleLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
+import { POINT_NORTH_MS, type MapHandle } from './Compass';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
 
-export default function MapboxSitesMap({ sites, onSelect, theme }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
+  onHeadingChange: (heading: number) => void;
+  ref?: Ref<MapHandle>;
 }) {
+  const camera = useRef<Camera>(null);
+  useImperativeHandle(ref, () => ({
+    pointNorth: () => camera.current?.setCamera({ heading: 0, animationDuration: POINT_NORTH_MS, animationMode: 'easeTo' }),
+  }), []);
+
   const shape = useMemo<GeoJSON.FeatureCollection>(() => ({
     type: 'FeatureCollection',
     features: sites.map((s) => ({
@@ -35,9 +43,10 @@ export default function MapboxSitesMap({ sites, onSelect, theme }: {
       styleURL="mapbox://styles/mapbox/standard"
       scaleBarEnabled={false}
       onPress={() => onSelect(null)}
+      onCameraChanged={(state) => onHeadingChange(state.properties.heading)}
     >
       <StyleImport id="basemap" existing config={{ lightPreset: theme, showPointOfInterestLabels: false }} />
-      <Camera defaultSettings={{ centerCoordinate: [7.4653, 51.5136], zoomLevel: 11 }} />
+      <Camera ref={camera} defaultSettings={{ centerCoordinate: [7.4653, 51.5136], zoomLevel: 11 }} />
       <ShapeSource
         id="sites"
         shape={shape}
