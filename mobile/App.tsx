@@ -8,6 +8,9 @@ import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager from './src/routes/RoutesManager';
+import type { SavedRoute } from './src/routes/model';
+import { obstacleSummary, useRouteView } from './src/routes/routeView';
+import TransportModeIcon from './src/routes/TransportModeIcon';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 
@@ -61,6 +64,7 @@ function readCrash(): string | null {
 
 export default function App() {
   const [crash, setCrash] = useState(readCrash);
+  const [route, setRoute] = useState<SavedRoute | null>(null);
 
   useEffect(() => startNotificationRuntime(), []);
 
@@ -78,8 +82,8 @@ export default function App() {
       {/* skip the maps while a crash report is open, in case a map is what crashed */}
       {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : (
         <View style={styles.fill}>
-          <RadarMap />
-          <RoutesManager />
+          <RadarMap route={route} onCloseRoute={() => setRoute(null)} />
+          <RoutesManager onShowRoute={setRoute} />
         </View>
       )}
     </SafeAreaProvider>
@@ -103,7 +107,8 @@ function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void 
   );
 }
 
-function RadarMap() {
+// With a route shown, the map draws it and narrows the sites to the ones on it.
+function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRoute: () => void }) {
   const insets = useSafeAreaInsets();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +139,11 @@ function RadarMap() {
 
   useEffect(load, [load]);
 
+  const routeView = useRouteView(route);
+  const pool = routeView ? routeView.sites ?? [] : sites;
+  // The open card may be a site the other view doesn't show.
+  useEffect(() => setSelected(null), [route]);
+
   // A tapped construction alert opens its site's card, once the sites have loaded.
   const tapped = useTappedSite();
   const openedTap = useRef<typeof tapped>(null);
@@ -151,7 +161,8 @@ function RadarMap() {
     <View style={styles.fill}>
       <SitesMap
         ref={map}
-        sites={sites.filter((s) => shown[s.status])}
+        sites={pool.filter((s) => shown[s.status])}
+        route={routeView}
         onSelect={setSelected}
         theme={theme}
         onHeadingChange={(h) => heading.setValue(h)}
@@ -168,7 +179,7 @@ function RadarMap() {
               style={[styles.chip, surface, !shown[st] && styles.chipOff]}
             >
               <View style={[styles.dot, { backgroundColor: COLORS[st] }]} />
-              <Text style={{ color: palette.text }}>{LABELS[st]} ({sites.filter((s) => s.status === st).length})</Text>
+              <Text style={{ color: palette.text }}>{LABELS[st]} ({pool.filter((s) => s.status === st).length})</Text>
             </Pressable>
           ))}
           {loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}
@@ -189,21 +200,40 @@ function RadarMap() {
         <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
       </View>
 
-      {error && (
-        <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
-          <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
-          <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
-        </Pressable>
-      )}
+      <View style={styles.cards}>
+        {error && (
+          <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
+            <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
+            <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
+          </Pressable>
+        )}
 
-      {selected && !error && (
-        <View style={[styles.card, surface]}>
-          <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
-          <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
-          <Text style={{ color: palette.muted }}>{selected.period}</Text>
-          <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
-        </View>
-      )}
+        {selected && !error && (
+          <View style={[styles.card, surface]}>
+            <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
+            <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
+            <Text style={{ color: palette.muted }}>{selected.period}</Text>
+            <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
+          </View>
+        )}
+
+        {route && routeView && (
+          <View style={[styles.card, surface]}>
+            <View style={styles.routeHeader}>
+              <TransportModeIcon mode={route.mode} color={palette.muted} />
+              <Text style={[styles.title, styles.routeTitle, { color: palette.text }]}>
+                {route.start.label ?? 'Start'} → {route.destination.label ?? 'Destination'}
+              </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close route" hitSlop={12} onPress={onCloseRoute}>
+                <MaterialIcons name="close" size={22} color={palette.muted} />
+              </Pressable>
+            </View>
+            <Text accessibilityLiveRegion="polite" style={{ color: routeView.error ? palette.status.current : palette.muted }}>
+              {obstacleSummary(routeView)}
+            </Text>
+          </View>
+        )}
+      </View>
 
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
@@ -263,8 +293,11 @@ const styles = StyleSheet.create({
   toggleThumb: { position: 'absolute', top: TOGGLE_PAD, left: TOGGLE_PAD, width: TOGGLE_CELL, height: TOGGLE_CELL, borderRadius: TOGGLE_CELL / 2 },
   toggleCell: { width: TOGGLE_CELL, height: TOGGLE_CELL, alignItems: 'center', justifyContent: 'center' },
   // no safe-area inset at the bottom: the route launcher below the map already clears it
-  card: { position: 'absolute', left: 12, right: 12, bottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  cards: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8, pointerEvents: 'box-none' },
+  card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   title: { fontSize: 16, fontWeight: '600' },
+  routeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  routeTitle: { flex: 1 },
   crash: { backgroundColor: '#111', paddingHorizontal: 16, gap: 8 },
   crashTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },
   crashHint: { color: '#aaa' },

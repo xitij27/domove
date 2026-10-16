@@ -1,10 +1,15 @@
-import type { Coordinate, SavedRoute } from './model';
+import type { Coordinate, RouteLocation, SavedRoute } from './model';
+
+/** Start, stops in order, destination: the places the route passes, and a straight line before routing answers or when it fails. */
+export function routePlaces(route: SavedRoute): RouteLocation[] {
+  const stops = [...route.waypoints].sort((a, b) => a.sequence - b.sequence);
+  return [route.start, ...stops, route.destination];
+}
 
 /** Mirrors private.route_requests: start, stops in order, destination as lon,lat. */
 export function routePathUrl(route: SavedRoute): string {
   const profile = route.mode === 'pedestrian' ? 'foot' : route.mode;
-  const stops = [...route.waypoints].sort((a, b) => a.sequence - b.sequence);
-  const coords = [route.start, ...stops, route.destination]
+  const coords = routePlaces(route)
     .map((place) => `${place.coordinate.longitude},${place.coordinate.latitude}`)
     .join(';');
   return `https://routing.openstreetmap.de/routed-${profile}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
@@ -31,10 +36,4 @@ export async function fetchRoutePath(route: SavedRoute, fetchImpl: typeof fetch 
     path.push({ longitude: pair[0], latitude: pair[1] });
   }
   return path;
-}
-
-/** Straight line through start, stops in order and destination. Used before routing answers and when it fails. */
-export function straightPath(route: SavedRoute): Coordinate[] {
-  const stops = [...route.waypoints].sort((a, b) => a.sequence - b.sequence);
-  return [route.start, ...stops, route.destination].map((place) => place.coordinate);
 }

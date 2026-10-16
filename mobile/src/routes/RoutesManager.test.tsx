@@ -7,14 +7,6 @@ import { constructionNotifications } from '../notifications/runtime';
 
 // expo-font needs expo-asset, which only Expo's Metro config resolves.
 jest.mock('@expo/vector-icons/MaterialIcons', () => 'MaterialIcons');
-jest.mock('react-native-maps', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { View } = require('react-native');
-  const MapView = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
-  const Marker = () => <View />;
-  const Polyline = () => <View />;
-  return { __esModule: true, default: MapView, Marker, Polyline };
-});
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 // Every search suggests exactly the typed text.
 jest.mock('./places', () => ({ searchPlaces: jest.fn(async (query: string) => [{ label: query, coordinate: { latitude: 51.51, longitude: 7.46 } }]) }));
@@ -26,10 +18,11 @@ const at = { latitude: 51.51, longitude: 7.46 };
 let persisted: SavedRoute[];
 let repository: jest.Mocked<RoutesRepository>;
 const onBusyChange = jest.fn();
+const onShowRoute = jest.fn();
 const stationToPark: SavedRoute = { id: '1', name: 'Station → Park', start: { label: 'Station', coordinate: at }, destination: { label: 'Park', coordinate: at }, mode: 'bike', startTime: null, startDate: null, weekdays: [], waypoints: [], createdAt: '2026-10-16T12:00:00Z' };
 
 function mount() {
-  return render(<RoutesPanel onClose={jest.fn()} onBusyChange={onBusyChange} repository={repository} />);
+  return render(<RoutesPanel onClose={jest.fn()} onShowRoute={onShowRoute} onBusyChange={onBusyChange} repository={repository} />);
 }
 async function press(name: string) {
   const button = screen.getByRole('button', { name });
@@ -54,6 +47,7 @@ async function fill(start = 'Station', destination = 'Park') {
 beforeEach(() => {
   persisted = [];
   onBusyChange.mockReset();
+  onShowRoute.mockReset();
   repository = {
     list: jest.fn(async () => [...persisted]),
     listObstacles: jest.fn(async (_routeId: string) => []),
@@ -274,40 +268,9 @@ test('cancelling discards the draft and load failures can be retried', async () 
   expect(screen.getByText('No saved routes yet')).toBeOnTheScreen();
 });
 
-test('tapping a route shows its map and obstacles, back returns to the list', async () => {
-  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-  try {
-    persisted = [{ ...stationToPark }];
-    repository.listObstacles.mockResolvedValueOnce([{
-      siteId: 'site-1',
-      distanceMeters: 0,
-      detectedAt: '2026-10-16T12:00:00Z',
-      site: {
-        id: 'site-1', status: 'current', coordinate: { latitude: 51.51, longitude: 7.47 },
-        title: 'Road works', owner: '', period: 'Mon–Fri', district: 'Mitte',
-      },
-    }]);
-    await mount();
-    await press('View route from Station to Park');
-    expect(await screen.findByTestId('route-map')).toBeOnTheScreen();
-    expect(screen.getByText('1 construction site on the way.')).toBeOnTheScreen();
-    expect(screen.getByText('Road works')).toBeOnTheScreen();
-    await press('Back to routes');
-    expect(screen.getByText('Your routes')).toBeOnTheScreen();
-  } finally {
-    fetchSpy.mockRestore();
-  }
-});
-
-test('a route without obstacles says so on its map', async () => {
-  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-  try {
-    persisted = [{ ...stationToPark }];
-    await mount();
-    await press('View route from Station to Park');
-    expect(await screen.findByTestId('route-map')).toBeOnTheScreen();
-    expect(await screen.findByText('No construction sites on the way.')).toBeOnTheScreen();
-  } finally {
-    fetchSpy.mockRestore();
-  }
+test('tapping a route puts it on the map and closes the list', async () => {
+  persisted = [{ ...stationToPark }];
+  await mount();
+  await press('Show route from Station to Park on the map');
+  expect(onShowRoute).toHaveBeenCalledWith(stationToPark);
 });

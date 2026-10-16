@@ -1,4 +1,4 @@
-import { fetchRoutePath, routePathUrl, straightPath } from './routePath';
+import { fetchRoutePath, routePathUrl, routePlaces } from './routePath';
 import type { SavedRoute } from './model';
 
 const at = (latitude: number, longitude: number) => ({ latitude, longitude });
@@ -25,8 +25,8 @@ test('asks the bike router for start, stops in order and destination as lon,lat'
   expect(routePathUrl({ ...route, mode: 'pedestrian' })).toContain('/routed-foot/');
 });
 
-test('straightPath keeps stop order', () => {
-  expect(straightPath(route)).toEqual([at(51.51, 7.46), at(51.512, 7.465), at(51.515, 7.47), at(51.52, 7.48)]);
+test('routePlaces keeps stop order', () => {
+  expect(routePlaces(route).map((place) => place.coordinate)).toEqual([at(51.51, 7.46), at(51.512, 7.465), at(51.515, 7.47), at(51.52, 7.48)]);
 });
 
 test('reads the routed path as latitude/longitude points', async () => {

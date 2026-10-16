@@ -1,8 +1,9 @@
-import { useImperativeHandle, useRef, type Ref } from 'react';
-import { StyleSheet } from 'react-native';
-import MapView, { Marker, type MapViewProps } from 'react-native-maps';
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
+import { PixelRatio, Platform, StyleSheet } from 'react-native';
+import MapView, { Marker, Polyline, type MapViewProps } from 'react-native-maps';
+import { placeColor, ROUTE_PADDING, type RouteLine } from '../routes/routeView';
 import { COLORS, type Site } from '../sites';
-import type { MapTheme } from '../theme';
+import { PALETTES, type MapTheme } from '../theme';
 import { POINT_NORTH_MS, type MapHandle } from './Compass';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
@@ -29,10 +30,15 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
   { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
 ];
 
-export const GOOGLE_MAP_STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
+const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
-export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, ref }: {
+// Android takes the fit padding in pixels, iOS in points.
+const PX = Platform.OS === 'android' ? PixelRatio.get() : 1;
+const EDGE_PADDING = { top: ROUTE_PADDING.top * PX, right: ROUTE_PADDING.right * PX, bottom: ROUTE_PADDING.bottom * PX, left: ROUTE_PADDING.left * PX };
+
+export default function GoogleSitesMap({ sites, route, onSelect, theme, onHeadingChange, ref }: {
   sites: Site[];
+  route: RouteLine | null;
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
   onHeadingChange: (heading: number) => void;
@@ -42,6 +48,12 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
   useImperativeHandle(ref, () => ({
     pointNorth: () => map.current?.animateCamera({ heading: 0 }, { duration: POINT_NORTH_MS }),
   }), []);
+
+  const path = route?.path;
+  const fitRoute = () => {
+    if (path) map.current?.fitToCoordinates(path, { edgePadding: EDGE_PADDING, animated: true });
+  };
+  useEffect(fitRoute, [path]); // refit only when the line changes
 
   // The region events carry no heading, so ask the map for it on every frame of a gesture or animation.
   const readHeading = () => {
@@ -56,13 +68,19 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       ref={map}
       style={StyleSheet.absoluteFill}
       initialRegion={DORTMUND}
-      customMapStyle={GOOGLE_MAP_STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
+      customMapStyle={STYLES[theme]} // Android (Google); iOS uses Apple Maps, styled by userInterfaceStyle
       userInterfaceStyle={theme === 'night' ? 'dark' : 'light'}
       showsCompass={false} // ours replaces it
       onRegionChange={readHeading}
       onRegionChangeComplete={readHeading}
       onPress={(e) => e.nativeEvent.action !== 'marker-press' && onSelect(null)}
+      onMapReady={fitRoute} // a map opened while a route is shown can't move before this
     >
+      {route && <Polyline coordinates={route.path} strokeWidth={7} strokeColor="#ffffff" zIndex={1} />}
+      {route && <Polyline coordinates={route.path} strokeWidth={4} strokeColor={PALETTES[theme].route} zIndex={2} />}
+      {route?.places.map((place, i) => (
+        <Marker key={`place-${i}`} coordinate={place.coordinate} pinColor={placeColor(i, route.places.length)} title={place.label ?? undefined} />
+      ))}
       {sites.map((s) => (
         <Marker key={s.id} coordinate={s.coordinate} pinColor={COLORS[s.status]} onPress={() => onSelect(s)} />
       ))}

@@ -4,12 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NotificationSettings from '../notifications/NotificationSettings';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
-import RouteDetail from './RouteDetail';
 import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
 import { formatDay, formatWeekdays, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
 
-export default function RoutesManager() {
+/** `onShowRoute` puts a saved route on the main map; the routes sheet closes for it. */
+export default function RoutesManager({ onShowRoute }: { onShowRoute: (route: SavedRoute) => void }) {
   const insets = useSafeAreaInsets();
   const [dialog, setDialog] = useState<'list' | 'create' | null>(null);
   const busy = useRef(false);
@@ -25,22 +25,22 @@ export default function RoutesManager() {
         </Pressable>
       </View>
       <Modal visible={dialog !== null} animationType="slide" onRequestClose={close}>
-        {dialog !== null && <RoutesPanel initiallyCreating={dialog === 'create'} onClose={close} onBusyChange={(value) => { busy.current = value; }} />}
+        {dialog !== null && <RoutesPanel initiallyCreating={dialog === 'create'} onClose={close} onShowRoute={(route) => { setDialog(null); onShowRoute(route); }} onBusyChange={(value) => { busy.current = value; }} />}
       </Modal>
     </>
   );
 }
 
-export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, repository = routesRepository }: {
+export function RoutesPanel({ initiallyCreating = false, onClose, onShowRoute, onBusyChange, repository = routesRepository }: {
   initiallyCreating?: boolean;
   onClose: () => void;
+  onShowRoute: (route: SavedRoute) => void;
   onBusyChange: (busy: boolean) => void;
   repository?: RoutesRepository;
 }) {
   const insets = useSafeAreaInsets();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [creating, setCreating] = useState(initiallyCreating);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notifying, setNotifying] = useState<SavedRoute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +96,6 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       constructionNotifications.forgetRoute(id).catch((e: unknown) => console.warn('Could not cancel the route\'s reminders', e));
       if (active.current) {
         setRoutes((current) => current.filter((route) => route.id !== id));
-        setSelectedId((current) => (current === id ? null : current));
         setError(null);
       }
     } catch (e) {
@@ -108,26 +107,15 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
     }
   }
 
-  const selected = routes.find((route) => route.id === selectedId) ?? null;
-
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.topbar}>
-        {selected ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to routes" onPress={() => setSelectedId(null)} style={styles.back}>
-            <Text style={styles.backText}>‹ Back</Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.brand}>DO:MOVE</Text>
-        )}
-        {selected && <Text style={styles.brand}>DO:MOVE</Text>}
+        <Text style={styles.brand}>DO:MOVE</Text>
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
       </View>
-      {selected ? (
-        <RouteDetail route={selected} repository={repository} />
-      ) : creating ? (
+      {creating ? (
         <RouteForm onSave={save} onCancel={() => setCreating(false)} onBusyChange={(value) => { setSaving(value); onBusyChange(value); }} />
       ) : notifying ? (
         <NotificationSettings route={notifying} onBack={() => setNotifying(null)} />
@@ -154,9 +142,9 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           renderItem={({ item }) => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`View route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`}
-              disabled={loading || !!deleting}
-              onPress={() => setSelectedId(item.id)}
+              accessibilityLabel={`Show route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')} on the map`}
+              disabled={!!deleting}
+              onPress={() => onShowRoute(item)}
               style={styles.card}
             >
               <TransportModeIcon mode={item.mode} />
@@ -223,8 +211,6 @@ const styles = StyleSheet.create({
   launcher: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 12, backgroundColor: '#f5f7f9', justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#e1e6eb' },
   brand: { color: '#163f36', fontWeight: '800', letterSpacing: 2, fontSize: 16 },
-  back: { paddingVertical: 16, paddingRight: 12 },
-  backText: { color: '#254636', fontWeight: '600' },
   close: { paddingVertical: 16, paddingHorizontal: 12 },
   list: { padding: 20, gap: 14, width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { gap: 12, marginBottom: 8 },

@@ -36,7 +36,13 @@ location and final destination and pick each from the suggestions, select Pedest
 add/remove stops, optionally set **Leaving at**, then tap **Ready**.
 **Leaving at** is one rounded slider: **Now** takes the current date and time;
 the date and the time open the phone's own calendar and clock (on iOS they open
-below the slider), and picking a date asks for the time next; ✕ clears both. The saved list opens after a successful save.
+below the slider), and picking a date asks for the time next; ✕ clears both.
+**Repeat on** weekday tags make the route repeat at that time instead of running
+once: picking a day clears the date, and picking a date clears the days. The saved list opens after a successful save.
+Tapping a saved route closes the list and shows the route on the main map: its
+line (from the public OSRM router, straight between the stops until it answers),
+start, stops and destination, and only the construction sites on it. The card at
+the bottom counts them; ✕ returns to all sites.
 Delete removes a route immediately after the server confirms the deletion. A
 failed deletion leaves it visible, with a retryable error. Close returns to the
 existing app; Cancel returns from the form to the list without saving.
