@@ -21,6 +21,8 @@ Rebuild (step 2) only when native config or native packages change; JS changes r
 
 Checks: `npm test`, `npx tsc --noEmit`, `npx expo lint`.
 
+Route creation and deletion (Issue #1): see [setup, shared route model, API and tests](docs/routes.md).
+
 ## Backend (`backend/supabase/`)
 
 Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city feeds every hour (`private.sync_construction_sites()`), so there is no server to deploy.

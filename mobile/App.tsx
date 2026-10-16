@@ -6,6 +6,7 @@ import { File, Paths } from 'expo-file-system';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
+import RoutesManager from './src/routes/RoutesManager';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
@@ -64,7 +65,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       {/* skip the maps while a crash report is open, in case a map is what crashed */}
-      {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : <RadarMap />}
+      {crash ? <CrashReport text={crash} onDismiss={dismissCrash} /> : (
+        <View style={styles.fill}>
+          <RadarMap />
+          <RoutesManager />
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }
@@ -151,14 +157,14 @@ function RadarMap() {
       </View>
 
       {error && (
-        <Pressable style={[styles.card, surface, { bottom: insets.bottom + 12 }]} onPress={load} accessibilityRole="button">
+        <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
           <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
           <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
         </Pressable>
       )}
 
       {selected && !error && (
-        <View style={[styles.card, surface, { bottom: insets.bottom + 12 }]}>
+        <View style={[styles.card, surface]}>
           <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
           <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
           <Text style={{ color: palette.muted }}>{selected.period}</Text>
@@ -223,7 +229,8 @@ const styles = StyleSheet.create({
   toggle: { alignSelf: 'flex-end', padding: TOGGLE_PAD, borderRadius: TOGGLE_CELL / 2 + TOGGLE_PAD, borderWidth: StyleSheet.hairlineWidth, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   toggleThumb: { position: 'absolute', top: TOGGLE_PAD, left: TOGGLE_PAD, width: TOGGLE_CELL, height: TOGGLE_CELL, borderRadius: TOGGLE_CELL / 2 },
   toggleCell: { width: TOGGLE_CELL, height: TOGGLE_CELL, alignItems: 'center', justifyContent: 'center' },
-  card: { position: 'absolute', left: 12, right: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  // no safe-area inset at the bottom: the route launcher below the map already clears it
+  card: { position: 'absolute', left: 12, right: 12, bottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   title: { fontSize: 16, fontWeight: '600' },
   crash: { backgroundColor: '#111', paddingHorizontal: 16, gap: 8 },
   crashTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },
