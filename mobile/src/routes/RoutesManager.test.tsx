@@ -59,6 +59,7 @@ beforeEach(() => {
       return route;
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
+    obstacleSiteIds: jest.fn(async (_routeId: string): Promise<string[]> => []),
   };
 });
 
@@ -77,6 +78,25 @@ test('the sheet raises on the form or the saved routes, and Close lowers it', as
   expect(await screen.findByText('No saved routes yet')).toBeOnTheScreen();
   await press('Lower the routes panel');
   expect(screen.getByRole('button', { name: 'Create Route' })).toBeOnTheScreen();
+});
+
+test('Map & alerts hands the route to the map and lowers the sheet out of its way', async () => {
+  persisted = [stationToPark];
+  const onOpenChange = jest.fn();
+  const onViewRoute = jest.fn();
+  const onRouteDeleted = jest.fn();
+  await render(<RoutesManager repository={repository} onOpenChange={onOpenChange} onViewRoute={onViewRoute} onRouteDeleted={onRouteDeleted} />);
+  await press('Saved routes');
+  await screen.findByText('Station → Park');
+  await press('Show the route from Station to Park and its alerts on the map');
+  expect(onViewRoute).toHaveBeenCalledWith(stationToPark);
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  expect(screen.getByRole('button', { name: 'Raise the routes panel' })).toBeCollapsed();
+  // Deleting the route on show takes it off the map too.
+  await press('Saved routes');
+  await screen.findByText('Station → Park');
+  await press('Delete route from Station to Park');
+  await waitFor(() => expect(onRouteDeleted).toHaveBeenCalledWith('1'));
 });
 
 test('creates multiple routes, removes individual stops, reloads and deletes', async () => {

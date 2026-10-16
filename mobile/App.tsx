@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, BackHandler, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
@@ -8,6 +8,9 @@ import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { COLORS, fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
+import { TRANSPORT_MODES, type SavedRoute } from './src/routes/model';
+import { useRouteOnMap } from './src/routes/useRouteOnMap';
+import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 
@@ -55,8 +58,19 @@ function readCrash(): string | null {
 export default function App() {
   const [crash, setCrash] = useState(readCrash);
   const [routesOpen, setRoutesOpen] = useState(false);
+  // The saved route drawn on the map, which then shows only the sites on its way.
+  const [viewing, setViewing] = useState<SavedRoute | null>(null);
+  const closeRoute = useCallback(() => setViewing(null), []);
+  const routeDeleted = useCallback((id: string) => setViewing((route) => (route?.id === id ? null : route)), []);
 
   useEffect(() => startNotificationRuntime(), []);
+
+  // A sheet raised over the route adds its handler after this one, so back lowers the sheet first.
+  useEffect(() => {
+    if (!viewing) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setViewing(null); return true; });
+    return () => subscription.remove();
+  }, [viewing]);
 
   const dismissCrash = () => {
     try {
@@ -74,9 +88,9 @@ export default function App() {
         <View style={styles.fill}>
           {/* the raised routes sheet covers the map, so screen readers skip it */}
           <View style={styles.fill} importantForAccessibility={routesOpen ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={routesOpen}>
-            <RadarMap />
+            <RadarMap route={viewing} onCloseRoute={closeRoute} />
           </View>
-          <RoutesManager onOpenChange={setRoutesOpen} />
+          <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteDeleted={routeDeleted} />
         </View>
       )}
     </SafeAreaProvider>
@@ -101,7 +115,7 @@ function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void 
 }
 
 // memo: opening the routes sheet re-renders App, which shouldn't redraw the map and its pins.
-const RadarMap = memo(function RadarMap() {
+const RadarMap = memo(function RadarMap({ route, onCloseRoute }: { route: SavedRoute | null; onCloseRoute: () => void }) {
   const insets = useSafeAreaInsets();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +146,21 @@ const RadarMap = memo(function RadarMap() {
 
   useEffect(load, [load]);
 
+  const onRoute = useRouteOnMap(route);
+  const alerts = useRouteAlerts(route?.id ?? null);
+  // On a route, only the sites on its way: none until the backend says which.
+  const nearby = onRoute ? sites.filter((s) => onRoute.siteIds?.has(s.id)) : sites;
+  const selectedAlert = alerts && selected ? siteAlert(alerts, selected.id) : null;
+  // Keeps a route clear of the chips along the top, the controls on the right and the route card at the bottom.
+  const routePadding = useMemo(() => ({ top: insets.top + 56, right: 72, bottom: 170, left: 24 }), [insets.top]);
+
+  // A newly shown route starts without a site card, as the open one may be off its way.
+  const [cardRoute, setCardRoute] = useState(route);
+  if (route !== cardRoute) {
+    setCardRoute(route);
+    if (route) setSelected(null);
+  }
+
   // A tapped construction alert opens its site's card, once the sites have loaded.
   const tapped = useTappedSite();
   const openedTap = useRef<typeof tapped>(null);
@@ -139,9 +168,11 @@ const RadarMap = memo(function RadarMap() {
     const site = tapped && tapped !== openedTap.current ? sites.find((s) => s.id === tapped.siteId) : undefined;
     if (!site) return;
     openedTap.current = tapped;
+    // The site may lie off the route on show, so show every site again.
+    if (onRoute && !onRoute.siteIds?.has(site.id)) onCloseRoute();
     setShown((current) => ({ ...current, [site.status]: true }));
     setSelected(site);
-  }, [tapped, sites]);
+  }, [tapped, sites, onRoute, onCloseRoute]);
 
   const SitesMap = mapboxOn && MapboxSitesMap ? MapboxSitesMap : GoogleSitesMap;
 
@@ -149,11 +180,13 @@ const RadarMap = memo(function RadarMap() {
     <View style={styles.fill}>
       <SitesMap
         ref={map}
-        sites={sites.filter((s) => shown[s.status])}
+        sites={nearby.filter((s) => shown[s.status])}
         onSelect={setSelected}
         theme={theme}
         onHeadingChange={(h) => heading.setValue(h)}
         bottomInset={SHEET_RADIUS}
+        route={onRoute?.overlay ?? null}
+        routePadding={routePadding}
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
@@ -167,7 +200,7 @@ const RadarMap = memo(function RadarMap() {
               style={[styles.chip, surface, !shown[st] && styles.chipOff]}
             >
               <View style={[styles.dot, { backgroundColor: COLORS[st] }]} />
-              <Text style={{ color: palette.text }}>{LABELS[st]} ({sites.filter((s) => s.status === st).length})</Text>
+              <Text style={{ color: palette.text }}>{LABELS[st]} ({nearby.filter((s) => s.status === st).length})</Text>
             </Pressable>
           ))}
           {loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}
@@ -188,26 +221,70 @@ const RadarMap = memo(function RadarMap() {
         <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
       </View>
 
-      {error && (
-        <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
-          <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
-          <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
-        </Pressable>
-      )}
+      <View style={styles.bottom}>
+        {error && (
+          <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
+            <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
+            <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
+          </Pressable>
+        )}
 
-      {selected && !error && (
-        <View style={[styles.card, surface]}>
-          <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
-          <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
-          <Text style={{ color: palette.muted }}>{selected.period}</Text>
-          <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
-        </View>
-      )}
+        {selected && !error && (
+          <View style={[styles.card, surface]}>
+            <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
+            <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
+            <Text style={{ color: palette.muted }}>{selected.period}</Text>
+            <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
+            {selectedAlert && (
+              <View style={styles.siteAlert}>
+                <MaterialIcons name="notifications" size={16} color={palette.accent} />
+                <Text style={{ color: palette.text }}>{selectedAlert}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {route && onRoute && (
+          <View style={[styles.card, surface]}>
+            <View style={styles.routeHead}>
+              {onRoute.error ? (
+                <Pressable accessibilityRole="button" onPress={onRoute.retry} style={styles.routeText}>
+                  <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
+                  <Text style={{ color: palette.status.current }}>{onRoute.error} — tap to retry</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.routeText}>
+                  <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
+                  <Text style={{ color: palette.muted }}>{TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}</Text>
+                </View>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close the route and show every construction site"
+                hitSlop={8}
+                onPress={onCloseRoute}
+                style={styles.routeClose}
+              >
+                <MaterialIcons name="close" size={22} color={palette.muted} />
+              </Pressable>
+            </View>
+            {/* The route's alerts, next to the sites they are about. */}
+            {alerts && <RouteAlerts alerts={alerts} theme={theme} />}
+          </View>
+        )}
+      </View>
 
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
   );
 });
+
+/** How many sites lie on a route's way; null while that is still unknown. */
+function sitesOnWay(count: number | null) {
+  if (count === null) return 'Checking for construction sites…';
+  if (count === 0) return 'No construction sites on the way';
+  return `${count} construction ${count === 1 ? 'site' : 'sites'} on the way`;
+}
 
 // Both options stay visible, so the current mode is never a guess; the highlight slides to the one picked.
 function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: MapTheme) => void }) {
@@ -263,7 +340,12 @@ const styles = StyleSheet.create({
   toggleCell: { width: TOGGLE_CELL, height: TOGGLE_CELL, alignItems: 'center', justifyContent: 'center' },
   // no safe-area inset at the bottom: the routes sheet below the map already clears it, but its rounded top
   // reaches SHEET_RADIUS over the map
-  card: { position: 'absolute', left: 12, right: 12, bottom: SHEET_RADIUS + 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bottom: { position: 'absolute', left: 12, right: 12, bottom: SHEET_RADIUS + 12, gap: 10, pointerEvents: 'box-none' },
+  card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  routeHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  siteAlert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  routeText: { flex: 1, gap: 4 },
+  routeClose: { padding: 4 },
   title: { fontSize: 16, fontWeight: '600' },
   crash: { backgroundColor: '#111', paddingHorizontal: 16, gap: 8 },
   crashTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },
