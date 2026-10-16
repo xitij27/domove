@@ -1,0 +1,25 @@
+{
+  "name": "hono",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "start": "tsx src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "dotenv": "^18.0.8",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
