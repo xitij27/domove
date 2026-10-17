@@ -33,6 +33,8 @@ export type SavedRoute = {
   startTime: string | null;
   /** The days the trip repeats on, Monday first; never set without a startTime. */
   weekdays: Weekday[];
+  /** "YYYY-MM-DD" when the trip is on one day, as saved_routes sends it; never set with weekdays. */
+  startDate?: string | null;
   waypoints: RouteWaypoint[];
   createdAt: string;
 };

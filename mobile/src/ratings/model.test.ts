@@ -54,5 +54,6 @@ test('a route says how much of each site counts for it', () => {
   expect(routeUseText({ ...crossing, weight: 0 })).toBe('Your route only crosses it and the junction stays open, so it doesn\'t count');
   expect(routeUseText({ ...crossing, routeUse: 'uses', alongM: 150 })).toBe('Your route runs 150 m through it, so all of it counts');
   expect(routeUseText({ ...crossing, routeUse: 'passes' })).toBe('Your route only passes it, so it doesn\'t count');
+  expect(routeUseText({ ...crossing, routeUse: 'avoids' })).toBe('The way shown goes around it, so it doesn\'t count');
   expect(highOnRoute([crossing, { ...crossing, effectiveRating: 9 }, { ...crossing, effectiveRating: 9, active: false }])).toBe(1);
 });

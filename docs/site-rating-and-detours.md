@@ -2,7 +2,7 @@
 
 Design and build · a 0–10 impact rating for each construction site, and how a route uses it to pick another path · 17 Oct 2026
 
-> **Status:** the rating and the way the app explains it are built: see [section 3](#3-how-it-is-built) and [section 4](#4-being-transparent-about-the-scores). Finding another path ([section 2](#2-from-ratings-to-another-path)) is next.
+> **Status:** the rating and the way the app explains it are built: see [section 3](#3-how-it-is-built) and [section 4](#4-being-transparent-about-the-scores). The app finds another path as [section 2](#2-from-ratings-to-another-path) describes and shows it on the route map ([In the app](#in-the-app)). Notifications about it (#25) are next.
 
 Today a site counts as being on a route when its area comes within 30 m of the path, and every site counts the same. The route card says "Car · 3 construction sites on the way", whether the three are a closed motorway ramp or scaffolding on a residential street. This page proposes two things:
 
@@ -165,7 +165,7 @@ Skip a candidate when it would avoid the same sites as the one before it, e.g. C
 
 **The router.** #12 chose openrouteservice (`avoid_polygons`), but we don't have an ORS key yet. The dashboard already avoids sites on FOSSGIS's public Valhalla server with `exclude_polygons` (`dashboard/src/routing/valhalla.ts`). It excludes a 30 m square where the path runs through each site, asks again, and repeats for up to three rounds, because the new path can run into new sites. Each request takes at most 19 squares (the server's 100-vertex limit), and the dashboard sends at most one request a second. Use the same loop for candidates B–D, and switch to ORS when we have a key; only the call changes.
 
-The app draws paths with FOSSGIS's OSRM today (`mobile/src/routes/routePath.ts`), which can't avoid areas. Candidate A should come from the same router as B–D, so that their times compare.
+The app first draws FOSSGIS's OSRM line (`mobile/src/routes/routePath.ts`), the one the obstacles job matched, but OSRM can't avoid areas. Candidate A comes from the same Valhalla server as B–D, so that their times compare.
 
 **Cost:** at most 4 candidates × 3 rounds = 12 requests, or 12 s at one request a second. Usually it's 2–4, because candidates repeat. Show candidate A at once and the recommendation when it arrives. Replanning saved routes in the background (#12) isn't in a hurry.
 
@@ -197,6 +197,28 @@ A path through a blocked site is out, unless every candidate goes through one. I
 |---|---|---|---|
 | Monday 8:00, school day | 14 min + 10 s × 8.7² = 26.6 min | 18 min + 5 s = 18.1 min | D, +4 min |
 | Saturday 12:00 | 14 min + 10 s × 4.6² = 17.5 min | 18.1 min | A |
+
+### In the app
+
+The phone plans when a saved route opens on the map; nothing is stored yet. The code is in [`mobile/src/detours/`](../mobile/src/detours/):
+
+| File | What it does |
+|---|---|
+| `api.ts` | Every site's area from `construction_sites` as GeoJSON (kept for 10 minutes), the route's next departure from `route_departure`, and `site_ratings` for its mode at that time |
+| `trip.ts` | Rates the sites within 2 km of the box around the trip's places, then plans through start, stops in order and destination |
+| `planner.ts` | Steps 1–5: which sites a path uses or crosses, when to look, candidates B–D, the cost, the detour limit and near-duplicates |
+| `valhalla.ts` | FOSSGIS Valhalla (`auto`, `bicycle`, `pedestrian`), one request a second from the whole app, the same request never twice |
+| `text.ts`, `DetourSummary.tsx` | The route card's words: "Recommended · 18 min (+4 min) · 6.2 km", "Avoids Kaiserstraße (9/10)", "Still on the way: …", "No way around …" |
+
+How it differs from the steps above:
+
+- **Each candidate starts where the one before it stopped.** C keeps B's squares and adds the high sites the path still uses, so it is skipped without a request when there are none. A plan takes at most 1 + 3 × 3 = 10 requests; most take 2–4, about as many seconds.
+- **A site at the start, a stop or the destination never blocks a path or starts a search.** Every path has to go there, so it is named on the card instead (#12).
+- **Sites more than 2 km from the trip's box aren't rated,** and a candidate that strays further ignores them. That keeps the download small; a city detour rarely goes that far.
+- **The ratings are for the route's next departure,** as `route_site_ratings` uses: the leaving date, the next repeat day, or now.
+- **When the router can't be reached,** the card says so with a retry, and the map keeps the OSRM line and the obstacles job's sites. It never shows a path through closures without saying so.
+
+On the map, the way picked is blue and the others grey. Tapping a grey line, or a way's button on the card, picks it, and **Start** follows the way picked. The map shows the sites the obstacles job found plus every site a drawn path meets, and a site's card counts its score for the way shown ("The way shown goes around it, so it doesn't count").
 
 ## 3. How it is built
 
@@ -282,6 +304,6 @@ The city's datasets are under Datenlizenz Deutschland – Zero 2.0. OpenStreetMa
 | 1 | `places` sync (city and OSM), and `site_context` after each site sync | done |
 | 2 | `rating_weights` and `site_ratings()`, with SQL tests built on the examples above | done |
 | 3 | The score with every point on the site card; "· 1 with high impact" on the route card; "How scores work" | done |
-| 4 | Candidates and scoring in the planner: Valhalla now, ORS once we have a key | next, a few days |
-| 5 | The recommended path and up to two others on the route map, with reasons | a few days |
+| 4 | Candidates and scoring in the planner: Valhalla now, ORS once we have a key | done, in the app |
+| 5 | The recommended path and up to two others on the route map, with reasons | done |
 | 6 | Notifications (#25) for a new site rated 7 or more, or a changed recommendation | about a day |
