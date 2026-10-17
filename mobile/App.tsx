@@ -417,7 +417,10 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
               <View style={styles.siteKind}>
                 <Image source={signOf(selected)} style={styles.siteSign} />
                 <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
-                <Text style={{ color: palette.muted }}>· {CLOSURE_LABELS[selected.closure]}</Text>
+                <Text style={[styles.siteClosure, { color: palette.muted }]}>· {CLOSURE_LABELS[selected.closure]}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Close the construction site" hitSlop={8} onPress={() => setSelected(null)} style={styles.routeClose}>
+                  <MaterialIcons name="close" size={22} color={palette.muted} />
+                </Pressable>
               </View>
               <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
               <Text style={{ color: palette.muted }}>{selected.period}</Text>
@@ -582,6 +585,8 @@ const styles = StyleSheet.create({
   routeHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   siteAlert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   siteKind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // takes the row's spare width, so the close button sits at the card's right
+  siteClosure: { flex: 1 },
   siteSign: { width: 24, height: 24 },
   routeText: { flex: 1, gap: 4 },
   routeClose: { padding: 4 },
