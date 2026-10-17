@@ -25,7 +25,7 @@ const DORTMUND: LonLat = [7.4653, 51.5136];
 const FONT = ['Noto Sans Regular'];
 
 /** How the works are coloured: by band, by a smooth ramp on impact, or as a heat surface. */
-export type ImpactView = 'bands' | 'gradient' | 'heat';
+export type ImpactView = 'bands' | 'heat';
 
 export type PoiKind = 'stop' | 'bike' | 'pr' | 'fire' | 'hospital';
 const POI_GLYPH: Record<PoiKind, string> = { stop: 'U', bike: 'B', pr: 'P', fire: 'F', hospital: 'H' };
@@ -194,18 +194,13 @@ function addLayers(map: MlMap, p: Palette) {
 function applyImpactView(map: MlMap, p: Palette, view: ImpactView) {
   const { low, medium, high } = p.severity;
   const band: ExpressionSpecification = ['match', ['get', 'band'], 'high', high, 'medium', medium, low];
-  // gradient: one hue whose strength is the impact, so small works fade and big ones stand out
   const color = view === 'bands' ? band : high;
-  const active: ExpressionSpecification = ['==', ['get', 'state'], 'active'];
   const fillOpacity: ExpressionSpecification | number = view === 'bands'
     ? ['match', ['get', 'state'], 'active', 0.55, 0.18]
-    : view === 'gradient'
-      ? ['case', active, ['+', 0.06, ['*', 0.9, ['get', 'sev']]], 0.05]
-      : 0.04; // heat: the surface carries the impact, the footprints just stay findable
+    : 0.04; // heat: the surface carries the impact, the footprints just stay findable
   map.setPaintProperty('site-fill', 'fill-color', color);
   map.setPaintProperty('site-fill', 'fill-opacity', fillOpacity);
   map.setPaintProperty('site-line', 'line-color', color);
-  map.setPaintProperty('site-line', 'line-opacity', view === 'gradient' ? ['+', 0.25, ['*', 0.75, ['get', 'sev']]] : 1);
   map.setPaintProperty('site-line-later', 'line-color', color);
   map.setPaintProperty('site-dot', 'circle-color', color);
   map.setLayoutProperty('site-dot', 'visibility', view === 'heat' ? 'none' : 'visible');

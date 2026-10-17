@@ -31,7 +31,7 @@ import { TransitTab } from './ui/TransitTab';
 import { useScenario } from './ui/useScenario';
 
 type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'capacity' | 'routes';
-const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['gradient', 'Gradient'], ['heat', 'Heat']];
+const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['heat', 'Heat']];
 const TABS: [Tab, string][] = [['todo', 'To do'], ['coordinate', 'Coordinate'], ['priorities', 'Priorities'], ['transit', 'Transit'], ['capacity', 'Capacity'], ['routes', 'Routes']];
 const BACK = 30;
 const AHEAD = 365;
@@ -390,7 +390,7 @@ function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView:
           <div className="legend-row"><i className="swatch low" />Low</div>
         </>
       ) : (
-        <div className="legend-row"><i className="ramp impact" />{impactView === 'heat' ? 'Disruption heat (zoom in for sites)' : 'Faint = low, solid = high disruption'}</div>
+        <div className="legend-row"><i className="ramp impact" />Disruption heat (zoom in for sites)</div>
       )}
       <div className="legend-row"><i className="swatch later" />Starts within 30 days</div>
       {tab === 'coordinate' && (
