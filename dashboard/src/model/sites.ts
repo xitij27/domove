@@ -127,9 +127,19 @@ function datesOf(raw: RawSite): { start: number; end: number; openEnded: boolean
   return { start, end: Math.max(start, Math.min(end, OPEN_END)), openEnded: end >= OPEN_END };
 }
 
+/** Guard malformed remote arrays before projecting them. Analytical evidence keeps the raw geometry. */
+function drawableGeometry(geometry: Polygon | MultiPolygon | null): geometry is Polygon | MultiPolygon {
+  if (!geometry) return false;
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  return Array.isArray(polygons) && polygons.length > 0 && polygons.every((rings) =>
+    Array.isArray(rings) && rings.length > 0 && rings.every((ring) =>
+      Array.isArray(ring) && ring.length >= 4 && ring.every((p) =>
+        Array.isArray(p) && p.length >= 2 && p.every(Number.isFinite))));
+}
+
 export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
   return inputs.map((raw) => {
-    const geometry: Polygon | MultiPolygon = raw.geometry ?? {
+    const geometry: Polygon | MultiPolygon = drawableGeometry(raw.geometry) ? raw.geometry : {
       type: 'Polygon',
       coordinates: [circle(toXY(raw.center), POINT_RADIUS).map(toLonLat)],
     };
@@ -174,7 +184,7 @@ function weights(kinds: ClosureKind[], road: RoadClass, s: Settings): Pick<Site,
 export const weigh = (sites: Site[], s: Settings): Site[] => sites.map((site) => ({ ...site, ...weights(site.kinds, site.road, s) }));
 
 /** Every pair of sites within `radius` metres of each other, both ways round. */
-export function findNeighbours(sites: Site[], radius = NEIGHBOUR_RADIUS): Map<string, Neighbour[]> {
+export function findNeighbours(sites: Pick<Site, 'id' | 'shape'>[], radius = NEIGHBOUR_RADIUS): Map<string, Neighbour[]> {
   const out = new Map<string, Neighbour[]>(sites.map((s) => [s.id, []]));
   for (let i = 0; i < sites.length; i++) {
     for (let j = i + 1; j < sites.length; j++) {

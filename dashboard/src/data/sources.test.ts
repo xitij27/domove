@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { districtKey, parseProgramme, parseSites } from './sources';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { districtKey, fetchKindergartens, fetchSchools, parseProgramme, parseSites } from './sources';
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('parseSites', () => {
   it('keeps valid sites and their polygons, and skips broken rows', () => {
@@ -49,4 +51,27 @@ it('matches district names to the population table columns', () => {
   expect(districtKey('Hörde')).toBe('horde');
   expect(districtKey('Lütgendortmund')).toBe('lutgendortmund');
   expect(districtKey('Innenstadt-West')).toBe('innenstadt_west');
+});
+
+describe('optional public-facility sources', () => {
+  it.each([
+    ['schulen', fetchSchools],
+    ['kindergarten', fetchKindergartens],
+  ] as const)('uses the verified %s POI schema without fetching contact information', async (dataset, load) => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { objektname: 'Verified facility', i_zusinfo: 'Public facility', stadtbezbe: 'Hombruch', geo_point_2d: { lon: 7.45, lat: 51.5 } },
+      { objektname: 'Missing coordinates' },
+      { geo_point_2d: { lon: 7.45, lat: 51.5 } },
+    ])));
+    vi.stubGlobal('fetch', request);
+    expect(await load()).toEqual([{ name: 'Verified facility', detail: 'Public facility', district: 'Hombruch', at: [7.45, 51.5] }]);
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.pathname).toContain(`/datasets/${dataset}/exports/json`);
+    expect(url.searchParams.get('select')).toBe('objektname,objektzusa,objektart,i_zusinfo,stadtbezbe,geo_point_2d');
+  });
+
+  it('reports source failure, allowing the dashboard to show unavailable exposure data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 503 })));
+    await expect(fetchSchools()).rejects.toThrow('Schools: HTTP 503');
+  });
 });

@@ -14,6 +14,7 @@ type Props = {
   date: number;
   horizon: number | null;
   onDate: (day: number) => void;
+  outlookPeriod?: { from: number; to: number } | null;
 };
 
 const H = 100;
@@ -25,7 +26,7 @@ function niceMax(v: number): number {
   return ([1, 2, 5, 10].find((m) => m * p >= v) ?? 10) * p;
 }
 
-export function Timeline({ load, published, holidays, today, date, horizon, onDate }: Props) {
+export function Timeline({ load, published, holidays, today, date, horizon, onDate, outlookPeriod }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
@@ -92,6 +93,7 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
         <h2>Disruption points per day</h2>
         <span className="hint">1 point = a full closure on a main road · drag to pick a day</span>
         <span className="keys">
+          {outlookPeriod && <span className="key"><i className="key-band outlook-key" />Outlook window</span>}
           <span className="key"><i className="key-line load" />{published ? 'With your changes' : 'Points'}</span>
           {published && <span className="key"><i className="key-line published" />Published plans</span>}
           <span className="key"><i className="key-band" />School holidays</span>
@@ -115,6 +117,8 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
           onPointerLeave={() => setHover(null)}
           onKeyDown={onKeyDown}
         >
+          {outlookPeriod && <rect className="outlook-window" x={x(Math.max(from, outlookPeriod.from))} y={PAD.top}
+            width={Math.max(1, x(Math.min(to, outlookPeriod.to + 1)) - x(Math.max(from, outlookPeriod.from)))} height={plotH} />}
           {holidays.filter((h) => h.end >= from && h.start <= to).map((h) => {
             const x0 = x(Math.max(h.start, from));
             const x1 = x(Math.min(h.end + 1, to));

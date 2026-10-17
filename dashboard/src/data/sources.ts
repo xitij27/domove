@@ -136,6 +136,8 @@ async function fetchPois(dataset: string, label: string, keep: (r: Row) => boole
 }
 
 export const fetchStops = () => fetchPois('haltestellen', 'Stadtbahn stops');
+export const fetchSchools = () => fetchPois('schulen', 'Schools');
+export const fetchKindergartens = () => fetchPois('kindergarten', 'Kindergartens');
 export const fetchBikeStations = () => fetchPois('fahrradmietstation', 'Bike-share stations');
 export const fetchParkRide = () => fetchPois('park-and-ride', 'Park and ride');
 // The professional fire and rescue stations; the volunteer Löschzüge aren't staffed around the clock.

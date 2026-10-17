@@ -409,3 +409,16 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 .back-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 8px 2px 2px; margin-left: -2px; border-radius: 8px; color: var(--accent-ink); font: inherit; cursor: pointer; }
 .back-button:hover { background: var(--surface-2); }
 .bar.over { background: var(--critical); }
+.outlook-filter { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.analytics-list { max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.source-note { margin-top: 12px; }
+.outlook-window { fill: var(--accent); opacity: 0.12; pointer-events: none; }
+.outlook-key { background: var(--accent); opacity: 0.3; }
+.project-analytics { border-top: 1px solid var(--border); padding-top: 14px; }
+.project-analytics > .info > summary { top: 13px; }
+.assessment-target { display: grid; gap: 4px; margin: 10px 0; }
+.assessment-target select { width: 100%; min-width: 0; }
+.impact-factors { margin: 12px 0; }
+.impact-factors summary { cursor: pointer; padding: 4px 0; }
+.business-location { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.business-location label { display: grid; gap: 4px; min-width: 0; flex: 1; }
