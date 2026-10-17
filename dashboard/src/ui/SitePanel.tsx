@@ -58,7 +58,10 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
   const cur = advice?.current;
   return (
     <div className="site-panel">
-      <button className="link-button" onClick={onBack}>← Back</button>
+      <button className="back-button" onClick={onBack}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Back
+      </button>
       <h2 className="site-title">{site.title}</h2>
       <div className="chips">
         <span className={`chip band ${bandOf(site.severity)}`}><i className="swatch" />{BAND_LABEL[bandOf(site.severity)]}</span>

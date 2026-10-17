@@ -345,3 +345,10 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.ramp.impact { background: linear-gradient(90deg, color-mix(in srgb, var(--sev-high) 10%, transparent), var(--sev-high)); }
+.map-tool { position: absolute; top: 12px; left: 12px; display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; z-index: 1; font-size: 12px; }
+.map-tool button { padding: 5px 10px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.map-tool button.selected { background: var(--ink); color: var(--surface); }
+.back-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 8px 2px 2px; margin-left: -2px; border-radius: 8px; color: var(--accent-ink); font: inherit; cursor: pointer; }
+.back-button:hover { background: var(--surface-2); }
+.bar.over { background: var(--critical); }

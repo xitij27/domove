@@ -10,13 +10,15 @@ import type { DayRange } from './model/analysis';
 import { formatDay, formatShort, isoDay, localToday, toDay } from './model/days';
 import { bboxOf, shapeOf, toLonLat, toXY } from './model/geo';
 import type { BBox, LonLat } from './model/geo';
+import { DEFAULT_PARAMS, LOAD_SCALE, roadCapacity, simulate } from './model/capacity';
 import { applyShifts, changeCount, EMPTY_SCENARIO, hypotheticalInput, isEmpty, scenarioCsv } from './model/scenario';
 import type { HypotheticalSite, Shift } from './model/scenario';
 import { buildSites, findNeighbours, nearestRoad, prepareContext } from './model/sites';
+import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
 import { plural } from './ui/format';
 import { MapView } from './ui/MapView';
-import type { MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
+import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
 import { PrioritiesTab } from './ui/PrioritiesTab';
 import { RoutesTab } from './ui/RoutesTab';
 import { SitePanel } from './ui/SitePanel';
@@ -28,8 +30,9 @@ import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
 import { useScenario } from './ui/useScenario';
 
-type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'routes';
-const TABS: [Tab, string][] = [['todo', 'To do'], ['coordinate', 'Coordinate'], ['priorities', 'Priorities'], ['transit', 'Transit'], ['routes', 'Routes']];
+type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'capacity' | 'routes';
+const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['gradient', 'Gradient'], ['heat', 'Heat']];
+const TABS: [Tab, string][] = [['todo', 'To do'], ['coordinate', 'Coordinate'], ['priorities', 'Priorities'], ['transit', 'Transit'], ['capacity', 'Capacity'], ['routes', 'Routes']];
 const BACK = 30;
 const AHEAD = 365;
 
@@ -57,6 +60,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
   const [tab, setTab] = useState<Tab>('todo');
+  const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clusterId, setClusterId] = useState<string | null>(null);
   const [district, setDistrict] = useState<string | null>(null);
@@ -96,6 +100,12 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     [clusters, byId, sites, neighbours, holidayRanges, today, horizon],
   );
   const ranked = useMemo(() => priorities(sites, neighbours, date), [sites, neighbours, date]);
+  const roadLaneKm = useMemo(() => roadCapacity(data.roads, districtShapes), [data.roads, districtShapes]);
+  const [capacityParams, setCapacityParams] = useState(DEFAULT_PARAMS);
+  const capacityResult = useMemo(
+    () => simulate(sites, roadLaneKm, data.residents, date, capacityParams),
+    [sites, roadLaneKm, data.residents, date, capacityParams],
+  );
   const gaps = useMemo(() => transitGaps(sites, data.residents, date), [sites, data.residents, date]);
   const pressure = useMemo(() => stopsUnderPressure(sites, data.stops, date), [sites, data.stops, date]);
   const todo = useMemo(() => todoList(clusters, advice, bundles, byId, gaps, today), [clusters, advice, bundles, byId, gaps, today]);
@@ -150,7 +160,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     setTab(id);
     setSelectedId(null);
     // frame what the tab is about: the ranked sites, or the whole city for the district comparison
-    const boxes = id === 'priorities' ? ranked.slice(0, 10).map((p) => p.site.shape.bbox) : id === 'transit' ? districtShapes.map((d) => d.shape.bbox) : [];
+    const boxes = id === 'priorities' ? ranked.slice(0, 10).map((p) => p.site.shape.bbox) : id === 'transit' || id === 'capacity' ? districtShapes.map((d) => d.shape.bbox) : [];
     if (boxes.length) setFocus({ bounds: toBounds(boxes) });
   };
   const setShift = (id: string, shift: Shift | null) => {
@@ -197,9 +207,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     });
     return numbers;
   }, [tab, ranked, todo]);
-  const districtValues = useMemo(() => (tab === 'transit'
-    ? data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: gaps.find((g) => g.district === d.name)?.score ?? 0 }))
-    : []), [tab, data.districts, gaps]);
+  const districtValues = useMemo(() => {
+    if (tab === 'transit') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: gaps.find((g) => g.district === d.name)?.score ?? 0 }));
+    if (tab === 'capacity') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: capacityResult.districts.find((r) => r.district === d.name)?.load ?? null }));
+    return [];
+  }, [tab, data.districts, gaps, capacityResult]);
   const pois = useMemo((): MapPoi[] => {
     const as = (kind: MapPoi['kind'], list: typeof data.stops) => list.map((p) => ({ kind, name: p.name, detail: p.detail, at: p.at }));
     if (tab === 'transit') return [...as('stop', data.stops), ...as('bike', data.bikes), ...as('pr', data.parkRide)];
@@ -291,19 +303,24 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
       <div className="workspace">
         <section className="map-area">
           <MapView
-            theme={theme} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
-            districts={districtValues} selectedDistrict={tab === 'transit' ? district : null} pois={pois}
+            theme={theme} impactView={impactView} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
+            districts={districtValues} districtMax={tab === 'capacity' ? LOAD_SCALE : undefined} selectedDistrict={tab === 'transit' || tab === 'capacity' ? district : null} pois={pois}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
             onSelectSite={selectSite}
-            onSelectDistrict={(name) => tab === 'transit' && selectDistrict(name)}
+            onSelectDistrict={(name) => (tab === 'transit' || tab === 'capacity') && selectDistrict(name)}
           />
           {pick && (
             <div className="pick-hint" role="status">
               {pick.hint} <button className="button" onClick={() => setPick(null)}>Cancel</button>
             </div>
           )}
-          <Legend tab={tab} date={date} />
+          <div className="map-tool" role="group" aria-label="Colour the works by">
+            {IMPACT_VIEWS.map(([id, label]) => (
+              <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{label}</button>
+            ))}
+          </div>
+          <Legend tab={tab} date={date} impactView={impactView} />
         </section>
         <aside className="panel">
           <nav className="tabs" role="tablist" aria-label="Planning views"
@@ -337,6 +354,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             <div hidden={!!selected || tab !== 'priorities'}>
               <PrioritiesTab priorities={ranked} date={date} onSelectSite={selectSite} />
             </div>
+            <div hidden={!!selected || tab !== 'capacity'}>
+              <CapacityTab result={capacityResult} params={capacityParams} date={date} selected={district} onParams={setCapacityParams}
+                onSelect={selectDistrict} onSelectSite={selectSite} />
+            </div>
             <div hidden={!!selected || tab !== 'transit'}>
               <TransitTab gaps={gaps} pressure={pressure} bikes={data.bikes} parkRide={data.parkRide} date={date} residentsYear={data.residentsYear}
                 selected={district} onSelect={selectDistrict} onSelectSite={selectSite} />
@@ -356,15 +377,21 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 }
 
-function Legend({ tab, date }: { tab: Tab; date: number }) {
+function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView: ImpactView }) {
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
   return (
     <details className="legend" open={open}>
       <summary className="legend-title">Sites on {formatShort(date)}</summary>
-      <div className="legend-row"><i className="swatch high" />High disruption</div>
-      <div className="legend-row"><i className="swatch medium" />Medium</div>
-      <div className="legend-row"><i className="swatch low" />Low</div>
+      {impactView === 'bands' ? (
+        <>
+          <div className="legend-row"><i className="swatch high" />High disruption</div>
+          <div className="legend-row"><i className="swatch medium" />Medium</div>
+          <div className="legend-row"><i className="swatch low" />Low</div>
+        </>
+      ) : (
+        <div className="legend-row"><i className="ramp impact" />{impactView === 'heat' ? 'Disruption heat (zoom in for sites)' : 'Faint = low, solid = high disruption'}</div>
+      )}
       <div className="legend-row"><i className="swatch later" />Starts within 30 days</div>
       {tab === 'coordinate' && (
         <>
@@ -374,6 +401,7 @@ function Legend({ tab, date }: { tab: Tab; date: number }) {
       )}
       {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>To do item</div>}
       {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Rank to speed up</div>}
+      {tab === 'capacity' && <div className="legend-row"><i className="ramp" />Road load: 0 → 125% (top colour = full)</div>}
       {tab === 'transit' && (
         <>
           <div className="legend-row"><i className="ramp" />Transit need per resident</div>
