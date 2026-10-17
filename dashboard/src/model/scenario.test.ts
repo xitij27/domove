@@ -8,6 +8,7 @@ const start = toDay('2026-11-02');
 const scenario: Scenario = {
   shifts: { a: [14, 14], b: [0, -10] },
   added: [{ id: 'h1', name: 'Kanal Hörde', kind: 'full', center: [7.49, 51.48], radius: 40, start, days: 30 }],
+  settings: { 'reach.rail': 800, 'weight.half': 0.45 },
 };
 
 describe('scenario link', () => {
@@ -25,10 +26,11 @@ describe('scenario link', () => {
         { ...scenario.added[0], center: [13.4, 52.5] },
         { ...scenario.added[0], id: 'fine', name: '  ' },
       ],
+      settings: { 'reach.rail': 800, 'reach.fire': 99_999, 'capacity.maxLoss': 1, 'weight.full': 0.5, 'band.high': '0.7', nope: 1, toString: 1 },
     }));
-    expect(decodeScenario(evil)).toEqual({ shifts: { ok: [1, 1] }, added: [{ ...scenario.added[0], id: 'fine', name: 'Proposed project' }] });
-    expect(decodeScenario('not base64 at all!')).toEqual({ shifts: {}, added: [] });
-    expect(decodeScenario(btoa('null'))).toEqual({ shifts: {}, added: [] });
+    expect(decodeScenario(evil)).toEqual({ shifts: { ok: [1, 1] }, added: [{ ...scenario.added[0], id: 'fine', name: 'Proposed project' }], settings: { 'reach.rail': 800 } });
+    expect(decodeScenario('not base64 at all!')).toEqual({ shifts: {}, added: [], settings: {} });
+    expect(decodeScenario(btoa('null'))).toEqual({ shifts: {}, added: [], settings: {} });
   });
 });
 
@@ -42,7 +44,7 @@ describe('applyShifts', () => {
 
 describe('scenarioCsv', () => {
   it('lists a moved proposed project once, with its moved dates', () => {
-    const moved: Scenario = { shifts: { h1: [5, 5] }, added: [scenario.added[0]] };
+    const moved: Scenario = { shifts: { h1: [5, 5] }, added: [scenario.added[0]], settings: {} };
     const site = testSite('h1', 0, 0, start, start + 29, { hypothetical: true, title: 'Kanal Hörde' });
     const csv = scenarioCsv(moved, applyShifts([site], moved.shifts));
     const rows = csv.trim().split('\r\n');
@@ -55,7 +57,7 @@ describe('scenarioCsv', () => {
   it('writes semicolon rows and defuses formulas in feed text', () => {
     const site = testSite('a', 0, 0, start, start + 9, { title: '=HYPERLINK("http://x");Weg', owner: 'Stadt Dortmund' });
     const [shifted] = applyShifts([site], { a: [7, 7] });
-    const csv = scenarioCsv({ shifts: { a: [7, 7] }, added: [] }, [shifted]);
+    const csv = scenarioCsv({ shifts: { a: [7, 7] }, added: [], settings: {} }, [shifted]);
     const [header, row] = csv.slice(1).trim().split('\r\n');
     expect(csv.startsWith('﻿')).toBe(true);
     expect(header.split(';')).toHaveLength(11);

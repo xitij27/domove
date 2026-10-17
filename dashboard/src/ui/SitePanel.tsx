@@ -1,11 +1,14 @@
 import type { Conflict, Priority, WindowAdvice } from '../model/analysis';
-import { bandOf } from '../model/analysis';
 import { KIND_LABEL } from '../model/closures';
 import { formatDay, formatShort } from '../model/days';
 import type { Shift } from '../model/scenario';
 import { ROAD_LABEL } from '../model/sites';
 import type { Site } from '../model/sites';
+import { Derived } from './Derived';
 import { clashText, dayRange, metres, plural, shiftText } from './format';
+import { Info } from './Info';
+import { useSettings } from './useSettings';
+import { clashWorking, freedWorking, moveWorking, priorityWorking, severityWorking } from './working';
 
 type Props = {
   site: Site;
@@ -37,7 +40,7 @@ function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: n
           <span className={s.id === site.id ? 'gantt-label current' : 'gantt-label'} title={s.title}>{s.title}</span>
           <span className="gantt-track">
             <span
-              className={`gantt-bar ${bandOf(s.severity)}${s.id === site.id ? ' current' : ''}`}
+              className={`gantt-bar ${s.band}${s.id === site.id ? ' current' : ''}`}
               style={{ left: pct(s.start), width: `calc(${pct(s.end + 1)} - ${pct(s.start)})` }}
               title={dayRange(s.start, s.end)}
             />
@@ -51,6 +54,7 @@ function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: n
 }
 
 export function SitePanel({ site, byId, conflicts, priority, advice, shift, date, today, onShift, onSelect, onBack, onRemove }: Props) {
+  const cfg = useSettings();
   const started = site.baseStart <= today && !site.hypothetical;
   const moved = shift?.[0] ?? 0;
   const earlier = shift?.[1] ?? 0;
@@ -64,7 +68,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
       </button>
       <h2 className="site-title">{site.title}</h2>
       <div className="chips">
-        <span className={`chip band ${bandOf(site.severity)}`}><i className="swatch" />{BAND_LABEL[bandOf(site.severity)]}</span>
+        <Derived className={`chip band ${site.band}`} how={severityWorking(site, cfg)}><i className="swatch" />{BAND_LABEL[site.band]}</Derived>
         <span className="chip">{KIND_LABEL[site.kind]}</span>
         <span className="chip">{ROAD_LABEL[site.road]}{site.roadName ? ` · ${site.roadName}` : ''}</span>
         {site.daytimeOnly && <span className="chip">Daytime only</span>}
@@ -90,7 +94,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
             <>
               <h4>Best windows nearby</h4>
               <p className="muted">
-                Now: clashes {clashText(cur)} with serious works within 1 km
+                Now: clashes <Derived how={clashWorking(cur, cfg)}>{clashText(cur)}</Derived> with serious works within {metres(cfg['clash.radius'])}
                 {cur.holidayDays ? `, ${plural(cur.holidayDays, 'day')} in school holidays` : ''}.
               </p>
               {advice.options.length === 0 && <p className="ok">These dates are already the best within the next three months.</p>}
@@ -100,7 +104,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
                     <div>
                       <strong>{dayRange(o.start, o.end)}</strong> <span className="muted">({shiftText(o.shift)})</span>
                       <div className="muted">
-                        Clashes {clashText(o)}
+                        Clashes <Derived how={moveWorking(site, cur, o, cfg)}>{clashText(o)}</Derived>
                         {o.together > 0 ? ' · together with works on the same stretch' : ''}
                         {o.holidayDays ? ` · ${plural(o.holidayDays, 'day')} in school holidays` : ''}
                       </div>
@@ -129,10 +133,10 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
           )}
           {priority && (
             <>
-              <p><strong>#{priority.rank}</strong> of {priority.of} running sites to speed up on {formatDay(date)}.</p>
+              <p><Derived how={priorityWorking(priority.p, priority.rank, priority.of, cfg)}><strong>#{priority.rank}</strong></Derived> of {priority.of} running sites to speed up on {formatDay(date)}.</p>
               <div className="chips">{priority.p.reasons.map((r) => <span className="chip" key={r}>{r}</span>)}</div>
               {priority.p.freedOverlapDays > 0 && (
-                <p className="muted">Finishing two weeks earlier removes {plural(priority.p.freedOverlapDays, 'day')} of overlap with works nearby.</p>
+                <p className="muted">Finishing {cfg['priority.sooner']} days earlier removes <Derived how={freedWorking(priority.p, cfg)}>{plural(priority.p.freedOverlapDays, 'day')}</Derived> of overlap with works nearby.</p>
               )}
             </>
           )}
@@ -142,6 +146,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
       {conflicts.length > 0 && (
         <section className="block">
           <h3>Works that coincide</h3>
+          <Info>Distances run between the edges of the two works. Days count from today, only those on which both run. Works within {metres(cfg['together.radius'])} are on the same stretch.</Info>
           <MiniGantt site={site} others={overlapping} date={date} />
           <ul className="plain">
             {conflicts.map((c) => {
@@ -164,6 +169,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
 
       <section className="block">
         <h3>Ways around it</h3>
+        <Info>The nearest Stadtbahn stop, fire and rescue station and hospital in the city's open data, in a straight line from the edge of the works.</Info>
         <dl className="facts">
           <dt>Stadtbahn</dt><dd>{site.rail.name ? `${site.rail.name} (${site.rail.detail || 'stop'}), ${metres(site.rail.m)}` : '–'}</dd>
           <dt>Fire &amp; rescue</dt><dd>{site.fire.name ? `${site.fire.name}, ${metres(site.fire.m)}` : '–'}</dd>

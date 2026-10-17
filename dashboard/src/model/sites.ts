@@ -2,19 +2,20 @@
 // neighbours. Computed once per data load; only the dates change with the scenario.
 import type { MultiPolygon, Polygon } from 'geojson';
 import type { Poi, RawSite, Road } from '../data/sources';
-import { classifyClosures, isDaytimeOnly, KIND_WEIGHT, worstKind } from './closures';
+import { classifyClosures, isDaytimeOnly, worstKind } from './closures';
 import type { ClosureKind } from './closures';
 import { toDay } from './days';
 import { bboxGap, bboxOf, circle, dist, pointShapeDist, segDist, shapeOf, shapeShapeDist, toLonLat, toXY } from './geo';
 import type { BBox, LonLat, Shape, XY } from './geo';
+import { bandOf, DEFAULT_SETTINGS, SETTINGS } from './settings';
+import type { Band, Settings } from './settings';
 
 export type RoadClass = 'main' | 'secondary' | 'local';
-export const ROAD_WEIGHT: Record<RoadClass, number> = { main: 1, secondary: 0.6, local: 0.3 };
 export const ROAD_LABEL: Record<RoadClass, string> = { main: 'main road', secondary: 'through road', local: 'local street' };
-const MAIN_CLASSES = new Set(['Hauptverkehrstraße', 'Verbindungsstrasse zu BAB,B,L,K']);
+export const MAIN_CLASSES = new Set(['Hauptverkehrstraße', 'Verbindungsstrasse zu BAB,B,L,K']);
 
-/** Sites within this distance of each other share detours. */
-export const NEIGHBOUR_RADIUS = 1000;
+/** Neighbours are found once out to the furthest clash distance the settings allow; the views keep those within the chosen one. */
+export const NEIGHBOUR_RADIUS = SETTINGS['clash.radius'].max;
 // A site without a polygon counts as a circle this big, like the obstacles job's 55 m rule for centre points.
 const POINT_RADIUS = 25;
 // A road's centre line within this distance of a polygon runs through the site…
@@ -38,7 +39,9 @@ export type Site = {
   daytimeOnly: boolean;
   road: RoadClass;
   roadName: string;
+  /** Restriction weight × road weight, and the band that puts it in. */
   severity: number;
+  band: Band;
   /** As published; start > end when the feed gives a planned site no dates. */
   baseStart: number;
   baseEnd: number;
@@ -132,7 +135,6 @@ export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
     };
     const shape = shapeOf(geometry);
     const kinds = raw.kinds ?? classifyClosures(raw.title);
-    const kind = worstKind(kinds);
     const { road, roadName } = roadOf(shape, streetKey(raw.title), ctx.roads);
     const { start, end, openEnded } = datesOf(raw);
     return {
@@ -142,11 +144,10 @@ export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
       owner: raw.owner,
       district: raw.district,
       kinds,
-      kind,
+      ...weights(kinds, road, DEFAULT_SETTINGS),
       daytimeOnly: isDaytimeOnly(raw.title),
       road,
       roadName,
-      severity: KIND_WEIGHT[kind] * ROAD_WEIGHT[road],
       baseStart: start,
       baseEnd: end,
       start,
@@ -162,6 +163,15 @@ export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
     };
   });
 }
+
+function weights(kinds: ClosureKind[], road: RoadClass, s: Settings): Pick<Site, 'kind' | 'severity' | 'band'> {
+  const kind = worstKind(kinds, s);
+  const severity = s[`weight.${kind}`] * s[`road.${road}`];
+  return { kind, severity, band: bandOf(severity, s) };
+}
+
+/** The sites with their kind, severity and band under other weights; cheap, unlike building them. */
+export const weigh = (sites: Site[], s: Settings): Site[] => sites.map((site) => ({ ...site, ...weights(site.kinds, site.road, s) }));
 
 /** Every pair of sites within `radius` metres of each other, both ways round. */
 export function findNeighbours(sites: Site[], radius = NEIGHBOUR_RADIUS): Map<string, Neighbour[]> {
