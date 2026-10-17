@@ -12,9 +12,9 @@ export type MapHandle = {
   /** While navigating: tilts the map and puts `view.center` low on screen, the way ahead above it. */
   follow: (view: FollowView) => void;
 };
-export const POINT_NORTH_MS = 300;
+export const POINT_NORTH_MS = 500;
 export const STREET_ZOOM = 16;
-export const MOVE_MS = 400;
+export const MOVE_MS = 600;
 
 const SIZE = 48; // as wide as the day/night switch above it
 const NEEDLE = 10; // length of each half
