@@ -24,6 +24,9 @@ const STYLES: Record<Theme, string> = {
 const DORTMUND: LonLat = [7.4653, 51.5136];
 const FONT = ['Noto Sans Regular'];
 
+/** How the works are coloured: by band, by a smooth ramp on impact, or as a heat surface. */
+export type ImpactView = 'bands' | 'gradient' | 'heat';
+
 export type PoiKind = 'stop' | 'bike' | 'pr' | 'fire' | 'hospital';
 const POI_GLYPH: Record<PoiKind, string> = { stop: 'U', bike: 'B', pr: 'P', fire: 'F', hospital: 'H' };
 export type MapPoi = { kind: PoiKind; name: string; detail?: string; at: LonLat };
@@ -41,6 +44,7 @@ export type DistrictValue = { name: string; geometry: Polygon | MultiPolygon; va
 
 type Props = {
   theme: Theme;
+  impactView: ImpactView;
   sites: Site[];
   date: number;
   selectedId: string | null;
@@ -92,6 +96,16 @@ function addLayers(map: MlMap, p: Palette) {
   map.addLayer({ id: 'reach-fill', type: 'fill', source: 'reach', filter: ['==', ['get', 'role'], 'reach'], paint: { 'fill-color': p.accent, 'fill-opacity': 0.1 } });
   map.addLayer({ id: 'reach-line', type: 'line', source: 'reach', filter: ['==', ['get', 'role'], 'reach'], paint: { 'line-color': p.accent, 'line-width': 1.5 } });
   map.addLayer({ id: 'lost-fill', type: 'fill', source: 'reach', filter: ['==', ['get', 'role'], 'lost'], paint: { 'fill-color': p.critical, 'fill-opacity': 0.35 } });
+  map.addLayer({
+    id: 'site-heat', type: 'heatmap', source: 'site-points', filter: ['==', ['get', 'state'], 'active'], layout: { visibility: 'none' },
+    paint: {
+      'heatmap-weight': ['^', ['get', 'sev'], 2], // squared, so a full closure outweighs a pile of parking lanes
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 30, 13, 70, 15, 120],
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 2, 15, 4],
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, TRANSPARENT, 0.1, p.severity.low, 0.45, p.severity.medium, 0.9, p.severity.high],
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.9, 17, 0.3],
+    },
+  });
   map.addLayer({
     id: 'site-fill', type: 'fill', source: 'sites', minzoom: 12,
     paint: { 'fill-color': band, 'fill-opacity': ['match', ['get', 'state'], 'active', 0.55, 0.18] },
@@ -172,6 +186,28 @@ function addLayers(map: MlMap, p: Palette) {
     layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 10, 'text-allow-overlap': true, 'text-ignore-placement': true },
     paint: { 'text-color': p.surface },
   });
+}
+
+/** Repaints the works for the chosen view; the layers themselves are added once, in addLayers. */
+function applyImpactView(map: MlMap, p: Palette, view: ImpactView) {
+  const { low, medium, high } = p.severity;
+  const band: ExpressionSpecification = ['match', ['get', 'band'], 'high', high, 'medium', medium, low];
+  // gradient: one hue whose strength is the impact, so small works fade and big ones stand out
+  const color = view === 'bands' ? band : high;
+  const active: ExpressionSpecification = ['==', ['get', 'state'], 'active'];
+  const fillOpacity: ExpressionSpecification | number = view === 'bands'
+    ? ['match', ['get', 'state'], 'active', 0.55, 0.18]
+    : view === 'gradient'
+      ? ['case', active, ['+', 0.06, ['*', 0.9, ['get', 'sev']]], 0.05]
+      : 0.04; // heat: the surface carries the impact, the footprints just stay findable
+  map.setPaintProperty('site-fill', 'fill-color', color);
+  map.setPaintProperty('site-fill', 'fill-opacity', fillOpacity);
+  map.setPaintProperty('site-line', 'line-color', color);
+  map.setPaintProperty('site-line', 'line-opacity', view === 'gradient' ? ['+', 0.25, ['*', 0.75, ['get', 'sev']]] : 1);
+  map.setPaintProperty('site-line-later', 'line-color', color);
+  map.setPaintProperty('site-dot', 'circle-color', color);
+  map.setLayoutProperty('site-dot', 'visibility', view === 'heat' ? 'none' : 'visible');
+  map.setLayoutProperty('site-heat', 'visibility', view === 'heat' ? 'visible' : 'none');
 }
 
 function siteState(s: Site, date: number): 'active' | 'upcoming' | 'other' | null {
@@ -283,6 +319,10 @@ export function MapView(props: Props) {
     themeRef.current = props.theme;
     map.setStyle(STYLES[props.theme], { diff: false }); // a full reload fires style.load, which adds our layers back
   }, [props.theme]);
+
+  useEffect(() => {
+    if (mapRef.current?.getLayer('site-heat')) applyImpactView(mapRef.current, PALETTES[props.theme], props.impactView);
+  }, [props.impactView, props.theme, styleVersion]);
 
   const siteData = useMemo(
     () => siteCollections(props.sites, props.date, props.selectedId, props.highlightIds, props.ranks),

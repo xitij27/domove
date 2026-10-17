@@ -16,7 +16,7 @@ import { buildSites, findNeighbours, nearestRoad, prepareContext } from './model
 import { CoordinateTab } from './ui/CoordinateTab';
 import { plural } from './ui/format';
 import { MapView } from './ui/MapView';
-import type { MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
+import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
 import { PrioritiesTab } from './ui/PrioritiesTab';
 import { RoutesTab } from './ui/RoutesTab';
 import { SitePanel } from './ui/SitePanel';
@@ -29,6 +29,7 @@ import { TransitTab } from './ui/TransitTab';
 import { useScenario } from './ui/useScenario';
 
 type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'routes';
+const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['gradient', 'Gradient'], ['heat', 'Heat']];
 const TABS: [Tab, string][] = [['todo', 'To do'], ['coordinate', 'Coordinate'], ['priorities', 'Priorities'], ['transit', 'Transit'], ['routes', 'Routes']];
 const BACK = 30;
 const AHEAD = 365;
@@ -57,6 +58,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
   const [tab, setTab] = useState<Tab>('todo');
+  const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clusterId, setClusterId] = useState<string | null>(null);
   const [district, setDistrict] = useState<string | null>(null);
@@ -291,7 +293,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
       <div className="workspace">
         <section className="map-area">
           <MapView
-            theme={theme} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
+            theme={theme} impactView={impactView} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
             districts={districtValues} selectedDistrict={tab === 'transit' ? district : null} pois={pois}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
@@ -303,7 +305,12 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               {pick.hint} <button className="button" onClick={() => setPick(null)}>Cancel</button>
             </div>
           )}
-          <Legend tab={tab} date={date} />
+          <div className="map-tool" role="group" aria-label="Colour the works by">
+            {IMPACT_VIEWS.map(([id, label]) => (
+              <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{label}</button>
+            ))}
+          </div>
+          <Legend tab={tab} date={date} impactView={impactView} />
         </section>
         <aside className="panel">
           <nav className="tabs" role="tablist" aria-label="Planning views"
@@ -356,15 +363,21 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 }
 
-function Legend({ tab, date }: { tab: Tab; date: number }) {
+function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView: ImpactView }) {
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
   return (
     <details className="legend" open={open}>
       <summary className="legend-title">Sites on {formatShort(date)}</summary>
-      <div className="legend-row"><i className="swatch high" />High disruption</div>
-      <div className="legend-row"><i className="swatch medium" />Medium</div>
-      <div className="legend-row"><i className="swatch low" />Low</div>
+      {impactView === 'bands' ? (
+        <>
+          <div className="legend-row"><i className="swatch high" />High disruption</div>
+          <div className="legend-row"><i className="swatch medium" />Medium</div>
+          <div className="legend-row"><i className="swatch low" />Low</div>
+        </>
+      ) : (
+        <div className="legend-row"><i className="ramp impact" />{impactView === 'heat' ? 'Disruption heat (zoom in for sites)' : 'Faint = low, solid = high disruption'}</div>
+      )}
       <div className="legend-row"><i className="swatch later" />Starts within 30 days</div>
       {tab === 'coordinate' && (
         <>
