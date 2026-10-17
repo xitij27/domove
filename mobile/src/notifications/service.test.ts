@@ -5,7 +5,7 @@ const bridge: RouteObstacle = { routeId: 'r1', siteId: 's1', siteTitle: 'Bridge'
 const school: RouteObstacle = { routeId: 'r2', siteId: 's2', siteTitle: 'Park', destination: 'School', startsOn: '2026-10-30', endsOn: null };
 const week = { preference: 'ONE_WEEK_BEFORE', notificationTime: '09:00' } as const;
 
-function setup(allowed = true) {
+function setup(allowed = true, routeLink = jest.fn(async (routeId: string) => `https://www.google.com/maps/dir/?api=1&origin=${routeId}&destination=work`)) {
   let file: string | null = null;
   const storage = { read: () => file, write: (value: string) => { file = value; } };
   const clock = { now: new Date(2026, 9, 16, 8) };
@@ -23,8 +23,8 @@ function setup(allowed = true) {
     }),
     cancel: jest.fn(async (id) => { pending.splice(pending.findIndex((item) => item.id === id), 1); }),
   };
-  const create = () => createNotificationService(storage, driver, () => clock.now);
-  return { storage, clock, driver, scheduled, pending, create, service: create(), setFile: (value: string) => { file = value; } };
+  const create = () => createNotificationService(storage, driver, () => clock.now, routeLink);
+  return { storage, clock, driver, routeLink, scheduled, pending, create, service: create(), setFile: (value: string) => { file = value; } };
 }
 
 test('settings default to disabled and are kept per route across restarts', async () => {
@@ -46,7 +46,10 @@ test('only routes with alerts on get a reminder, and only once across syncs and 
   await ctx.create().sync([bridge, school]);
   expect(ctx.scheduled).toHaveLength(1);
   expect(ctx.scheduled[0].date).toEqual(new Date(2026, 9, 23, 9));
-  expect(ctx.scheduled[0].payload.siteId).toBe('s1');
+  expect(ctx.scheduled[0].payload).toMatchObject({
+    routeId: 'r1', siteId: 's1', googleMapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=r1&destination=work',
+  });
+  expect(ctx.routeLink).toHaveBeenCalledWith('r1');
 });
 
 test('changing the setting moves the reminder and disabling cancels it', async () => {

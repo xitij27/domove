@@ -31,15 +31,15 @@ export function reminderDate(obstacle: RouteObstacle, settings: RouteNotificatio
   return end && date.getTime() > end.getTime() ? null : date;
 }
 
-/** Wording from issue #4; the detour sentence waits for detour times from #12. */
+/** Wording for an alert that hands the route to Google Maps when tapped. */
 export function notificationContent(obstacle: RouteObstacle, now = new Date()) {
   const start = localDate(obstacle.startsOn, '00:00');
   const route = obstacle.destination ? `your Route to ${obstacle.destination}` : 'your Route';
   return {
     title: 'Construction on your route',
     body: start && start.getTime() > now.getTime()
-      ? `There will be a Construction Site at ${obstacle.siteTitle} on ${route} from ${start.toLocaleDateString()}. Tap here to see it.`
-      : `There is a Construction Site at ${obstacle.siteTitle} on ${route}. Tap here to see it.`,
+      ? `There will be a Construction Site at ${obstacle.siteTitle} on ${route} from ${start.toLocaleDateString()}. Tap to open the route in Google Maps.`
+      : `There is a Construction Site at ${obstacle.siteTitle} on ${route}. Tap to open the route in Google Maps.`,
   };
 }
 

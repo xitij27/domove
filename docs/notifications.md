@@ -33,17 +33,18 @@ Disabled, its pending reminder is cancelled. If the obstacle check fails
 (offline, backend down), the reminders scheduled last time stay as they are.
 
 The alert reads: "There is a Construction Site at *site* on your Route to
-*destination*. Tap here to see it." Tapping it opens the construction map with
-that site's card.
+*destination*. Tap to open the route in Google Maps." Tapping it opens Google Maps
+with the alternative route (avoiding the construction site via waypoints), or the
+original route when no detour is needed (Issue #55).
+
+The route card on the map also includes an **Open in Google Maps** button on the
+detour summary row to forward to the selected alternative route or original route.
 
 ## Not yet
 
-- **Detour time.** Issue #4 asks for "Take a detour of __ minutes" and for the
-  detour with turn-by-turn steps on the route's map. Both need the detours from
-  route planning (#12). Until then the alert leaves the detour sentence out and
-  opens the site on the construction map, not on its route. There is no
-  hand-off to Google Maps (question 10 in
-  [route-planning-open-questions.md](route-planning-open-questions.md)).
+- **Detour time in notification text.** Issue #4 asks for "Take a detour of __ minutes"
+  in the alert text. Until then the alert notifies about the closure and hands off
+  the computed detour route directly to Google Maps.
 - **Alert times while a route is open.** The alerts row reads the phone's
   reminders when the route opens and after each change, not again when the app
   re-checks obstacles on returning to the foreground; reopen the route to see
@@ -106,10 +107,9 @@ time. There is no server push yet (see *Not yet* above).
 ## Run and test
 
 `expo-notifications` adds native code, so rebuild the development build
-(`npx expo run:android`) after pulling. In a development build, the opened
-alerts row has **Send test alert**, which sends the alert for the first known
-obstacle on that route in two seconds; tap it to check that the site's card
-opens.
+(`npx expo run:android`) after pulling. In a development build, the opened alerts row has **Send test alert**, which sends the alert for the first known
+obstacle on that route in two seconds; tap it to verify that Google Maps opens with
+the route.
 
 Automated checks, from `mobile/`: `npm test`, `npx tsc --noEmit`,
 `npm run lint`.

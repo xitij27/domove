@@ -33,9 +33,9 @@ test('local wall-clock time survives daylight-saving changes', () => {
   expect(reminderDate({ ...obstacle, startsOn: '2026-11-01', endsOn: null }, week, now)).toEqual(new Date(2026, 9, 25, 9));
 });
 
-test('the message follows issue #4 and says when future work starts', () => {
+test('the message says when future work starts and that tapping opens Google Maps', () => {
   expect(notificationContent(obstacle, now).body).toBe(
-    `There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from ${new Date(2026, 9, 30).toLocaleDateString()}. Tap here to see it.`);
+    `There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from ${new Date(2026, 9, 30).toLocaleDateString()}. Tap to open the route in Google Maps.`);
   expect(notificationContent({ ...obstacle, startsOn: '2026-10-01', destination: null }, now).body).toBe(
-    'There is a Construction Site at Hohe Straße on your Route. Tap here to see it.');
+    'There is a Construction Site at Hohe Straße on your Route. Tap to open the route in Google Maps.');
 });
