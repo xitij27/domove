@@ -36,6 +36,8 @@ it('never opens a site or navigates on a step where the route first appears, goi
   STEPS.forEach((step, i) => {
     const appears = step.scene.route && (!STEPS[i - 1]?.scene.route || !STEPS[i + 1]?.scene.route);
     if (appears) expect(step.scene.site || step.scene.navigate).toBeFalsy();
+    // a way is one of the shown route's
+    if (step.scene.way) expect(step.scene.route).toBe(true);
   });
   expect(ALERT_STEP).toBeGreaterThan(0);
 });

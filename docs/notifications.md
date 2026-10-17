@@ -77,15 +77,21 @@ The steps:
 2. **A site**: one of the route's sites, with its impact score. Tap "How
    scores work" yourself if you want to show it, since it covers the screen.
 3. **Your saved route**: only the sites on its way.
-4. **Alerts**: turns the route's alerts on, 1 day before. The route row and
+4. **Ways around construction**: the recommended way around the route's
+   construction, with up to two others drawn in grey (see
+   [routes.md](routes.md)). Finding them takes a few seconds after the route
+   opens.
+5. **Another way**: switches to the second way, once the ways are found. If
+   there is only one way, the route stays as it is.
+6. **Alerts**: turns the route's alerts on, 1 day before. The route row and
    the site card show when the alert comes.
-5. **The alert**: sends that site's alert in 10 seconds. Lock the phone, then
+7. **The alert**: sends that site's alert in 10 seconds. Lock the phone, then
    tap the alert when it arrives. This opens the site's card and moves the tour
-   on to step 6 by itself.
-6. **Opened from the alert**: the site the alert opened.
-7. **Navigation**: Start, with the map following you.
-8. **Weather**: the forecast card.
-9. **Quiz**: one question.
+   on to step 8 by itself.
+8. **Opened from the alert**: the site the alert opened.
+9. **Navigation**: Start, with the map following you.
+10. **Weather**: the forecast card.
+11. **Quiz**: one question.
 
 **Finish** or ✕ closes the route and puts back the route's alert choice from
 before the demo. If the tour stops (for example, Android closed the app while

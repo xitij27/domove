@@ -316,6 +316,12 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
     setDemo(null);
     applyScene(demo, {});
   };
+  // The ways around construction take seconds to find, so the step's way is picked when they arrive, too.
+  const demoWay = demo ? STEPS[demo.step].scene.way ?? 0 : null;
+  const chooseWay = onRoute?.choose;
+  useEffect(() => {
+    if (demoWay !== null && planned && demoWay < planned.plan.options.length) chooseWay?.(demoWay);
+  }, [demoWay, planned, chooseWay]);
   // The demo's card sits under the chips, however many lines they wrap onto.
   const [legendHeight, setLegendHeight] = useState(0);
 

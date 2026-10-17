@@ -9,6 +9,8 @@ export type Scene = {
   navigate?: boolean;
   forecast?: boolean;
   quiz?: boolean;
+  /** Which way along the route to show, once the ways around construction are found; the recommended one (0) if left out. */
+  way?: number;
   /** Run on entering the step: turn the route's alerts on, or send its alert in a few seconds. */
   action?: 'alerts' | 'send';
 };
@@ -34,6 +36,16 @@ export const STEPS: DemoStep[] = [
     title: 'Your saved route',
     text: 'A saved route shows only the construction on its way, and how much of it has high impact.',
     scene: { route: true },
+  },
+  {
+    title: 'Ways around construction',
+    text: 'The app plans the best way around that construction: the card says how long it takes and what it avoids. Up to two other ways are drawn in grey.',
+    scene: { route: true },
+  },
+  {
+    title: 'Another way',
+    text: 'Tapping a grey line, or its button on the card, picks that way instead. Start then follows it.',
+    scene: { route: true, way: 1 },
   },
   {
     title: 'Alerts',
