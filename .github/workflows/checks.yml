@@ -65,6 +65,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Supabase keys migrations by the number before the first underscore, so two
+      # branches that pick the same one pass alone and break main once both merge.
+      - name: Check that no two migrations share a version
+        working-directory: backend/supabase/migrations
+        run: |
+          dupes=$(ls *.sql | cut -d_ -f1 | sort | uniq -d)
+          for v in $dupes; do
+            echo "::error::Migrations share version $v: $(echo ${v}_*.sql). Rename the newer one."
+          done
+          [ -z "$dupes" ]
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
