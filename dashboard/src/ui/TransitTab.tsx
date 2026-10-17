@@ -1,9 +1,12 @@
 import type { DistrictGap, StopPressure } from '../model/analysis';
-import { poisNear } from '../model/analysis';
+import { PER_RESIDENTS, poisNear } from '../model/analysis';
 import type { Poi } from '../data/sources';
 import { formatDay } from '../model/days';
-import { metres, plural, shortTitle } from './format';
+import { Derived } from './Derived';
+import { metres, num, plural, shortTitle } from './format';
 import { Info } from './Info';
+import { useSettings } from './useSettings';
+import { transitWorking } from './working';
 
 type Props = {
   gaps: DistrictGap[];
@@ -18,6 +21,7 @@ type Props = {
 };
 
 function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: DistrictGap } & Pick<Props, 'pressure' | 'bikes' | 'parkRide' | 'onSelectSite'>) {
+  const cfg = useSettings();
   const worst = gap.uncoveredSites[0];
   const stops = pressure.filter((p) => p.stop.district === gap.district);
   const nearBikes = poisNear(bikes, gap.uncoveredSites, 400);
@@ -33,7 +37,7 @@ function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: Distri
       <li key="dsw">Agree bus diversions with DSW21 for {plural(gap.mainRoadSites.length, 'closure')} on main roads: {gap.mainRoadSites.map((s) => shortTitle(s.title)).join(', ')}.</li>
     ),
     ...stops.map((p) => (
-      <li key={p.stop.name}>Expect extra riders at {p.stop.name}{p.stop.detail ? ` (${p.stop.detail})` : ''}: {plural(p.sites.length, 'serious closure')} within 500 m.</li>
+      <li key={p.stop.name}>Expect extra riders at {p.stop.name}{p.stop.detail ? ` (${p.stop.detail})` : ''}: {plural(p.sites.length, 'serious closure')} within {metres(cfg['stop.radius'])}.</li>
     )),
     nearBikes.length > 0 && <li key="bike">Promote bike share: {plural(nearBikes.length, 'station')} within 400 m of the affected streets.</li>,
     pr.length > 0 && <li key="pr">Point car commuters to {pr.map((p) => p.name).join(', ')}.</li>,
@@ -42,6 +46,7 @@ function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: Distri
 }
 
 export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYear, selected, onSelect, onSelectSite }: Props) {
+  const cfg = useSettings();
   const max = Math.max(...gaps.map((g) => g.score), 0.01);
   const gap = gaps.find((g) => g.district === selected);
   return (
@@ -49,19 +54,20 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
       <section className="block">
         <h3>Where transit needs attention</h3>
         <Info>
-          The bar weighs closures with no Stadtbahn stop within 600 m, plus half the weight of closures on main roads where buses run,
-          by how disruptive they are, per 10,000 residents ({residentsYear || 'latest'} population), from {formatDay(date)} for 30 days.
+          The bar weighs closures with no Stadtbahn stop within {metres(cfg['reach.rail'])}, plus {num(cfg['transit.mainRoadShare'])} × the weight of
+          closures on main roads where buses run, by how disruptive they are, per {PER_RESIDENTS.toLocaleString('en-GB')} residents
+          ({residentsYear || 'latest'} population), from {formatDay(date)} for {cfg['transit.days']} days.
           The number is how many closures are far from the Stadtbahn.
         </Info>
         <div className="bar-head muted small" aria-hidden="true"><span>District</span><span>Need per resident</span><span>Far from rail</span></div>
         <ul className="bars" aria-label="Districts by transit need">
           {gaps.map((g) => (
-            <li key={g.district}>
-              <button className={g.district === selected ? 'bar-row selected' : 'bar-row'} onClick={() => onSelect(g.district === selected ? null : g.district)} aria-pressed={g.district === selected}>
+            <li key={g.district} className={g.district === selected ? 'bar-row selected' : 'bar-row'}>
+              <button className="bar-pick" onClick={() => onSelect(g.district === selected ? null : g.district)} aria-pressed={g.district === selected}>
                 <span className="bar-label">{g.district}</span>
                 <span className="bar-track"><span className="bar" style={{ width: `${(g.score / max) * 100}%` }} /></span>
-                <span className="bar-value">{g.uncoveredSites.length}</span>
               </button>
+              <span className="bar-value"><Derived how={transitWorking(g, cfg)}>{g.uncoveredSites.length}</Derived></span>
             </li>
           ))}
         </ul>

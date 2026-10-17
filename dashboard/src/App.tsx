@@ -1,35 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useData } from './data/useData';
 import type { Dataset } from './data/useData';
-import type { Poi } from './data/sources';
 import {
-  adviseClusters, bestWindows, clusterConflicts, dailyLoad, findConflicts, isActive, priorities, programmeBalance, stopsUnderPressure,
-  todoList, transitGaps,
+  adviseClusters, bestWindows, clusterConflicts, dailyLoad, findConflicts, isActive, priorities, programmeBalance, stopsUnderPressure, todoList,
+  transitGaps,
 } from './model/analysis';
 import type { DayRange } from './model/analysis';
-import { formatDay, formatShort, isoDay, toDay } from './model/days';
-import { berlinToday, buildEvidence, outlook, potentialConflicts, validLonLat } from './model/outlook';
-import { impactAssessment } from './model/impact';
-import type { ImpactTarget } from './model/impact';
-import type { OutlookDays } from './model/outlook';
+import { formatDay, formatShort, isoDay, localToday, toDay } from './model/days';
 import { bboxOf, shapeOf, toLonLat, toXY } from './model/geo';
 import type { BBox, LonLat } from './model/geo';
-import { DEFAULT_PARAMS, LOAD_SCALE, roadCapacity, simulate } from './model/capacity';
-import { applyShifts, changeCount, EMPTY_SCENARIO, hypotheticalInput, isEmpty, scenarioCsv } from './model/scenario';
+import { DEFAULT_PARAMS, laneKm, LOAD_SCALE, roadKm, simulate } from './model/capacity';
+import { applyShifts, changeCount, EMPTY_SCENARIO, hypotheticalInput, scenarioCsv } from './model/scenario';
 import type { HypotheticalSite, Shift } from './model/scenario';
-import { buildSites, findNeighbours, nearestRoad, prepareContext } from './model/sites';
+import { DEFAULT_SETTINGS } from './model/settings';
+import type { Band, SettingKey, Settings } from './model/settings';
+import { buildSites, findNeighbours, nearestRoad, prepareContext, weigh } from './model/sites';
 import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
-import { OutlookPanel } from './ui/OutlookPanel';
-import { trafficContext } from './model/trafficContext';
-import { TrafficContextPanel } from './ui/TrafficContextPanel';
-import { ImpactScorePanel } from './ui/ImpactScorePanel';
-import { plural } from './ui/format';
+import { Derived } from './ui/Derived';
+import { dayRange, metres, num, one, plural, signed } from './ui/format';
 import { MapView } from './ui/MapView';
 import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
 import { PrioritiesTab } from './ui/PrioritiesTab';
 import { RoutesTab } from './ui/RoutesTab';
+import { SettingsPanel } from './ui/SettingsPanel';
 import { SitePanel } from './ui/SitePanel';
 import { Summary } from './ui/Summary';
 import type { Stat } from './ui/Summary';
@@ -38,6 +33,7 @@ import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
 import { useScenario } from './ui/useScenario';
+import { SettingsContext } from './ui/useSettings';
 
 type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'capacity' | 'routes';
 const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['heat', 'Heat']];
@@ -46,7 +42,7 @@ const BACK = 30;
 const AHEAD = 365;
 
 export default function App() {
-  const [today] = useState(berlinToday);
+  const [today] = useState(localToday);
   const { state, retry } = useData(today);
   if (state.status === 'loading') return <Splash loading><p>Loading Dortmund's construction sites and open data…</p></Splash>;
   if (state.status === 'failed') {
@@ -68,14 +64,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const theme = useTheme();
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
-  const [outlookDays, setOutlookDays] = useState<OutlookDays>(7);
-  const [outlookMap, setOutlookMap] = useState(true);
-  const [impactTarget, setImpactTarget] = useState<ImpactTarget>('public');
-  const [businessLocations, setBusinessLocations] = useState<Poi[]>([]);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('todo');
   const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [clusterId, setClusterId] = useState<string | null>(null);
   const [district, setDistrict] = useState<string | null>(null);
   const [pick, setPick] = useState<{ hint: string; done: (at: LonLat) => void } | null>(null);
@@ -88,17 +80,16 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
 
   const ctx = useMemo(() => prepareContext(data), [data]);
   const districtShapes = useMemo(() => data.districts.map((d) => ({ name: d.name, shape: shapeOf(d.geometry) })), [data.districts]);
-  const baseSites = useMemo(
+  const builtSites = useMemo(
     () => buildSites([...data.raw, ...scenario.added.map((h) => hypotheticalInput(h, districtShapes))], ctx),
     [data.raw, scenario.added, districtShapes, ctx],
   );
-  const neighbours = useMemo(() => findNeighbours(baseSites), [baseSites]);
+  // the planner's settings over the defaults; deferred so a slider stays smooth while everything recomputes behind it
+  const settings = useMemo(() => ({ ...DEFAULT_SETTINGS, ...scenario.settings }), [scenario.settings]);
+  const cfg = useDeferredValue(settings);
+  const baseSites = useMemo(() => weigh(builtSites, cfg), [builtSites, cfg]);
+  const neighbours = useMemo(() => findNeighbours(builtSites), [builtSites]);
   const sites = useMemo(() => applyShifts(baseSites, scenario.shifts), [baseSites, scenario.shifts]);
-  const evidence = useMemo(() => buildEvidence([
-    ...data.raw, ...scenario.added.map((h) => hypotheticalInput(h, districtShapes)),
-  ], sites), [data.raw, scenario.added, districtShapes, sites]);
-  const analyticsConflicts = useMemo(() => potentialConflicts(evidence), [evidence]);
-  const outlookResult = useMemo(() => outlook(evidence, date, outlookDays, 250, analyticsConflicts), [evidence, date, outlookDays, analyticsConflicts]);
   const byId = useMemo(() => new Map(sites.map((s) => [s.id, s])), [sites]);
   const published = useMemo(() => baseSites.filter((s) => !s.hypothetical), [baseSites]);
   const horizon = useMemo(() => {
@@ -109,48 +100,43 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const holidayRanges = useMemo(() => holidays.map((h): DayRange => [h.start, h.end]), [holidays]);
 
   const load = useMemo(() => dailyLoad(sites, from, to), [sites, from, to]);
-  const publishedLoad = useMemo(() => (isEmpty(scenario) ? null : dailyLoad(published, from, to)), [scenario, published, from, to]);
-  const conflicts = useMemo(() => findConflicts(sites, neighbours, today, to), [sites, neighbours, today, to]);
-  const publishedConflicts = useMemo(() => findConflicts(published, neighbours, today, to), [published, neighbours, today, to]);
-  const clusters = useMemo(() => clusterConflicts(conflicts), [conflicts]);
+  // the published plans under the same settings, so the comparison shows only what the moves and new projects change
+  const publishedLoad = useMemo(() => (changeCount(scenario) ? dailyLoad(published, from, to) : null), [scenario, published, from, to]);
+  const conflicts = useMemo(() => findConflicts(sites, neighbours, today, to, cfg), [sites, neighbours, today, to, cfg]);
+  const publishedConflicts = useMemo(() => findConflicts(published, neighbours, today, to, cfg), [published, neighbours, today, to, cfg]);
+  const clusters = useMemo(() => clusterConflicts(conflicts, cfg), [conflicts, cfg]);
   const bundles = useMemo(() => conflicts.filter((c) => c.type === 'bundle'), [conflicts]);
   const advice = useMemo(
-    () => adviseClusters(clusters, byId, sites, neighbours, holidayRanges, today, horizon),
-    [clusters, byId, sites, neighbours, holidayRanges, today, horizon],
+    () => adviseClusters(clusters, byId, sites, neighbours, holidayRanges, today, horizon, cfg),
+    [clusters, byId, sites, neighbours, holidayRanges, today, horizon, cfg],
   );
-  const ranked = useMemo(() => priorities(sites, neighbours, date), [sites, neighbours, date]);
-  const roadLaneKm = useMemo(() => roadCapacity(data.roads, districtShapes), [data.roads, districtShapes]);
+  const ranked = useMemo(() => priorities(sites, neighbours, date, cfg), [sites, neighbours, date, cfg]);
+  const districtRoadKm = useMemo(() => roadKm(data.roads, districtShapes), [data.roads, districtShapes]);
+  const roadLaneKm = useMemo(() => laneKm(districtRoadKm, cfg), [districtRoadKm, cfg]);
   const [capacityParams, setCapacityParams] = useState(DEFAULT_PARAMS);
   const capacityResult = useMemo(
-    () => simulate(sites, roadLaneKm, data.residents, date, capacityParams),
-    [sites, roadLaneKm, data.residents, date, capacityParams],
+    () => simulate(sites, roadLaneKm, data.residents, date, capacityParams, cfg),
+    [sites, roadLaneKm, data.residents, date, capacityParams, cfg],
   );
-  const gaps = useMemo(() => transitGaps(sites, data.residents, date), [sites, data.residents, date]);
-  const pressure = useMemo(() => stopsUnderPressure(sites, data.stops, date), [sites, data.stops, date]);
+  const gaps = useMemo(() => transitGaps(sites, data.residents, date, cfg), [sites, data.residents, date, cfg]);
+  const pressure = useMemo(() => stopsUnderPressure(sites, data.stops, date, cfg), [sites, data.stops, date, cfg]);
   const todo = useMemo(() => todoList(clusters, advice, bundles, byId, gaps, today), [clusters, advice, bundles, byId, gaps, today]);
   const balance = useMemo(
-    () => (data.programme.length ? programmeBalance(data.programme, data.districts.map((d) => d.name)) : null),
-    [data.programme, data.districts],
+    () => (data.programme.length ? programmeBalance(data.programme, data.districts.map((d) => d.name), cfg) : null),
+    [data.programme, data.districts, cfg],
   );
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
-  const selectedEvidence = evidence.find((p) => p.id === selectedId);
-  const assessment = useMemo(() => selected && selectedEvidence ? impactAssessment(selected, selectedEvidence,
-    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget) : null,
-  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations]);
-  const selectedTraffic = useMemo(() => selected && selectedEvidence ? trafficContext(selected, selectedEvidence,
-    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts) : null,
-  [selected, selectedEvidence, data, analyticsConflicts]);
   const selectedConflicts = useMemo(() => (selected ? conflicts.filter((c) => c.a === selected.id || c.b === selected.id) : []), [selected, conflicts]);
   const siteAdvice = useMemo(() => (
     selected && (selected.hypothetical || selected.baseStart > today)
-      ? bestWindows(selected, sites, neighbours.get(selected.id) ?? [], holidayRanges, today, horizon)
+      ? bestWindows(selected, sites, neighbours.get(selected.id) ?? [], holidayRanges, today, horizon, cfg)
       : null
-  ), [selected, sites, neighbours, holidayRanges, today, horizon]);
+  ), [selected, sites, neighbours, holidayRanges, today, horizon, cfg]);
 
   useEffect(() => {
     panelBody.current?.scrollTo({ top: 0 });
-  }, [tab, selectedId]);
+  }, [tab, selectedId, settingsOpen]);
 
   useEffect(() => {
     if (!pick) return;
@@ -163,6 +149,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const s = byId.get(id);
     if (!s) return;
     setSelectedId(id);
+    setSettingsOpen(false);
     setFocus({ bounds: toBounds([s.shape.bbox]) });
   };
   const selectCluster = (id: string | null) => {
@@ -185,10 +172,18 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const switchTab = (id: Tab) => {
     setTab(id);
     setSelectedId(null);
+    setSettingsOpen(false);
     // frame what the tab is about: the ranked sites, or the whole city for the district comparison
     const boxes = id === 'priorities' ? ranked.slice(0, 10).map((p) => p.site.shape.bbox) : id === 'transit' || id === 'capacity' ? districtShapes.map((d) => d.shape.bbox) : [];
     if (boxes.length) setFocus({ bounds: toBounds(boxes) });
   };
+  // a setting back at its default leaves the scenario, so the link stays short and the count says what really differs
+  const setSetting = (key: SettingKey, value: number) => {
+    const next: Partial<Settings> = { ...scenario.settings, [key]: value };
+    if (value === DEFAULT_SETTINGS[key]) delete next[key];
+    setScenario({ ...scenario, settings: next });
+  };
+  const settingsChanged = Object.keys(scenario.settings).length;
   const setShift = (id: string, shift: Shift | null) => {
     const shifts = { ...scenario.shifts };
     if (shift) shifts[id] = shift;
@@ -204,7 +199,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const removeProject = (id: string) => {
     const shifts = { ...scenario.shifts };
     delete shifts[id];
-    setScenario({ shifts, added: scenario.added.filter((h) => h.id !== id) });
+    setScenario({ ...scenario, shifts, added: scenario.added.filter((h) => h.id !== id) });
     setSelectedId(null);
   };
 
@@ -214,22 +209,14 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const c = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     return c ? c.siteIds : [];
   }, [selected, selectedConflicts, tab, clusterId, clusters]);
-  const outlookPeriod = tab === 'coordinate' && outlookMap ? { from: outlookResult.from, to: outlookResult.to } : null;
-  const mapSites = useMemo(() => {
-    if (tab !== 'coordinate' || !outlookMap) return sites;
-    const ids = new Set([...outlookResult.active.map((p) => p.id), ...highlight]);
-    return sites.filter((s) => ids.has(s.id));
-  }, [tab, outlookMap, sites, outlookResult.active, highlight]);
   const links = useMemo((): MapLink[] => {
     const cluster = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     const list = selected ? selectedConflicts : cluster ? cluster.conflicts : tab === 'coordinate' ? bundles : [];
-    const displayedIds = new Set(mapSites.map((s) => s.id));
     return list.flatMap((c) => {
-      if (!displayedIds.has(c.a) || !displayedIds.has(c.b)) return [];
       const [a, b] = [byId.get(c.a), byId.get(c.b)];
       return a && b ? [{ from: a.center, to: b.center, type: c.type }] : [];
     });
-  }, [selected, selectedConflicts, tab, clusterId, clusters, bundles, byId, mapSites]);
+  }, [selected, selectedConflicts, tab, clusterId, clusters, bundles, byId]);
   const ranks = useMemo(() => {
     if (tab === 'priorities') return new Map(ranked.slice(0, 10).map((p, i) => [p.site.id, i + 1]));
     if (tab !== 'todo') return null;
@@ -260,26 +247,46 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
 
   const stats = useMemo((): Stat[] => {
     const at = load[date - from];
-    const window = load.slice(Math.max(0, date - from - 15), date - from + 16).map((p) => p.total).sort((a, b) => a - b);
-    const vsUsual = at.total / (window[Math.floor(window.length / 2)] || 1) - 1;
+    const month = load.slice(Math.max(0, date - from - 15), date - from + 16);
+    const usual = month.map((p) => p.total).sort((a, b) => a - b)[Math.floor(month.length / 2)];
+    const vsUsual = at.total / (usual || 1) - 1;
+    const inBand = (b: Band) => plural(active.filter((s) => s.band === b).length, 'site');
     return [
       {
         value: String(active.length), label: 'active sites',
-        about: `${active.filter((s) => s.kind === 'full').length} full closures, ${active.filter((s) => s.road === 'main').length} on main roads`,
+        how: [
+          ['Counted', `every site whose dates include ${formatDay(date)}`],
+          ['Full closures', String(active.filter((s) => s.kind === 'full').length)],
+          ['On main roads', String(active.filter((s) => s.road === 'main').length)],
+        ],
       },
       {
         value: String(Math.round(at.total)), label: 'disruption points',
-        about: '1 point = a full closure on a main road; lighter restrictions and side streets count less. Usual = the middle value of the month around this day.',
+        how: [
+          ['1 point', 'a full closure on a main road; each site counts its severity, restriction weight × road weight'],
+          ['High', `${inBand('high')} of severity ${num(cfg['band.high'])}+: ${one(at.high)}`],
+          ['Medium', `${inBand('medium')} of ${num(cfg['band.medium'])}–${num(cfg['band.high'])}: ${one(at.medium)}`],
+          ['Low', `${inBand('low')} below ${num(cfg['band.medium'])}: ${one(at.low)}`],
+          ['Usual', `${one(usual)}: the middle of the daily totals ${dayRange(month[0].day, month[month.length - 1].day)}`],
+          ['Against usual', `${one(at.total)} ÷ ${one(usual)} − 1 = ${signed(vsUsual)}; within 5% counts as usual`],
+        ],
         note: Math.abs(vsUsual) < 0.05
           ? { text: 'about usual' }
           : { text: `${Math.round(Math.abs(vsUsual) * 100)} % ${vsUsual > 0 ? 'above' : 'below'} usual`, tone: vsUsual > 0 ? 'bad' : 'good' },
       },
-      { value: String(clusters.length), label: 'clashes ahead', about: 'Groups of serious works within 400 m of each other running at the same time, over the coming year' },
+      {
+        value: String(clusters.length), label: 'clashes ahead',
+        how: [
+          ['Clash', `works of severity ${num(cfg['cluster.minSeverity'])}+ within ${metres(cfg['cluster.radius'])} of each other on the same days, linked into groups`],
+          ['Looking at', dayRange(today, to)],
+          ['In them', `${plural(new Set(clusters.flatMap((c) => c.siteIds)).size, 'site')}, ${plural(clusters.reduce((n, c) => n + c.conflicts.length, 0), 'overlapping pair')}`],
+        ],
+      },
     ];
-  }, [load, date, from, clusters, active]);
+  }, [load, date, from, clusters, active, today, to, cfg]);
   // the scenario against the published plans, in things a planner can count
-  const publishedClusters = useMemo(() => clusterConflicts(publishedConflicts).length, [publishedConflicts]);
-  const busiest = (pts: typeof load) => Math.round(Math.max(...pts.slice(BACK).map((p) => p.total)));
+  const publishedClusters = useMemo(() => clusterConflicts(publishedConflicts, cfg).length, [publishedConflicts, cfg]);
+  const busiest = (pts: typeof load) => pts.slice(BACK).reduce((a, b) => (b.total > a.total ? b : a));
 
   const changes = changeCount(scenario);
   const orphaned = Object.keys(scenario.shifts).filter((id) => !byId.has(id)).length;
@@ -306,40 +313,63 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const draftPlace = draft ? (near && near.m <= 40 ? `On ${near.name}` : `At ${draft[1].toFixed(4)}° N, ${draft[0].toFixed(4)}° E`) : '';
 
   return (
+    <SettingsContext value={cfg}>
     <div className="app">
       <header className="topbar">
         <div className="header-main">
-          <div className="brand"><img src="/domovelogo.png" alt="do.move" /></div>
+          <div className="brand">
+            <img src="/domovelogo.png" alt="do.move" />
+            <span className="beta" title="Early version: the weights behind the figures are judgement calls">Beta</span>
+          </div>
           <div className="date-control" aria-label="Day shown">
             <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
             <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
             <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
             {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
           </div>
-          <div className="theme-choice" role="group" aria-label="Colour theme">
-            <button type="button" aria-label="Light mode" title="Light mode" aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          <div className="header-tools">
+            <div className="theme-choice" role="group" aria-label="Colour theme">
+              <button type="button" aria-label="Light mode" title="Light mode" aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                </svg>
+              </button>
+              <button type="button" aria-label="Dark mode" title="Dark mode" aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+                </svg>
+              </button>
+            </div>
+            <button
+              type="button" className="settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+              aria-label={settingsChanged ? `Settings, ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+              title={settingsChanged ? `Settings: ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
-            </button>
-            <button type="button" aria-label="Dark mode" title="Dark mode" aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
-                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
-              </svg>
+              {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
             </button>
           </div>
         </div>
         <div className="header-context">
           <Summary items={stats} />
           <div className="scenario">
-            {changes ? (
+            {changes || settingsChanged ? (
               <>
                 <div className="scenario-details">
-                  <strong>{plural(changes, 'change')}</strong>
+                  {changes > 0 && <strong>{plural(changes, 'change')}</strong>}
                   {publishedLoad && (
-                    <span className="muted" title="Published plans → your scenario">
-                      clashes {publishedClusters} → {clusters.length} · busiest day {busiest(publishedLoad)} → {busiest(load)} points
+                    <span className="muted">
+                      <Derived how={[
+                        ['Published plans', `${plural(publishedClusters, 'clash', 'clashes')}; busiest day ${formatShort(busiest(publishedLoad).day)}, ${one(busiest(publishedLoad).total)} points`],
+                        ['Your scenario', `${plural(clusters.length, 'clash', 'clashes')}; busiest day ${formatShort(busiest(load).day)}, ${one(busiest(load).total)} points`],
+                        ['Busiest day', `of ${dayRange(today, to)}`],
+                      ]}>
+                        clashes {publishedClusters} → {clusters.length} · busiest day {Math.round(busiest(publishedLoad).total)} → {Math.round(busiest(load).total)} points
+                      </Derived>
                     </span>
                   )}
                   {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
@@ -358,8 +388,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
       <div className="workspace">
         <section className="map-area">
           <MapView
-            theme={theme} impactView={impactView} sites={mapSites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
-            outlookProjects={outlookPeriod ? outlookResult.active : undefined}
+            theme={theme} impactView={impactView} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
             districts={districtValues} districtMax={tab === 'capacity' ? LOAD_SCALE : undefined} selectedDistrict={tab === 'transit' || tab === 'capacity' ? district : null} pois={pois}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
@@ -376,7 +405,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{label}</button>
             ))}
           </div>
-          <Legend tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
+          <Legend tab={tab} date={date} impactView={impactView} />
         </section>
         <aside className="panel">
           <nav className="tabs" role="tablist" aria-label="Planning views"
@@ -387,35 +416,22 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             ))}
           </nav>
           <div className="panel-body" ref={panelBody}>
-            {selected && (
-              <>
+            {settingsOpen && (
+              <SettingsPanel settings={settings} changed={settingsChanged} onChange={setSetting}
+                onReset={() => setScenario({ ...scenario, settings: {} })} onBack={() => setSettingsOpen(false)} />
+            )}
+            {selected && !settingsOpen && (
               <SitePanel
                 key={selected.id} site={selected} byId={byId} conflicts={selectedConflicts} advice={siteAdvice} shift={scenario.shifts[selected.id]} date={date} today={today}
                 priority={(() => { const i = ranked.findIndex((p) => p.site.id === selected.id); return i >= 0 ? { rank: i + 1, of: ranked.length, p: ranked[i] } : null; })()}
                 onShift={(s) => setShift(selected.id, s)} onSelect={selectSite} onBack={() => setSelectedId(null)} onRemove={() => removeProject(selected.id)}
               />
-              <ImpactScorePanel assessment={assessment} target={impactTarget} locations={businessLocations} scenario={!isEmpty(scenario)}
-                locationError={locationError} onTarget={(target) => { setImpactTarget(target); setLocationError(null); }}
-                onAdd={() => {
-                  setLocationError(null);
-                  setPick({ hint: 'Click a business location in Dortmund (Escape to cancel)', done: (at) => {
-                    if (!validLonLat(at)) { setLocationError('Choose a location within the Dortmund study area.'); return; }
-                    setBusinessLocations((items) => [...items, { name: `Business location ${items.length + 1}`, detail: 'Selected in this browser tab', district: '', at }]);
-                  } });
-                }}
-                onRename={(index, name) => setBusinessLocations((items) => items.map((p, i) => i === index ? { ...p, name } : p))}
-                onRemove={(index) => setBusinessLocations((items) => items.filter((_, i) => i !== index))} />
-              <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} scenario={!isEmpty(scenario)} />
-              </>
             )}
-            <div hidden={!!selected || tab !== 'todo'}>
-              <TodoTab todo={todo} horizon={horizon} onSelectSite={selectSite} onShift={setShift}
+            <div hidden={!!selected || settingsOpen || tab !== 'todo'}>
+              <TodoTab todo={todo} byId={byId} horizon={horizon} onSelectSite={selectSite} onShift={setShift}
                 onOpenDistrict={(name) => { switchTab('transit'); selectDistrict(name); }} />
             </div>
-            <div hidden={!!selected || tab !== 'coordinate'}>
-              <OutlookPanel result={outlookResult} days={outlookDays} byId={byId} mapFiltered={outlookMap}
-                retrievedAt={data.retrievedAt} scenario={!isEmpty(scenario)} onSelect={selectSite}
-                onDays={(days) => { setOutlookDays(days); setOutlookMap(true); }} onMapFilter={setOutlookMap} />
+            <div hidden={!!selected || settingsOpen || tab !== 'coordinate'}>
               <CoordinateTab
                 byId={byId} clusters={clusters} advice={advice} bundles={bundles} today={today} horizon={horizon}
                 selectedCluster={clusterId} onSelectCluster={selectCluster} onSelectSite={selectSite} onShift={setShift} balance={balance}
@@ -424,38 +440,39 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 onAdd={addProject} onCancelDraft={() => setDraft(null)}
               />
             </div>
-            <div hidden={!!selected || tab !== 'priorities'}>
+            <div hidden={!!selected || settingsOpen || tab !== 'priorities'}>
               <PrioritiesTab priorities={ranked} date={date} onSelectSite={selectSite} />
             </div>
-            <div hidden={!!selected || tab !== 'capacity'}>
+            <div hidden={!!selected || settingsOpen || tab !== 'capacity'}>
               <CapacityTab result={capacityResult} params={capacityParams} date={date} selected={district} onParams={setCapacityParams}
                 onSelect={selectDistrict} onSelectSite={selectSite} />
             </div>
-            <div hidden={!!selected || tab !== 'transit'}>
+            <div hidden={!!selected || settingsOpen || tab !== 'transit'}>
               <TransitTab gaps={gaps} pressure={pressure} bikes={data.bikes} parkRide={data.parkRide} date={date} residentsYear={data.residentsYear}
                 selected={district} onSelect={selectDistrict} onSelectSite={selectSite} />
             </div>
-            <div hidden={!!selected || tab !== 'routes'}>
+            <div hidden={!!selected || settingsOpen || tab !== 'routes'}>
               <RoutesTab active={active} date={date} fire={data.fire} hospitals={data.hospitals} parkRide={data.parkRide} districts={districtsWithResidents}
                 onOverlay={showOverlay} onPick={(hint, done) => setPick({ hint, done })} onSelectSite={selectSite} />
             </div>
           </div>
         </aside>
       </div>
-      <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} outlookPeriod={outlookPeriod} />
+      <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} />
       <footer className="footer muted">
         Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map © OpenStreetMap contributors, OpenFreeMap
       </footer>
     </div>
+    </SettingsContext>
   );
 }
 
-function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: number; impactView: ImpactView; outlookPeriod: { from: number; to: number } | null }) {
+function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView: ImpactView }) {
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
   return (
     <details className="legend" open={open}>
-      <summary className="legend-title">{outlookPeriod ? `Outlook ${formatShort(outlookPeriod.from)} – ${formatShort(outlookPeriod.to)}` : `Sites on ${formatShort(date)}`}</summary>
+      <summary className="legend-title">Sites on {formatShort(date)}</summary>
       {impactView === 'bands' ? (
         <>
           <div className="legend-row"><i className="swatch high" />High disruption</div>
@@ -465,7 +482,7 @@ function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: numb
       ) : (
         <div className="legend-row"><i className="ramp impact" />Disruption heat (zoom in for sites)</div>
       )}
-      <div className="legend-row"><i className="swatch later" />{outlookPeriod ? 'Starts within selected period' : 'Starts within 30 days'}</div>
+      <div className="legend-row"><i className="swatch later" />Starts within 30 days</div>
       {tab === 'coordinate' && (
         <>
           <div className="legend-row"><i className="key-line ink" />Running at the same time</div>
@@ -475,6 +492,7 @@ function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: numb
       {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>Matches the number in the To do list</div>}
       {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Priority rank (1 = finish first)</div>}
       {tab === 'capacity' && <div className="legend-row"><i className="ramp" />Road load: 0 → 125% (top colour = full)</div>}
+      {(tab === 'capacity' || tab === 'transit') && <div className="legend-row"><i className="key-line selection" />Chosen district</div>}
       {tab === 'transit' && (
         <>
           <div className="legend-row"><i className="ramp" />Transit need per resident</div>

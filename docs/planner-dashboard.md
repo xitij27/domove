@@ -22,13 +22,15 @@ Every view follows the chosen day: the header's arrows (a week at a time), a cli
 
 Numbers are stated in things a planner can count. A clash is another serious site within 1 km running on the same days, so a suggestion reads "clashes 6 sites on 60 days → 2 sites on 9 days". Disruption is in points: 1 point is a full closure on a main road, and lighter restrictions and side streets count less. Each section's (i) holds its rules; lists are never cut short.
 
+Every figure the dashboard works out is underlined dotted. Hover, focus or tap it to see how it was worked out, with that figure's own numbers: the shares behind a district's road load, the factors behind a priority rank, which works a clash counts and for how many days, the cost a suggested date is chosen by. The working is built in `src/ui/working.ts` from the same results and settings the model uses.
+
 ### Scenarios
 
 Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and the header counts the clashes and the busiest day's points, published → yours. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
 
 ## How it scores
 
-All weights are judgement calls, kept in `src/model/closures.ts` and `src/model/analysis.ts`. Change them there and here.
+All weights and thresholds below are judgement calls and these are their defaults. A planner can change them in the dashboard's **Settings** (the gear at the top right): each is a slider held between limits that keep its formula meaningful, for example severity weights never above a full closure on a main road (1 point), the high band always above the medium one, and works never taking a whole district's road (which would divide by zero). Changed settings go into the scenario link, so whoever opens it sees the same numbers, and a link carrying a value outside its limits has that value dropped. Defaults, limits and the reasons for them are in `src/model/settings.ts`; change a default there and here.
 
 | | Rule |
 |---|---|

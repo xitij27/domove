@@ -4,10 +4,11 @@ import type { Poi } from '../data/sources';
 import { formatDay } from '../model/days';
 import type { LonLat } from '../model/geo';
 import type { Site } from '../model/sites';
-import { emergencyCoverage, GROUPS, planDetour } from '../routing/valhalla';
+import { emergencyCoverage, GROUPS, penaltyFor, planDetour } from '../routing/valhalla';
 import type { Coverage, Detour, Group } from '../routing/valhalla';
 import type { MapOverlay } from './MapView';
-import { metres, minutes, plural } from './format';
+import { Derived } from './Derived';
+import { metres, minutes, plural, shortTitle } from './format';
 
 type Place = { key: string; label: string; at: LonLat };
 type Props = {
@@ -70,7 +71,7 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
   const [group, setGroup] = useState<Group>('commuter');
   const [from, setFrom] = useState<Place | null>(null);
   const [to, setTo] = useState<Place | null>(null);
-  const [detour, setDetour] = useState<{ d: Detour; key: string } | null>(null);
+  const [detour, setDetour] = useState<{ d: Detour; key: string; group: Group } | null>(null);
   const [station, setStation] = useState(0);
   const [reachMinutes, setReachMinutes] = useState(8);
   const [coverage, setCoverage] = useState<{ c: Coverage; key: string } | null>(null);
@@ -94,7 +95,7 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
     setError(null);
     try {
       const d = await planDetour(group, from.at, to.at, active);
-      setDetour({ d, key: routeKey });
+      setDetour({ d, key: routeKey, group });
       setCoverage(null);
       onOverlay({ normal: d.normal.line, aware: d.aware.line, ends: [from.at, to.at] });
     } catch (e) {
@@ -145,7 +146,17 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
             <dl className="facts">
               <dt><i className="key-line normal" />Normal</dt><dd>{minutes(d.normal.seconds)} · {metres(d.normal.meters)}</dd>
               <dt><i className="key-line aware" />With the works</dt>
-              <dd><strong>{minutes(d.normal.seconds + d.extraS)}</strong> · {metres(d.aware.meters)} {d.extraS >= 30 ? `(+${minutes(d.extraS)})` : '(no real delay)'}</dd>
+              <dd>
+                <Derived how={[
+                  ['Normal', `${minutes(d.normal.seconds)} by the router, ignoring the works`],
+                  ['Around the works', `${minutes(d.aware.seconds)}, avoiding ${plural(d.avoided.length, 'closure')}`],
+                  ['Waiting', d.slowedOnRoute.length
+                    ? `+${minutes(d.penaltyS)}: ${d.slowedOnRoute.map((s) => `${shortTitle(s.title)} ${penaltyFor(s, detour.group)} s`).join(' · ')}`
+                    : 'none: no works on the way slow this group'],
+                  ['With the works', `${minutes(d.aware.seconds)} + ${minutes(d.penaltyS)} = ${minutes(d.normal.seconds + d.extraS)}`],
+                ]}>
+                  <strong>{minutes(d.normal.seconds + d.extraS)}</strong>
+                </Derived> · {metres(d.aware.meters)} {d.extraS >= 30 ? `(+${minutes(d.extraS)})` : '(no real delay)'}</dd>
             </dl>
             {d.penaltyS > 0 && <p className="muted small">Includes {minutes(d.penaltyS)} of waiting at {plural(d.slowedOnRoute.length, 'site')} the route still passes.</p>}
             {d.blockedOnRoute.length > 0 && <p className="warn-text"><span aria-hidden="true">⚠</span> No way around {plural(d.blockedOnRoute.length, 'closure')}: the trip starts or ends inside it, or every other way is closed too.</p>}
@@ -181,7 +192,10 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
                 <dt>Reach</dt><dd>{c.normalKm2.toFixed(1)} km² normally</dd>
                 <dt>Lost to works</dt>
                 <dd className={c.lostKm2 > 0 ? 'warn-text' : ''}>
-                  {c.lostKm2 > 0 ? <><span aria-hidden="true">⚠ </span>{c.lostKm2.toFixed(2)} km² ({((c.lostKm2 / c.normalKm2) * 100).toFixed(1)} %), about {Math.round(c.residents / 10) * 10} residents</> : 'Nothing measurable'}
+                  {c.lostKm2 > 0 ? <><span aria-hidden="true">⚠ </span>{c.lostKm2.toFixed(2)} km² ({((c.lostKm2 / c.normalKm2) * 100).toFixed(1)} %), <Derived how={[
+                  ['Lost area', `${c.lostKm2.toFixed(2)} of ${c.normalKm2.toFixed(1)} km² reached normally`],
+                  ['Residents', 'each district\'s residents × the share of its area lost, added up, to the nearest 10'],
+                ]}>about {Math.round(c.residents / 10) * 10} residents</Derived></> : 'Nothing measurable'}
                 </dd>
               </dl>
               <p className="muted small">
