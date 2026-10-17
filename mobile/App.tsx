@@ -18,6 +18,7 @@ import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/Rout
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import { QuizButton, QuizQuestion, useQuiz } from './src/quiz/Quiz';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
+import { useWeather, WeatherButton, WeatherForecast } from './src/weather/Weather';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
 
@@ -154,8 +155,28 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   const [located, askLocation] = useLocationGranted();
   const gyroscope = useHasGyroscope();
   const [gyroWarned, setGyroWarned] = useState(false);
-  const quiz = useQuiz();
-  const [quizOpen, setQuizOpen] = useState(false);
+  const { weather, failed: weatherFailed, reload: reloadWeather } = useWeather();
+  // The forecast card takes the site card's place, so only one of them is open.
+  const [forecastOpen, setForecastOpen] = useState(false);
+  const selectSite = useCallback((site: Site | null) => {
+    setSelected(site);
+    if (site) setForecastOpen(false);
+  }, []);
+  const toggleForecast = () => {
+    if (!weather) {
+      reloadWeather();
+      return;
+    }
+    setSelected(null);
+    setForecastOpen(!forecastOpen);
+  };
+
+  // Added when the forecast opens, so back closes it before anything under it.
+  useEffect(() => {
+    if (!forecastOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setForecastOpen(false); return true; });
+    return () => subscription.remove();
+  }, [forecastOpen]);
 
   const changeTheme = (next: MapTheme) => {
     setTheme(next);
@@ -252,8 +273,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
     // The site may lie off the route on show, so show every site again.
     if (onRoute && !onRoute.siteIds?.has(site.id)) onCloseRoute();
     setShown((current) => ({ ...current, [site.status]: true }));
-    setSelected(site);
-  }, [tapped, sites, onRoute, onCloseRoute]);
+    selectSite(site);
+  }, [tapped, sites, onRoute, onCloseRoute, selectSite]);
 
   const SitesMap = mapboxOn && MapboxSitesMap ? MapboxSitesMap : GoogleSitesMap;
 
@@ -262,7 +283,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
       <SitesMap
         ref={map}
         sites={nearby.filter((s) => shown[s.status])}
-        onSelect={setSelected}
+        onSelect={selectSite}
         theme={theme}
         onHeadingChange={(h) => heading.setValue(h)}
         // while choosing a place the routes sheet is hidden, leaving only the system bar over the map's bottom
@@ -308,8 +329,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         <ThemeToggle theme={theme} onChange={changeTheme} />
         {/* while navigating, north stays up until the user re-centres */}
         <Compass heading={heading} theme={theme} onPress={() => { if (navigating) setFollowing(false); map.current?.pointNorth(); }} />
-        {/* last of the round controls, so it sits under the weather */}
-        {!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}
+        {/* choosing a place has the map to itself */}
+        {!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}
       </View>
 
       {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
@@ -344,9 +365,9 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
           </View>
         )}
 
-        {quizShown && (
+        {forecastOpen && weather && !picking && (
           <View style={[styles.card, surface]}>
-            <QuizQuestion quiz={quiz} theme={theme} onClose={() => setQuizOpen(false)} />
+            <WeatherForecast weather={weather} theme={theme} onClose={() => setForecastOpen(false)} />
           </View>
         )}
 
