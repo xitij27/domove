@@ -93,6 +93,27 @@ describe('source evidence normalization', () => {
     const [bad] = evidence(raw('bad', { center: [51.5, 7.4] }));
     expect(bad.center).toBeNull();
   });
+  it('keeps the application pipeline usable with malformed source geometry without inventing analytical evidence', () => {
+    const malformed = [
+      { type: 'Polygon', coordinates: [null] },
+      { type: 'Polygon', coordinates: [] },
+      { type: 'Polygon', coordinates: [[[Infinity, 51.5], [7.4, 51.5], [7.4, 51.6], [Infinity, 51.5]]] },
+    ] as unknown as Polygon[];
+    const context = prepareContext({ roads: [], stops: [], fire: [], hospitals: [] });
+    for (const geometry of malformed) {
+      const source = raw('invalid', { geometry });
+      const sites = buildSites([source], context);
+      expect(sites[0].shape.bbox.every(Number.isFinite)).toBe(true);
+      expect(sites[0].geometry).not.toBe(geometry);
+      expect(sites[0].shape.bbox[2] - sites[0].shape.bbox[0]).toBeCloseTo(50, 0);
+      const [analytical] = buildEvidence([source], sites);
+      expect(analytical.shape).toBeNull();
+      expect(analytical.issues.join(' ')).toContain('geometry is invalid');
+      expect(source.geometry).toBe(geometry);
+    }
+    const valid = raw('valid');
+    expect(buildSites([valid], context)[0].geometry).toBe(valid.geometry);
+  });
 });
 
 describe('inclusive outlook windows', () => {
