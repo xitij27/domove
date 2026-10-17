@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
-import type { Cluster, Conflict, DayRange, ProgrammeBalance, WindowOption } from '../model/analysis';
-import { bestWindows } from '../model/analysis';
+import { useState } from 'react';
+import type { Cluster, ClusterAdvice, Conflict, ProgrammeBalance } from '../model/analysis';
 import { KIND_LABEL } from '../model/closures';
 import type { ClosureKind } from '../model/closures';
 import { formatShort, isoDay, toDay } from '../model/days';
@@ -8,16 +7,15 @@ import { PERIODS } from '../data/sources';
 import type { PeriodKey, ProgrammeProject } from '../data/sources';
 import type { LonLat } from '../model/geo';
 import type { HypotheticalSite, Shift } from '../model/scenario';
-import type { Neighbour, Site } from '../model/sites';
-import { dayRange, metres, plural, signedDays, signedPct } from './format';
+import type { Site } from '../model/sites';
+import { clashText, dayRange, plural, shiftText, shortTitle } from './format';
+import { Info } from './Info';
 
 type Props = {
-  sites: Site[];
   byId: Map<string, Site>;
-  neighbours: Map<string, Neighbour[]>;
   clusters: Cluster[];
+  advice: Map<string, ClusterAdvice | null>;
   bundles: Conflict[];
-  holidays: DayRange[];
   today: number;
   horizon: number | null;
   selectedCluster: string | null;
@@ -32,44 +30,38 @@ type Props = {
   onCancelDraft: () => void;
 };
 
-type Suggestion = { site: Site; option: WindowOption; current: WindowOption } | { site: Site; option: null };
-
 const PROJECT_KINDS: ClosureKind[] = ['full', 'half', 'narrowing', 'signal', 'one_way', 'sidewalk'];
 
-function ClusterCard({ cluster, suggestion, open, byId, onToggle, onSelectSite, onApply }: {
-  cluster: Cluster; suggestion: Suggestion | null; open: boolean; byId: Map<string, Site>;
+function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onApply }: {
+  cluster: Cluster; advice: ClusterAdvice | null; open: boolean; byId: Map<string, Site>;
   onToggle: () => void; onSelectSite: (id: string) => void; onApply: () => void;
 }) {
   const sites = cluster.siteIds.map((id) => byId.get(id)!).filter(Boolean).sort((a, b) => b.severity - a.severity);
   const districts = [...new Set(sites.map((s) => s.district).filter(Boolean))].join(', ');
-  const shown = open ? sites : sites.slice(0, 3);
   return (
     <li className={open ? 'card open' : 'card'}>
-      <button className="card-head" onClick={onToggle} aria-expanded={open}>
+      <button className="card-head" onClick={onToggle} aria-pressed={open} title="Show on the map">
         <strong>{districts || 'Dortmund'}</strong>
         <span className="muted">{plural(sites.length, 'site')} · {dayRange(cluster.from, cluster.to)}</span>
       </button>
-      <ul className="plain">
-        {shown.map((s) => (
-          <li key={s.id}><button className="link-button" onClick={() => onSelectSite(s.id)}>{s.title}</button> <span className="muted">{KIND_LABEL[s.kind]}</span></li>
-        ))}
-        {!open && sites.length > 3 && <li className="muted">and {sites.length - 3} more</li>}
-      </ul>
-      {suggestion?.option ? (
+      {advice?.option ? (
         <div className="suggestion">
           <span>
-            Move <strong>{suggestion.site.title.split(' - ')[0]}</strong> to {dayRange(suggestion.option.start, suggestion.option.end)} ({signedDays(suggestion.option.shift)})
-            {suggestion.current.overlap > 0 ? `: its overlap ${signedPct((suggestion.option.overlap - suggestion.current.overlap) / suggestion.current.overlap)}` : ''}
+            Start <strong>{shortTitle(advice.site.title)}</strong> {shiftText(advice.option.shift)}
+            <span className="muted small"> · {dayRange(advice.option.start, advice.option.end)} · clashes {clashText(advice.current)} → {clashText(advice.option)}</span>
           </span>
           <button className="button" onClick={onApply}>Apply</button>
         </div>
-      ) : suggestion ? (
+      ) : advice ? (
         <div className="suggestion muted">
-          <span>
-            No single move within three months clears this. Finishing <strong>{suggestion.site.title.split(' - ')[0]}</strong> (until {formatShort(suggestion.site.end)}) sooner helps most.
-          </span>
+          <span>No date move clears this: ask to finish <strong>{shortTitle(advice.site.title)}</strong> (until {formatShort(advice.site.end)}) sooner.</span>
         </div>
       ) : null}
+      <ul className="plain sites">
+        {sites.map((s) => (
+          <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{KIND_LABEL[s.kind]}</span></li>
+        ))}
+      </ul>
     </li>
   );
 }
@@ -149,10 +141,6 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
           </tbody>
         </table>
       </div>
-      <p className="muted small">
-        Projects in the "Bau" stage per period: 2026 by quarter, the other years whole. <span aria-hidden="true">▲</span> marks a
-        district with at least 1.5 times the period's median, a candidate for moving work to a quieter period.
-      </p>
       {cell && (
         <div className="block">
           <h4>{cell.district}, {PERIODS.find(([k]) => k === cell.period)![1]}: deferral candidates first</h4>
@@ -174,59 +162,39 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
 }
 
 export function CoordinateTab(props: Props) {
-  const { sites, byId, neighbours, clusters, bundles, holidays, today, horizon } = props;
-  const [showAll, setShowAll] = useState(false);
-  const suggestions = useMemo(() => new Map(clusters.slice(0, 30).map((c): [string, Suggestion | null] => {
-    let best: (Suggestion & { gain: number }) | null = null;
-    for (const s of c.siteIds.map((id) => byId.get(id)!).filter((s) => s && (s.hypothetical || s.baseStart > today))) {
-      const advice = bestWindows(s, sites, neighbours.get(s.id) ?? [], holidays, today, horizon);
-      // only a move that at least halves the site's overlap is worth asking an owner for
-      const option = advice.options.find((o) => o.overlap <= 0.5 * advice.current.overlap);
-      if (option && (!best || advice.current.cost - option.cost > best.gain)) best = { site: s, option, current: advice.current, gain: advice.current.cost - option.cost };
-    }
-    if (best) return [c.id, best];
-    // otherwise the works that keep the cluster going longest are the ones to speed up
-    const longest = c.siteIds.map((id) => byId.get(id)!).filter((s) => s && !s.hypothetical && s.baseStart <= today)
-      .sort((a, b) => b.end - a.end || b.severity - a.severity)[0];
-    return [c.id, longest ? { site: longest, option: null } : null];
-  })), [clusters, byId, sites, neighbours, holidays, today, horizon]);
-  const shown = showAll ? clusters : clusters.slice(0, 6);
-
+  const { byId, clusters, advice, bundles, today, horizon } = props;
   return (
     <div className="tab-body">
       <section className="block">
-        <h3>Overlap clusters <span className="count">{clusters.length}</span></h3>
-        <p className="muted">
-          Serious works within 400 m of each other at the same time make each other's detours worse. Spread them out, so
-          every neighbourhood keeps a way around.
-        </p>
-        {clusters.length === 0 && <p className="ok">No serious works overlap within 400 m of each other in the coming year.</p>}
-        {horizon !== null && clusters.length > 0 && <p className="muted small">Suggestions know the works published up to {formatShort(horizon)}; later ones aren't announced yet.</p>}
+        <h3>Clashes <span className="count">{clusters.length}</span></h3>
+        <Info>
+          Serious works within 400 m of each other at the same time make each other's detours worse. "3 sites on 40 days" means: on
+          40 days, up to 3 other serious sites within 1 km run at the same time. Click a card to see it on the map.
+          {horizon !== null && ` Suggestions know the works published up to ${formatShort(horizon)}; later ones aren't announced yet.`}
+        </Info>
+        {clusters.length === 0 && <p className="ok">No serious works clash within 400 m in the coming year.</p>}
         <ul className="cards">
-          {shown.map((c) => (
+          {clusters.map((c) => (
             <ClusterCard
               key={c.id}
               cluster={c}
-              suggestion={suggestions.get(c.id) ?? null}
+              advice={advice.get(c.id) ?? null}
               open={props.selectedCluster === c.id}
               byId={byId}
               onToggle={() => props.onSelectCluster(props.selectedCluster === c.id ? null : c.id)}
               onSelectSite={props.onSelectSite}
               onApply={() => {
-                const s = suggestions.get(c.id);
-                if (s?.option) props.onShift(s.site.id, [s.option.shift, s.option.shift]);
+                const a = advice.get(c.id);
+                if (a?.option) props.onShift(a.site.id, [a.option.shift, a.option.shift]);
               }}
             />
           ))}
         </ul>
-        {clusters.length > 6 && (
-          <button className="link-button" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show fewer' : `Show all ${clusters.length}`}</button>
-        )}
       </section>
 
       <section className="block">
         <h3>Do these together <span className="count">{bundles.length}</span></h3>
-        <p className="muted">Works on the same stretch at different times close the street twice. Aligning them spares residents the second closure.</p>
+        <Info>Works on the same stretch of street at different times close it twice. Starting the later one while the first runs spares residents the second closure.</Info>
         {bundles.length === 0 && <p className="muted">No works on the same stretch follow each other within six months.</p>}
         <ul className="cards">
           {bundles.map((b) => {
@@ -235,10 +203,10 @@ export function CoordinateTab(props: Props) {
             const target = Math.max(today + 1, first.start);
             return (
               <li className="card" key={`${b.a}-${b.b}`}>
-                <div><button className="link-button" onClick={() => props.onSelectSite(first.id)}>{first.title}</button> <span className="muted">{first.owner}</span></div>
-                <div><button className="link-button" onClick={() => props.onSelectSite(second.id)}>{second.title}</button> <span className="muted">{second.owner}</span></div>
+                <div><button className="link-button" title={first.title} onClick={() => props.onSelectSite(first.id)}>{shortTitle(first.title)}</button> <span className="muted">{first.owner}</span></div>
+                <div><button className="link-button" title={second.title} onClick={() => props.onSelectSite(second.id)}>{shortTitle(second.title)}</button> <span className="muted">{second.owner}</span></div>
                 <div className="suggestion">
-                  <span>{metres(b.m)} apart, {plural(b.days, 'day')} between them. Start the second on {formatShort(target)}.</span>
+                  <span>Same street, {plural(b.days, 'day')} apart. Start the second on {formatShort(target)}: one closure instead of two.</span>
                   <button className="button" onClick={() => props.onShift(second.id, [target - second.baseStart, target - second.baseStart])}>Align</button>
                 </div>
               </li>
@@ -253,7 +221,7 @@ export function CoordinateTab(props: Props) {
           <ProjectForm place={props.draftPlace} today={today} onAdd={(h) => props.onAdd({ ...h, center: props.draft! })} onCancel={props.onCancelDraft} />
         ) : (
           <>
-            <p className="muted">Place planned works on the map and get the start dates that disturb least, given everything else that's planned.</p>
+            <p className="muted">Place it on the map to get the start dates that disturb least.</p>
             <button className="button primary" onClick={props.onPlace}>Place on the map</button>
           </>
         )}
@@ -261,6 +229,10 @@ export function CoordinateTab(props: Props) {
 
       <section className="block">
         <h3>Works programme 2025–2028</h3>
+        <Info>
+          Projects of the Tiefbauamt in the "Bau" stage per period: 2026 by quarter, the other years whole. <span aria-hidden="true">▲</span> marks
+          a district with at least 1.5 times the period's middle value, a candidate for moving work to a quieter period. Click a cell for its projects.
+        </Info>
         {props.balance ? <ProgrammeGrid balance={props.balance} /> : <p className="muted">The Tiefbauamt's works programme couldn't be loaded.</p>}
       </section>
     </div>

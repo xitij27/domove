@@ -5,7 +5,7 @@ import { formatDay, formatShort } from '../model/days';
 import type { Shift } from '../model/scenario';
 import { ROAD_LABEL } from '../model/sites';
 import type { Site } from '../model/sites';
-import { dayRange, metres, one, plural, signedDays, signedPct } from './format';
+import { clashText, dayRange, metres, plural, shiftText } from './format';
 
 type Props = {
   site: Site;
@@ -26,7 +26,7 @@ const BAND_LABEL = { high: 'High disruption', medium: 'Medium disruption', low: 
 
 /** Bars for the site and the works it overlaps, so the planner sees when they coincide. */
 function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: number }) {
-  const rows = [site, ...others].slice(0, 9);
+  const rows = [site, ...others];
   const from = Math.max(Math.min(...rows.map((s) => s.start)), date - 120) - 3;
   const to = Math.min(Math.max(...rows.map((s) => s.end)), date + 240) + 3;
   const pct = (d: number) => `${(Math.min(Math.max(d, from), to) - from) / (to - from) * 100}%`;
@@ -79,7 +79,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
         <section className="block">
           <h3>Move the works</h3>
           <label className="slider">
-            <span>{moved === 0 ? 'Published dates' : `${signedDays(moved)}: ${dayRange(site.start, site.end)}`}</span>
+            <span>{moved === 0 ? 'Published dates' : `${shiftText(moved)}: ${dayRange(site.start, site.end)}`}</span>
             <input type="range" min={Math.max(-30, today + 1 - site.baseStart)} max={site.hypothetical ? 180 : 120} value={moved}
               aria-label="Days to move the works" onChange={(e) => onShift(+e.target.value ? [+e.target.value, +e.target.value] : null)} />
           </label>
@@ -87,7 +87,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
             <>
               <h4>Best windows nearby</h4>
               <p className="muted">
-                Now: {cur.overlap > 0 ? `overlap score ${one(cur.overlap)} with works within 1 km` : 'no overlap with works within 1 km'}
+                Now: clashes {clashText(cur)} with serious works within 1 km
                 {cur.holidayDays ? `, ${plural(cur.holidayDays, 'day')} in school holidays` : ''}.
               </p>
               {advice.options.length === 0 && <p className="ok">These dates are already the best within the next three months.</p>}
@@ -95,9 +95,9 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
                 {advice.options.map((o) => (
                   <li key={o.start}>
                     <div>
-                      <strong>{dayRange(o.start, o.end)}</strong> <span className="muted">({signedDays(o.shift)})</span>
+                      <strong>{dayRange(o.start, o.end)}</strong> <span className="muted">({shiftText(o.shift)})</span>
                       <div className="muted">
-                        {cur.overlap > 0 ? `Overlap ${signedPct((o.overlap - cur.overlap) / cur.overlap)}` : o.overlap > 0 ? `Overlap score ${one(o.overlap)}` : 'No overlap'}
+                        Clashes {clashText(o)}
                         {o.together > 0 ? ' · together with works on the same stretch' : ''}
                         {o.holidayDays ? ` · ${plural(o.holidayDays, 'day')} in school holidays` : ''}
                       </div>
@@ -119,7 +119,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
             <p className="muted">The feed gives no end date. Ask {site.owner || 'the owner'} for one before planning around it.</p>
           ) : (
             <label className="slider">
-              <span>{earlier === 0 ? `Ends ${formatDay(site.baseEnd)} as published` : `${signedDays(earlier)}: ends ${formatDay(site.end)}`}</span>
+              <span>{earlier === 0 ? `Ends ${formatDay(site.baseEnd)} as published` : `${shiftText(earlier)}: ends ${formatDay(site.end)}`}</span>
               <input type="range" min={Math.max(-90, Math.max(today, site.baseStart) - site.baseEnd)} max={30} value={earlier}
                 aria-label="Days to finish earlier or later" onChange={(e) => onShift(+e.target.value ? [0, +e.target.value] : null)} />
             </label>
