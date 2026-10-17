@@ -53,6 +53,56 @@ that site's card.
   have owners first (question 7 there), then an Expo push sender on the
   backend.
 
+## Demo mode
+
+For presentations, the round **play** button under the quiz button starts a
+guided tour. The app sets up each screen by itself, and a card at the top says
+what is on show. Tap **Next** when you are done talking; **Back** and the ✕
+also work. It works in release builds too.
+
+Before the talk:
+
+- Have a saved route that the backend has found construction on. The obstacle
+  check runs every 15 minutes, so save a new route at least that long before.
+  The demo picks the saved route with the most construction sites. If none
+  has any, it says so instead of starting.
+- Allow notifications and location on the phone. The demo asks for
+  notifications when it starts; navigation asks for location.
+- Have internet access. The demo loads the routes and obstacles live, and
+  there is no offline version.
+
+The steps:
+
+1. **Construction sites**: every site, with the Current and Planned chips.
+2. **A site**: one of the route's sites, with its impact score. Tap "How
+   scores work" yourself if you want to show it, since it covers the screen.
+3. **Your saved route**: only the sites on its way.
+4. **Ways around construction**: the recommended way around the route's
+   construction, with up to two others drawn in grey (see
+   [routes.md](routes.md)). Finding them takes a few seconds after the route
+   opens.
+5. **Another way**: switches to the second way, once the ways are found. If
+   there is only one way, the route stays as it is.
+6. **Alerts**: turns the route's alerts on, 1 day before. The route row and
+   the site card show when the alert comes.
+7. **The alert**: sends that site's alert in 10 seconds. Lock the phone, then
+   tap the alert when it arrives. This opens the site's card and moves the tour
+   on to step 8 by itself.
+8. **Opened from the alert**: the site the alert opened.
+9. **Navigation**: Start, with the map following you.
+10. **Weather**: the forecast card.
+11. **Quiz**: one question.
+
+**Finish** or ✕ closes the route and puts back the route's alert choice from
+before the demo. If the tour stops (for example, Android closed the app while
+the phone was locked), tap the play button again. Tapping the alert still
+opens its site. If that happens, check the route's alerts row, because it may
+still say "1 day before".
+
+The demo's alert is a normal alert from this phone, with the same text as a
+scheduled reminder. It just arrives in 10 seconds instead of at the alert
+time. There is no server push yet (see *Not yet* above).
+
 ## Run and test
 
 `expo-notifications` adds native code, so rebuild the development build

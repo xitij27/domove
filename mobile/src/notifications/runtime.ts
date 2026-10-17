@@ -5,6 +5,7 @@ import { AndroidImportance, AndroidNotificationVisibility, type NotificationResp
 import { File, Paths } from 'expo-file-system';
 import { notificationContent } from './core';
 import { fetchObstacles } from './obstacles';
+import type { RouteObstacle } from './model';
 import { createNotificationService, type NotificationDriver } from './service';
 
 const CHANNEL_ID = 'construction-reminders';
@@ -90,11 +91,18 @@ function tappedSite(response: NotificationResponse | null) {
 
 export async function sendDevelopmentTestAlert(routeId: string): Promise<void> {
   if (!__DEV__) throw new Error('Test alerts are available in development builds only.');
-  if (!await notificationDriver.permission(true)) throw new Error('Allow notifications in your phone settings to see a test alert.');
   const [obstacle] = await constructionNotifications.obstaclesOn(routeId);
   if (!obstacle) throw new Error('No construction is known on this route yet. Reopen the app after the next obstacle check.');
+  await sendAlertSoon(obstacle, 2, '[TEST] Construction on your route');
+}
+
+/** An obstacle's alert in a few seconds, worded as its reminder; for the test button and the demo. */
+export async function sendAlertSoon(obstacle: RouteObstacle, seconds: number, title?: string): Promise<void> {
+  if (!await notificationDriver.permission(true)) throw new Error('Allow notifications in your phone settings to see the alert.');
+  const content = notificationContent(obstacle);
   await Notifications.scheduleNotificationAsync({
-    content: { ...notificationContent(obstacle), title: '[TEST] Construction on your route', data: { siteId: obstacle.siteId } },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2, channelId: CHANNEL_ID },
+    // No signature, so the reminder sync leaves it alone.
+    content: { ...content, title: title ?? content.title, data: { siteId: obstacle.siteId } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: CHANNEL_ID },
   });
 }
