@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, Linking, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Image, Linking, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
@@ -8,7 +8,8 @@ import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { useFollowUser, useHasGyroscope, useLocationGranted } from './src/maps/location';
 import { CASING_COLORS, LINE_COLORS } from './src/maps/routeOverlay';
-import { COLORS, fetchSites, type Site, type Status } from './src/sites';
+import { CLOSURE_LABELS, signOf, SIGNS } from './src/maps/signs';
+import { fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
 import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute } from './src/routes/model';
@@ -273,7 +274,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
               onPress={() => setShown({ ...shown, [st]: !shown[st] })}
               style={[styles.chip, surface, !shown[st] && styles.chipOff]}
             >
-              <View style={[styles.dot, { backgroundColor: COLORS[st] }]} />
+              {/* the roadworks sign as current and planned sites show it */}
+              <Image source={SIGNS.other[st]} style={styles.chipSign} />
               <Text style={{ color: palette.text }}>{LABELS[st]} ({nearby.filter((s) => s.status === st).length})</Text>
             </Pressable>
           ))}
@@ -330,7 +332,11 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
 
         {selected && !error && !picking && (
           <View style={[styles.card, surface]}>
-            <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
+            <View style={styles.siteKind}>
+              <Image source={signOf(selected)} style={styles.siteSign} />
+              <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
+              <Text style={{ color: palette.muted }}>· {CLOSURE_LABELS[selected.closure]}</Text>
+            </View>
             <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
             <Text style={{ color: palette.muted }}>{selected.period}</Text>
             <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
@@ -455,7 +461,7 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 6, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   chipOff: { opacity: 0.45 },
   switch: { marginLeft: 'auto' },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  chipSign: { width: 20, height: 20 },
   // map controls go top right, as in Google and Apple Maps
   toggle: { alignSelf: 'flex-end', padding: TOGGLE_PAD, borderRadius: TOGGLE_CELL / 2 + TOGGLE_PAD, borderWidth: StyleSheet.hairlineWidth, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   toggleThumb: { position: 'absolute', top: TOGGLE_PAD, left: TOGGLE_PAD, width: TOGGLE_CELL, height: TOGGLE_CELL, borderRadius: TOGGLE_CELL / 2 },
@@ -466,6 +472,8 @@ const styles = StyleSheet.create({
   card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   routeHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   siteAlert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  siteKind: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  siteSign: { width: 24, height: 24 },
   routeText: { flex: 1, gap: 4 },
   routeClose: { padding: 4 },
   navButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },

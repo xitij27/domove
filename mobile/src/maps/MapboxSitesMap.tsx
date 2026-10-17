@@ -1,12 +1,13 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Mapbox, { Camera, CircleLayer, LineLayer, LocationPuck, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
+import Mapbox, { Camera, CircleLayer, Images, LineLayer, LocationPuck, MapView, ShapeSource, StyleImport, SymbolLayer } from '@rnmapbox/maps';
 import type { Coordinate } from '../routes/model';
-import { COLORS, type Site } from '../sites';
+import type { Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { FOLLOW_PITCH, FOLLOW_TOP, UNFOLLOW_MS } from './navigation';
 import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
+import { NAMED_SIGNS, signName, stackingOf } from './signs';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
@@ -110,7 +111,7 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
     type: 'FeatureCollection',
     features: sites.map((s) => ({
       type: 'Feature',
-      properties: { id: s.id, status: s.status },
+      properties: { id: s.id, sign: signName(s), stacking: stackingOf(s) },
       geometry: { type: 'Point', coordinates: [s.coordinate.longitude, s.coordinate.latitude] },
     })),
   }), [sites]);
@@ -148,17 +149,18 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
     >
       <StyleImport id="basemap" existing config={{ lightPreset: theme, showPointOfInterestLabels: false }} />
       <Camera ref={camera} defaultSettings={{ centerCoordinate: [7.4653, 51.5136], zoomLevel: 11 }} />
+      <Images images={NAMED_SIGNS} />
       {line && (
-        // Under the site pins, though it is added after them when a route opens.
+        // Under the site signs, though it is added after them when a route opens.
         <ShapeSource id="route-line" shape={line}>
           <LineLayer
             id="route-casing"
-            belowLayerID="site-circles"
+            belowLayerID="site-signs"
             style={{ lineColor: CASING_COLORS[theme], lineWidth: 7, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1 }}
           />
           <LineLayer
             id="route-line"
-            belowLayerID="site-circles"
+            belowLayerID="site-signs"
             style={{ lineColor: LINE_COLORS[theme], lineWidth: 4, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1 }}
           />
         </ShapeSource>
@@ -168,14 +170,17 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
         shape={shape}
         onPress={(e) => onSelect(sites.find((s) => s.id === e.features[0]?.properties?.id) ?? null)}
       >
-        <CircleLayer
-          id="site-circles"
+        <SymbolLayer
+          id="site-signs"
           style={{
-            circleRadius: 7,
-            circleColor: ['match', ['get', 'status'], 'current', COLORS.current, COLORS.planned],
-            circleStrokeWidth: 2,
-            circleStrokeColor: '#ffffff',
-            circleEmissiveStrength: 1, // keep pins bright under the night light preset
+            iconImage: ['get', 'sign'],
+            // about the old dots' size at city zoom, full size from street level
+            iconSize: ['interpolate', ['linear'], ['zoom'], 10, 0.55, 14, 1],
+            // every site stays on the map, as the dots did; the more restrictive sign lies on top
+            iconAllowOverlap: true,
+            iconIgnorePlacement: true,
+            symbolSortKey: ['get', 'stacking'],
+            iconEmissiveStrength: 1, // keep signs bright under the night light preset
           }}
         />
       </ShapeSource>
