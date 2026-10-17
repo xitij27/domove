@@ -2,7 +2,8 @@ import type { DistrictGap, StopPressure } from '../model/analysis';
 import { poisNear } from '../model/analysis';
 import type { Poi } from '../data/sources';
 import { formatDay } from '../model/days';
-import { metres, plural } from './format';
+import { metres, plural, shortTitle } from './format';
+import { Info } from './Info';
 
 type Props = {
   gaps: DistrictGap[];
@@ -16,8 +17,6 @@ type Props = {
   onSelectSite: (id: string) => void;
 };
 
-const short = (title: string) => title.split(' - ')[0];
-
 function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: DistrictGap } & Pick<Props, 'pressure' | 'bikes' | 'parkRide' | 'onSelectSite'>) {
   const worst = gap.uncoveredSites[0];
   const stops = pressure.filter((p) => p.stop.district === gap.district);
@@ -26,13 +25,12 @@ function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: Distri
   const actions = [
     worst && (
       <li key="bus">
-        Boost bus frequency or run a shuttle: <button className="link-button" onClick={() => onSelectSite(worst.id)}>{short(worst.title)}</button> is
-        {' '}{metres(worst.rail.m)} from the nearest Stadtbahn stop, {worst.rail.name}
-        {gap.uncoveredSites.length > 1 ? `, and ${plural(gap.uncoveredSites.length - 1, 'more closure')} here ${gap.uncoveredSites.length > 2 ? 'are' : 'is'} as far` : ''}.
+        Boost bus frequency or run a shuttle: <button className="link-button" onClick={() => onSelectSite(worst.id)}>{shortTitle(worst.title)}</button> is
+        {' '}{metres(worst.rail.m)} from the nearest Stadtbahn stop, {worst.rail.name}. All closures this far from the Stadtbahn are listed below.
       </li>
     ),
     gap.mainRoadSites.length > 0 && (
-      <li key="dsw">Agree bus diversions with DSW21 for {plural(gap.mainRoadSites.length, 'closure')} on main roads: {gap.mainRoadSites.slice(0, 3).map((s) => short(s.title)).join(', ')}.</li>
+      <li key="dsw">Agree bus diversions with DSW21 for {plural(gap.mainRoadSites.length, 'closure')} on main roads: {gap.mainRoadSites.map((s) => shortTitle(s.title)).join(', ')}.</li>
     ),
     ...stops.map((p) => (
       <li key={p.stop.name}>Expect extra riders at {p.stop.name}{p.stop.detail ? ` (${p.stop.detail})` : ''}: {plural(p.sites.length, 'serious closure')} within 500 m.</li>
@@ -50,17 +48,19 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
     <div className="tab-body">
       <section className="block">
         <h3>Where transit needs attention</h3>
-        <p className="muted">
-          Closures with no Stadtbahn stop within 600 m, plus half the weight of closures on main roads where buses run, per 10,000
-          residents ({residentsYear || 'latest'} population), from {formatDay(date)} for 30 days. Click a district for actions.
-        </p>
+        <Info>
+          The bar weighs closures with no Stadtbahn stop within 600 m, plus half the weight of closures on main roads where buses run,
+          by how disruptive they are, per 10,000 residents ({residentsYear || 'latest'} population), from {formatDay(date)} for 30 days.
+          The number is how many closures are far from the Stadtbahn.
+        </Info>
+        <div className="bar-head muted small" aria-hidden="true"><span>District</span><span>Need per resident</span><span>Far from rail</span></div>
         <ul className="bars" aria-label="Districts by transit need">
           {gaps.map((g) => (
             <li key={g.district}>
               <button className={g.district === selected ? 'bar-row selected' : 'bar-row'} onClick={() => onSelect(g.district === selected ? null : g.district)} aria-pressed={g.district === selected}>
                 <span className="bar-label">{g.district}</span>
                 <span className="bar-track"><span className="bar" style={{ width: `${(g.score / max) * 100}%` }} /></span>
-                <span className="bar-value">{g.score.toFixed(2)}</span>
+                <span className="bar-value">{g.uncoveredSites.length}</span>
               </button>
             </li>
           ))}
@@ -79,8 +79,8 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
             <>
               <h4>Closures without a Stadtbahn nearby</h4>
               <ul className="plain">
-                {gap.uncoveredSites.slice(0, 8).map((s) => (
-                  <li key={s.id}><button className="link-button" onClick={() => onSelectSite(s.id)}>{s.title}</button> <span className="muted">{metres(s.rail.m)} to {s.rail.name}</span></li>
+                {gap.uncoveredSites.map((s) => (
+                  <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{metres(s.rail.m)} to {s.rail.name}</span></li>
                 ))}
               </ul>
             </>

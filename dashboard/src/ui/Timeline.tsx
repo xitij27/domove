@@ -16,7 +16,7 @@ type Props = {
   onDate: (day: number) => void;
 };
 
-const H = 132;
+const H = 100;
 const PAD = { top: 18, right: 10, bottom: 22, left: 34 };
 
 /** 1, 2 or 5 times a power of ten, just above the value. */
@@ -89,10 +89,10 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
   return (
     <section className="timeline" aria-label="Disruption over time">
       <div className="timeline-head">
-        <h2>Disruption load, citywide</h2>
-        <span className="hint">Sum of the active sites' severity per day: a full closure on a main road counts 1. Click or drag to pick a day.</span>
+        <h2>Disruption points per day</h2>
+        <span className="hint">1 point = a full closure on a main road · drag to pick a day</span>
         <span className="keys">
-          <span className="key"><i className="key-line load" />{published ? 'With your changes' : 'Load'}</span>
+          <span className="key"><i className="key-line load" />{published ? 'With your changes' : 'Points'}</span>
           {published && <span className="key"><i className="key-line published" />Published plans</span>}
           <span className="key"><i className="key-band" />School holidays</span>
         </span>
@@ -108,7 +108,7 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
           aria-valuemin={from}
           aria-valuemax={to}
           aria-valuenow={date}
-          aria-valuetext={`${formatDay(date)}, load ${one(at(date).total)}`}
+          aria-valuetext={`${formatDay(date)}, ${one(at(date).total)} disruption points`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={() => (dragging.current = false)}
@@ -146,8 +146,8 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
             </g>
           )}
           <path className="load-area" d={`${path(load)}L${x(to)},${y(0)}L${x(from)},${y(0)}Z`} />
-          {published && <path className="published-line" d={path(published)} />}
-          <path className="load-line" d={path(load)} />
+          {published && <path className="published-line" pathLength={1} d={path(published)} />}
+          <path className="load-line" pathLength={1} d={path(load)} />
           <line className="today" x1={x(today)} x2={x(today)} y1={y(0)} y2={y(0) + 6} />
           <line className="selected" x1={x(date)} x2={x(date)} y1={PAD.top - 4} y2={y(0)} />
           <circle className="selected-dot" cx={x(date)} cy={y(at(date).total)} r={4.5} />
@@ -156,8 +156,8 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
         {hovered && (
           <div className="tooltip" style={{ left: tipLeft }} role="presentation">
             <div className="tooltip-title">{formatDay(hovered.day)}{hovered.day === today ? ' · today' : ''}</div>
-            <div className="tooltip-row"><i className="key-line load" /><strong>{one(hovered.total)}</strong> {published ? 'with your changes' : 'load'}</div>
-            {hoveredPublished && <div className="tooltip-row"><i className="key-line published" /><strong>{one(hoveredPublished.total)}</strong> published</div>}
+            <div className="tooltip-row"><i className="key-line load" /><strong>{one(hovered.total)}</strong> points{published ? ' with your changes' : ''}</div>
+            {hoveredPublished && <div className="tooltip-row"><i className="key-line published" /><strong>{one(hoveredPublished.total)}</strong> points published</div>}
             <div className="tooltip-sub">High {one(hovered.high)} · medium {one(hovered.medium)} · low {one(hovered.low)}</div>
             {hoveredHoliday && <div className="tooltip-sub">{hoveredHoliday.name}</div>}
           </div>
@@ -166,7 +166,7 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
       <details className="table-view">
         <summary>Monthly table</summary>
         <table>
-          <thead><tr><th>Month</th><th>Average load</th><th>Peak</th></tr></thead>
+          <thead><tr><th>Month</th><th>Average points</th><th>Busiest day</th></tr></thead>
           <tbody>
             {monthly.map((r) => (
               <tr key={r.m}><td>{formatMonth(r.m)} {new Date(r.m * 86_400_000).getUTCFullYear()}</td><td>{one(r.average)}</td><td>{one(r.peak.total)} on {formatShort(r.peak.day)}</td></tr>

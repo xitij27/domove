@@ -45,6 +45,14 @@ describe('conflicts', () => {
 });
 
 describe('bestWindows', () => {
+  it('counts clashes in plain numbers: works alongside, and days with at least one', () => {
+    // s runs 110–119; x (300 m away) shares 110–115 and y (300 m away) 113–119: 13 days summed, 10 days with any clash.
+    // z is on the same stretch, so it counts as together, not as a clash.
+    const sites = [testSite('x', 300, 0, 100, 115), testSite('y', 0, 300, 113, 130), testSite('z', 20, 0, 110, 119), testSite('s', 0, 0, 110, 119)];
+    const { current } = bestWindows(sites[3], sites, findNeighbours(sites).get('s')!, [], 95, null);
+    expect(current).toMatchObject({ clashes: 2, clashDays: 10 });
+  });
+
   it('moves a site out of an overlap and pays for the shift', () => {
     const busy = testSite('busy', 500, 0, 100, 130);
     const site = testSite('s', 0, 0, 110, 119);
