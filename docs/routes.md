@@ -43,6 +43,12 @@ phone's clock (on iOS it opens below the days), and optionally tap the round
 until a day is picked, then sums the days up, e.g. "Weekdays" or "Mon, Wed".
 Picking a day before a time opens the clock; ✕ clears both. The saved list
 opens after a successful save, and each route reads e.g. "Leaving at 07:15 · Weekdays".
+Below that it says how many construction sites the obstacles job found on its
+way, e.g. "3 construction sites on the way · 1 of them planned": the same sites
+**Map & alerts** shows, counted for every route in one request as the list loads.
+A route saved in the last 20 minutes with none yet reads as still being checked,
+since the job looks at new routes every 15 minutes. An edited route keeps its
+old count until the job routes it again.
 Each saved route has a blue pencil and a trash button. The pencil opens the form
 filled in with the route; **Save changes** replaces it in place, keeping its
 place in the list, and a route shown on the map is redrawn.
@@ -237,6 +243,9 @@ stored route instead of saving it twice. A changed draft gets a new ID.
 - `GET /rest/v1/obstacles?route_id=eq.<uuid>&select=construction_site_id`
   (`routesRepository.obstacleSiteIds`) lists the sites on a route's way, which
   **Map & alerts** keeps on the map.
+- `GET /rest/v1/obstacles?select=id,route_id,construction_sites(status)&order=id`
+  (`routesRepository.siteCounts`), in keyset pages of 100, counts the sites on
+  every route's way, and how many of them are planned, for the saved list.
 
 The 200-character and 48-stop limits are also table constraints, so they hold
 for writes that do not go through the RPC.

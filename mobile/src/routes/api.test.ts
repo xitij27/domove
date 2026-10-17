@@ -116,6 +116,19 @@ test('lists the construction sites on the way of one route, skipping malformed r
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+test('counts the construction sites on the way of every route in pages, skipping malformed rows', async () => {
+  const full = Array.from({ length: 100 }, (_, n) => ({ id: `o-${String(n).padStart(3, '0')}`, route_id: 'a', construction_sites: { status: n < 2 ? 'planned' : 'current' } }));
+  fetchMock
+    .mockResolvedValueOnce(response(full))
+    .mockResolvedValueOnce(response([{ id: 'o-100', route_id: 'b', construction_sites: { status: 'current' } }, null, { id: 'o-101', route_id: 7 }]));
+  const counts = await repository.siteCounts();
+  expect(Object.fromEntries(counts)).toEqual({ a: { total: 100, planned: 2 }, b: { total: 1, planned: 0 } });
+  expect(fetchMock.mock.calls[0][0]).toBe('https://example.supabase.co/rest/v1/obstacles?select=id,route_id,construction_sites(status)&order=id&limit=100');
+  expect(fetchMock.mock.calls[1][0]).toBe('https://example.supabase.co/rest/v1/obstacles?select=id,route_id,construction_sites(status)&order=id&limit=100&id=gt.o-099');
+  fetchMock.mockResolvedValueOnce(response({ unexpected: true }));
+  await expect(repository.siteCounts()).rejects.toThrow('invalid list');
+});
+
 test('shows the server validation message', async () => {
   fetchMock.mockResolvedValueOnce(response({ code: '22023', message: 'Final destination must contain 1 to 200 characters.' }, 400));
   await expect(repository.create(draft)).rejects.toThrow('Final destination must contain 1 to 200 characters.');

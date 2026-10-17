@@ -1,4 +1,4 @@
-import { formatLeaving, normalizeRoute, repeatSummary, validateRoute, type PlaceDraft, type RouteDraft } from './model';
+import { formatLeaving, normalizeRoute, repeatSummary, sitesOnWay, sitesSummary, validateRoute, type PlaceDraft, type RouteDraft } from './model';
 
 const at = { latitude: 51.51, longitude: 7.46 };
 const place = (label: string, coordinate: PlaceDraft['coordinate'] = at): PlaceDraft => ({ label, coordinate });
@@ -36,6 +36,20 @@ test('repeat days read like an alarm', () => {
   expect(formatLeaving({ startTime: '07:15', weekdays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] })).toBe('Leaving at 07:15 · Weekdays');
   expect(formatLeaving({ startTime: '07:15', weekdays: [] })).toBe('Leaving at 07:15');
   expect(formatLeaving({ startTime: null, weekdays: [] })).toBeNull();
+});
+
+test('a route says how many construction sites lie on its way, and how many of them are only planned', () => {
+  const now = Date.parse('2026-10-17T10:00:00Z');
+  const old = { createdAt: '2026-10-16T19:09:03.121957+00:00' };
+  expect(sitesSummary(old, { total: 3, planned: 0 }, now)).toBe('3 construction sites on the way');
+  expect(sitesSummary(old, { total: 3, planned: 1 }, now)).toBe('3 construction sites on the way · 1 of them planned');
+  expect(sitesSummary(old, { total: 2, planned: 2 }, now)).toBe('2 construction sites on the way · all planned');
+  expect(sitesSummary(old, { total: 1, planned: 1 }, now)).toBe('1 construction site on the way · planned');
+  expect(sitesSummary(old, undefined, now)).toBe('No construction sites on the way');
+  // Within 20 minutes of being saved, the job may not have checked the route yet.
+  expect(sitesSummary({ createdAt: '2026-10-17T09:45:00.123456+00:00' }, undefined, now)).toMatch(/^Checking for construction sites, which takes up to 15 minutes/);
+  expect(sitesSummary({ createdAt: '2026-10-17T09:45:00.123456+00:00' }, { total: 1, planned: 0 }, now)).toBe('1 construction site on the way');
+  expect(sitesOnWay(null)).toBe('Checking for construction sites…');
 });
 
 test.each(['pedestrian', 'bike', 'car'] as const)('accepts %s without optional stops', (mode) => {

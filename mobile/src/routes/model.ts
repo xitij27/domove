@@ -112,6 +112,33 @@ export function formatLeaving({ startTime, weekdays }: Pick<SavedRoute, 'startTi
   return repeat ? `Leaving at ${startTime} · ${repeat}` : `Leaving at ${startTime}`;
 }
 
+/** How many construction sites the obstacles job found on a route's way, and how many of those are only planned. */
+export type SiteCount = { total: number; planned: number };
+
+// The obstacles job checks routes every 15 minutes (backend/supabase/migrations/20261016181000_obstacles.sql).
+const FIRST_CHECK_MS = 20 * 60_000;
+
+/** "3 construction sites on the way", or that they are still being looked for while `count` is null. */
+export function sitesOnWay(count: number | null) {
+  if (count === null) return 'Checking for construction sites…';
+  if (count === 0) return 'No construction sites on the way';
+  return `${count} construction ${count === 1 ? 'site' : 'sites'} on the way`;
+}
+
+/**
+ * What the saved list says about a route's sites; `count` is undefined for a route the job found none on. A new
+ * route has none until the job first checks it, so it reads as still being checked rather than clear.
+ */
+export function sitesSummary(route: Pick<SavedRoute, 'createdAt'>, count: SiteCount | undefined, now = Date.now()) {
+  if (!count?.total) {
+    // Supabase gives microseconds, which not every engine's Date parses.
+    const age = now - Date.parse(route.createdAt.replace(/(\.\d{3})\d+/, '$1'));
+    return age < FIRST_CHECK_MS ? 'Checking for construction sites, which takes up to 15 minutes for a new route' : sitesOnWay(0);
+  }
+  const planned = !count.planned ? '' : count.planned < count.total ? ` · ${count.planned} of them planned` : count.total === 1 ? ' · planned' : ' · all planned';
+  return sitesOnWay(count.total) + planned;
+}
+
 /** Blank stops are ignored. */
 function isFilled(place: PlaceDraft) {
   return place.label.trim() !== '';

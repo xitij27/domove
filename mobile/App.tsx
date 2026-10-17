@@ -12,7 +12,7 @@ import { CLOSURE_LABELS, signOf, SIGNS } from './src/maps/signs';
 import { fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
-import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
+import { TRANSPORT_MODES, sitesOnWay, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
@@ -520,13 +520,6 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
     </View>
   );
 });
-
-/** How many sites lie on a route's way; null while that is still unknown. */
-function sitesOnWay(count: number | null) {
-  if (count === null) return 'Checking for construction sites…';
-  if (count === 0) return 'No construction sites on the way';
-  return `${count} construction ${count === 1 ? 'site' : 'sites'} on the way`;
-}
 
 // Both options stay visible, so the current mode is never a guess; the highlight slides to the one picked.
 function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: MapTheme) => void }) {
