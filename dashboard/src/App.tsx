@@ -24,7 +24,7 @@ import { RoutesTab } from './ui/RoutesTab';
 import { SitePanel } from './ui/SitePanel';
 import { Summary } from './ui/Summary';
 import type { Stat } from './ui/Summary';
-import { useTheme } from './ui/theme';
+import { setThemePreference, useTheme } from './ui/theme';
 import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
@@ -274,29 +274,50 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><img src="/domovelogo.png" alt="do.move" /><span>Planner</span><span className="muted">Dortmund</span></div>
-        <div className="date-control" aria-label="Day shown">
-          <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
-          <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
-          <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
-          {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
+        <div className="header-main">
+          <div className="brand"><img src="/domovelogo.png" alt="do.move" /></div>
+          <div className="date-control" aria-label="Day shown">
+            <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
+            <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
+            <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
+            {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
+          </div>
+          <div className="theme-choice" role="group" aria-label="Colour theme">
+            <button type="button" aria-label="Light mode" title="Light mode" aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+              </svg>
+            </button>
+            <button type="button" aria-label="Dark mode" title="Dark mode" aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <Summary items={stats} />
-        <div className="scenario">
-          {changes ? (
-            <>
-              <strong>{plural(changes, 'change')}</strong>
-              {publishedLoad && (
-                <span className="muted" title="Published plans → your scenario">
-                  clashes {publishedClusters} → {clusters.length} · busiest day {busiest(publishedLoad)} → {busiest(load)} points
-                </span>
-              )}
-              {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
-              <button className="button" onClick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
-              <button className="button" onClick={exportCsv}>Export CSV</button>
-              <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
-            </>
-          ) : <span className="muted">No changes yet</span>}
+        <div className="header-context">
+          <Summary items={stats} />
+          <div className="scenario">
+            {changes ? (
+              <>
+                <div className="scenario-details">
+                  <strong>{plural(changes, 'change')}</strong>
+                  {publishedLoad && (
+                    <span className="muted" title="Published plans → your scenario">
+                      clashes {publishedClusters} → {clusters.length} · busiest day {busiest(publishedLoad)} → {busiest(load)} points
+                    </span>
+                  )}
+                  {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
+                </div>
+                <div className="scenario-actions">
+                  <button className="button" onClick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
+                  <button className="button" onClick={exportCsv}>Export CSV</button>
+                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
+                </div>
+              </>
+            ) : <span className="muted">No changes yet</span>}
+          </div>
         </div>
         {problems.length > 0 && <div className="banner" role="status">Some layers couldn't load ({problems.join('; ')}). Everything else works.</div>}
       </header>
