@@ -368,3 +368,8 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 .back-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 8px 2px 2px; margin-left: -2px; border-radius: 8px; color: var(--accent-ink); font: inherit; cursor: pointer; }
 .back-button:hover { background: var(--surface-2); }
 .bar.over { background: var(--critical); }
+.outlook-filter { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.analytics-list { max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.source-note { margin-top: 12px; }
+.outlook-window { fill: var(--accent); opacity: 0.12; pointer-events: none; }
+.outlook-key { background: var(--accent); opacity: 0.3; }

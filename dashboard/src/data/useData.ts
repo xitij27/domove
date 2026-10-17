@@ -4,6 +4,7 @@ import * as src from './sources';
 import type { District, Holiday, Poi, ProgrammeProject, RawSite, Road } from './sources';
 
 export type Dataset = {
+  retrievedAt: string;
   raw: RawSite[];
   roads: Road[];
   stops: Poi[];
@@ -44,6 +45,7 @@ async function load(today: number): Promise<DataState> {
     status: 'ready',
     problems,
     data: {
+      retrievedAt: new Date().toISOString(),
       raw: sites.value,
       roads: value(roads, []),
       stops: value(stops, []),

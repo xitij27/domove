@@ -7,7 +7,9 @@ import {
   todoList, transitGaps,
 } from './model/analysis';
 import type { DayRange } from './model/analysis';
-import { formatDay, formatShort, isoDay, localToday, toDay } from './model/days';
+import { formatDay, formatShort, isoDay, toDay } from './model/days';
+import { berlinToday, buildEvidence, outlook, potentialConflicts } from './model/outlook';
+import type { OutlookDays } from './model/outlook';
 import { bboxOf, shapeOf, toLonLat, toXY } from './model/geo';
 import type { BBox, LonLat } from './model/geo';
 import { DEFAULT_PARAMS, LOAD_SCALE, roadCapacity, simulate } from './model/capacity';
@@ -16,6 +18,7 @@ import type { HypotheticalSite, Shift } from './model/scenario';
 import { buildSites, findNeighbours, nearestRoad, prepareContext } from './model/sites';
 import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
+import { OutlookPanel } from './ui/OutlookPanel';
 import { plural } from './ui/format';
 import { MapView } from './ui/MapView';
 import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
@@ -37,7 +40,7 @@ const BACK = 30;
 const AHEAD = 365;
 
 export default function App() {
-  const [today] = useState(localToday);
+  const [today] = useState(berlinToday);
   const { state, retry } = useData(today);
   if (state.status === 'loading') return <Splash loading><p>Loading Dortmund's construction sites and open data…</p></Splash>;
   if (state.status === 'failed') {
@@ -59,6 +62,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const theme = useTheme();
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
+  const [outlookDays, setOutlookDays] = useState<OutlookDays>(7);
+  const [outlookMap, setOutlookMap] = useState(true);
   const [tab, setTab] = useState<Tab>('todo');
   const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,6 +85,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
   const neighbours = useMemo(() => findNeighbours(baseSites), [baseSites]);
   const sites = useMemo(() => applyShifts(baseSites, scenario.shifts), [baseSites, scenario.shifts]);
+  const evidence = useMemo(() => buildEvidence([
+    ...data.raw, ...scenario.added.map((h) => hypotheticalInput(h, districtShapes)),
+  ], sites), [data.raw, scenario.added, districtShapes, sites]);
+  const analyticsConflicts = useMemo(() => potentialConflicts(evidence), [evidence]);
+  const outlookResult = useMemo(() => outlook(evidence, date, outlookDays, 250, analyticsConflicts), [evidence, date, outlookDays, analyticsConflicts]);
   const byId = useMemo(() => new Map(sites.map((s) => [s.id, s])), [sites]);
   const published = useMemo(() => baseSites.filter((s) => !s.hypothetical), [baseSites]);
   const horizon = useMemo(() => {
@@ -188,6 +198,12 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const c = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     return c ? c.siteIds : [];
   }, [selected, selectedConflicts, tab, clusterId, clusters]);
+  const outlookPeriod = tab === 'coordinate' && outlookMap ? { from: outlookResult.from, to: outlookResult.to } : null;
+  const mapSites = useMemo(() => {
+    if (tab !== 'coordinate' || !outlookMap) return sites;
+    const ids = new Set([...outlookResult.active.map((p) => p.id), ...highlight]);
+    return sites.filter((s) => ids.has(s.id));
+  }, [tab, outlookMap, sites, outlookResult.active, highlight]);
   const links = useMemo((): MapLink[] => {
     const cluster = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     const list = selected ? selectedConflicts : cluster ? cluster.conflicts : tab === 'coordinate' ? bundles : [];
@@ -324,7 +340,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
       <div className="workspace">
         <section className="map-area">
           <MapView
-            theme={theme} impactView={impactView} sites={sites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
+            theme={theme} impactView={impactView} sites={mapSites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
             districts={districtValues} districtMax={tab === 'capacity' ? LOAD_SCALE : undefined} selectedDistrict={tab === 'transit' || tab === 'capacity' ? district : null} pois={pois}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
@@ -341,7 +357,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{label}</button>
             ))}
           </div>
-          <Legend tab={tab} date={date} impactView={impactView} />
+          <Legend tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
         </section>
         <aside className="panel">
           <nav className="tabs" role="tablist" aria-label="Planning views"
@@ -364,6 +380,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 onOpenDistrict={(name) => { switchTab('transit'); selectDistrict(name); }} />
             </div>
             <div hidden={!!selected || tab !== 'coordinate'}>
+              <OutlookPanel result={outlookResult} days={outlookDays} byId={byId} mapFiltered={outlookMap}
+                retrievedAt={data.retrievedAt} scenario={!isEmpty(scenario)} onSelect={selectSite}
+                onDays={(days) => { setOutlookDays(days); setOutlookMap(true); }} onMapFilter={setOutlookMap} />
               <CoordinateTab
                 byId={byId} clusters={clusters} advice={advice} bundles={bundles} today={today} horizon={horizon}
                 selectedCluster={clusterId} onSelectCluster={selectCluster} onSelectSite={selectSite} onShift={setShift} balance={balance}
@@ -390,7 +409,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           </div>
         </aside>
       </div>
-      <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} />
+      <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} outlookPeriod={outlookPeriod} />
       <footer className="footer muted">
         Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map © OpenStreetMap contributors, OpenFreeMap
       </footer>
@@ -398,12 +417,12 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 }
 
-function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView: ImpactView }) {
+function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: number; impactView: ImpactView; outlookPeriod: { from: number; to: number } | null }) {
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
   return (
     <details className="legend" open={open}>
-      <summary className="legend-title">Sites on {formatShort(date)}</summary>
+      <summary className="legend-title">{outlookPeriod ? `Outlook ${formatShort(outlookPeriod.from)} – ${formatShort(outlookPeriod.to)}` : `Sites on ${formatShort(date)}`}</summary>
       {impactView === 'bands' ? (
         <>
           <div className="legend-row"><i className="swatch high" />High disruption</div>
@@ -413,7 +432,7 @@ function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView:
       ) : (
         <div className="legend-row"><i className="ramp impact" />Disruption heat (zoom in for sites)</div>
       )}
-      <div className="legend-row"><i className="swatch later" />Starts within 30 days</div>
+      <div className="legend-row"><i className="swatch later" />{outlookPeriod ? 'Starts within selected period' : 'Starts within 30 days'}</div>
       {tab === 'coordinate' && (
         <>
           <div className="legend-row"><i className="key-line ink" />Running at the same time</div>
