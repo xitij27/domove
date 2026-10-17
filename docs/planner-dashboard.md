@@ -48,6 +48,7 @@ All weights and thresholds below are judgement calls and these are their default
 | Transit need | per district over 30 days: severity-weighted closures more than 600 m from a Stadtbahn stop, plus half of those on main roads (full, half, carriageway or one-way, where buses run), per 10,000 residents |
 | Stop under pressure | two or more closures of severity 0.5 or more within 500 m |
 | Programme overload | at least 3 projects in "Bau", and at least 1.5 times the period's median over the 12 districts |
+| Impact score | one site's review priority out of 100: shares 35 restriction (its restriction weight above) · 30 nearest school, kindergarten or stop (1 within 100 m, 0.75 within 250 m, 0.4 within 500 m) · 20 works at the same time (1 touching, 0.5 within 250 m) · 15 duration (0.25 up to 2 days, 0.5 up to 14, 0.75 up to 30, then 1); the shares are scaled to add up to 100. Low up to 30, medium up to 60, high up to 80. No total while any factor is unknown; details in `dashboard/ANALYTICS.md`. |
 
 ## Routes per group
 
