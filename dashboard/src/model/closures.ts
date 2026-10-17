@@ -1,4 +1,6 @@
 // What a site closes, read from its title, and what that means per mode. Mirrors issue #12.
+import { DEFAULT_SETTINGS } from './settings';
+import type { Settings } from './settings';
 // shortcut: the classifier lives in the dashboard until #12's closures/closure_impacts columns exist; then read them from the database.
 
 export type ClosureKind =
@@ -24,12 +26,6 @@ export const IMPACTS: Record<ClosureKind, Record<Mode, Impact>> = {
   moving: { car: slowed(60), bike: slowed(30), walk: none },
   parking: { car: none, bike: none, walk: none },
   unknown: { car: none, bike: none, walk: none },
-};
-
-/** How much a kind disrupts getting around, for the planner's load and scores; a full closure is 1. */
-export const KIND_WEIGHT: Record<ClosureKind, number> = {
-  full: 1, carriageway: 0.7, one_way: 0.6, half: 0.5, narrowing: 0.3,
-  signal: 0.3, moving: 0.25, sidewalk: 0.2, unknown: 0.1, parking: 0.05,
 };
 
 export const KIND_LABEL: Record<ClosureKind, string> = {
@@ -70,8 +66,9 @@ export function classifyClosures(title: string): ClosureKind[] {
 
 export const isDaytimeOnly = (title: string): boolean => DAYTIME.test(normalize(title));
 
-export const worstKind = (kinds: ClosureKind[]): ClosureKind =>
-  kinds.reduce((worst, kind) => (KIND_WEIGHT[kind] > KIND_WEIGHT[worst] ? kind : worst), kinds[0] ?? 'unknown');
+/** The kind that weighs most, by the planner's weights (settings.ts). */
+export const worstKind = (kinds: ClosureKind[], s: Settings = DEFAULT_SETTINGS): ClosureKind =>
+  kinds.reduce((worst, kind) => (s[`weight.${kind}`] > s[`weight.${worst}`] ? kind : worst), kinds[0] ?? 'unknown');
 
 /** The worst effect for the mode; slowed sites take the highest penalty of their kinds, as #12 decided. */
 export function impactFor(kinds: ClosureKind[], mode: Mode): Impact {

@@ -5,7 +5,7 @@ import type { ExpressionSpecification, GeoJSONSource, MapMouseEvent } from 'mapl
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { bandOf, isActive } from '../model/analysis';
+import { isActive } from '../model/analysis';
 import { KIND_LABEL } from '../model/closures';
 import type { LonLat } from '../model/geo';
 import { ROAD_LABEL } from '../model/sites';
@@ -13,6 +13,8 @@ import type { Site } from '../model/sites';
 import { dayRange } from './format';
 import { PALETTES } from './theme';
 import type { Palette, Theme } from './theme';
+import { useSettings } from './useSettings';
+import { severityText } from './working';
 
 // The bundled build can't find the worker next to its own chunk, so point it there.
 setWorkerUrl(workerUrl);
@@ -221,7 +223,7 @@ function siteCollections(sites: Site[], date: number, selectedId: string | null,
     const state = siteState(s, date) ?? (s.hypothetical || hi.has(s.id) || ranks?.has(s.id) ? 'other' : null);
     if (!state) continue;
     const properties = {
-      id: s.id, band: bandOf(s.severity), sev: s.severity, state, hyp: s.hypothetical ? 1 : 0,
+      id: s.id, band: s.band, sev: s.severity, state, hyp: s.hypothetical ? 1 : 0,
       hi: hi.has(s.id) || s.id === selectedId ? 1 : 0, sel: s.id === selectedId ? 1 : 0,
       ...(ranks?.has(s.id) ? { rank: ranks.get(s.id) } : {}),
     };
@@ -248,6 +250,7 @@ function popupContent(title: string, lines: string[]): HTMLElement {
 const setData = (map: MlMap | null, id: string, data: FeatureCollection) => (map?.getSource(id) as GeoJSONSource | undefined)?.setData(data);
 
 export function MapView(props: Props) {
+  const cfg = useSettings();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const themeRef = useRef<Theme | null>(null);
@@ -280,7 +283,7 @@ export function MapView(props: Props) {
     const s = site && byId.get(String(site.properties.id));
     if (s) {
       const road = `${KIND_LABEL[s.kind]} · ${ROAD_LABEL[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`;
-      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, `${s.hypothetical ? 'Proposed' : s.owner} · ${dayRange(s.start, s.end)}`])).addTo(map);
+      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, `Severity ${severityText(s, cfg)}: ${s.band} disruption`, `${s.hypothetical ? 'Proposed' : s.owner} · ${dayRange(s.start, s.end)}`])).addTo(map);
     } else if (poi) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(String(poi.properties.name), [String(poi.properties.detail)].filter(Boolean))).addTo(map);
     } else popup.remove();

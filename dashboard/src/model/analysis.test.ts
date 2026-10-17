@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProgrammeProject } from '../data/sources';
 import { bestWindows, clusterConflicts, dailyLoad, findConflicts, priorities, programmeBalance, transitGaps } from './analysis';
+import { DEFAULT_SETTINGS } from './settings';
 import { findNeighbours } from './sites';
 import { testSite } from './testSites';
 
@@ -24,6 +25,13 @@ describe('conflicts', () => {
   ];
   const neighbours = findNeighbours(sites);
   const conflicts = findConflicts(sites, neighbours, 90, 400);
+
+  it('keeps only the works within the clash distance the planner set', () => {
+    const near = { ...DEFAULT_SETTINGS, 'clash.radius': 600 };
+    expect(conflicts.some((c) => c.b === 'e')).toBe(true);
+    expect(findConflicts(sites, neighbours, 90, 400, near).some((c) => c.b === 'e')).toBe(false);
+    expect(findConflicts(sites, neighbours, 90, 400, near).some((c) => c.b === 'b')).toBe(true);
+  });
 
   it('finds compounding works and bundle chances', () => {
     const compound = conflicts.find((c) => c.type === 'compound' && c.b === 'b')!;
@@ -116,7 +124,7 @@ describe('transitGaps', () => {
       testSite('a', 0, 0, 0, 29, { district: 'Eving', rail: { name: '', detail: '', m: 900 } }),
       testSite('b', 0, 0, 0, 29, { district: 'Hörde', rail: { name: '', detail: '', m: 100 } }),
     ];
-    const [eving, horde] = transitGaps(sites, new Map([['Eving', 40_000], ['Hörde', 57_000]]), 0, 30);
+    const [eving, horde] = transitGaps(sites, new Map([['Eving', 40_000], ['Hörde', 57_000]]), 0);
     expect(eving).toMatchObject({ district: 'Eving', uncovered: 1, mainRoad: 1, score: 1.5 / 4 });
     expect(horde).toMatchObject({ uncovered: 0, mainRoad: 1 });
   });

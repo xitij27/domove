@@ -1,7 +1,7 @@
 // Colours by the job they do (dataviz skill). Severity is an ordinal ramp, validated with
 // validate_palette.js --ordinal in both modes; the district and programme maps use the blue sequential ramp.
 import { useSyncExternalStore } from 'react';
-import type { Band } from '../model/analysis';
+import type { Band } from '../model/settings';
 
 export type Theme = 'light' | 'dark';
 export type Palette = {

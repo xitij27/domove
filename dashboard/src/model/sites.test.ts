@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { RawSite, Road } from '../data/sources';
 import { toDay } from './days';
 import { toLonLat, toXY } from './geo';
-import { buildSites, findNeighbours, OPEN_END, prepareContext, streetKey } from './sites';
+import { DEFAULT_SETTINGS } from './settings';
+import { buildSites, findNeighbours, OPEN_END, prepareContext, streetKey, weigh } from './sites';
 import { testSite } from './testSites';
 
 const O = toXY([7.4653, 51.5136]);
@@ -60,11 +61,19 @@ describe('buildSites', () => {
 describe('findNeighbours', () => {
   it('links sites within the radius, both ways', () => {
     const sites = [testSite('a', 0, 0, 0, 10), testSite('b', 520, 0, 0, 10), testSite('c', 2000, 0, 0, 10)];
-    const n = findNeighbours(sites);
+    const n = findNeighbours(sites, 1000);
     expect(n.get('a')).toEqual([{ id: 'b', m: expect.closeTo(500, 0) }]);
     expect(n.get('b')?.map((x) => x.id)).toEqual(['a']);
     expect(n.get('c')).toEqual([]);
   });
+});
+
+it('re-weighs severity, worst kind and band under the planner\'s weights', () => {
+  const half = testSite('h', 0, 0, 0, 10, { kind: 'half', road: 'secondary', kinds: ['half', 'signal'] });
+  expect(half).toMatchObject({ kind: 'half', severity: 0.3, band: 'medium' });
+  const [heavier] = weigh([half], { ...DEFAULT_SETTINGS, 'weight.signal': 0.9, 'road.secondary': 0.8, 'band.high': 0.7 });
+  expect(heavier).toMatchObject({ kind: 'signal', band: 'high' });
+  expect(heavier.severity).toBeCloseTo(0.72);
 });
 
 it('compares street names loosely', () => {

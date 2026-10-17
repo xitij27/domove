@@ -8,8 +8,11 @@ import type { PeriodKey, ProgrammeProject } from '../data/sources';
 import type { LonLat } from '../model/geo';
 import type { HypotheticalSite, Shift } from '../model/scenario';
 import type { Site } from '../model/sites';
-import { clashText, dayRange, plural, shiftText, shortTitle } from './format';
+import { Derived } from './Derived';
+import { clashText, dayRange, metres, num, plural, shiftText, shortTitle } from './format';
 import { Info } from './Info';
+import { useSettings } from './useSettings';
+import { alignWorking, finishWorking, moveWorking } from './working';
 
 type Props = {
   byId: Map<string, Site>;
@@ -36,6 +39,7 @@ function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onAp
   cluster: Cluster; advice: ClusterAdvice | null; open: boolean; byId: Map<string, Site>;
   onToggle: () => void; onSelectSite: (id: string) => void; onApply: () => void;
 }) {
+  const cfg = useSettings();
   const sites = cluster.siteIds.map((id) => byId.get(id)!).filter(Boolean).sort((a, b) => b.severity - a.severity);
   const districts = [...new Set(sites.map((s) => s.district).filter(Boolean))].join(', ');
   return (
@@ -48,13 +52,16 @@ function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onAp
         <div className="suggestion">
           <span>
             Start <strong>{shortTitle(advice.site.title)}</strong> {shiftText(advice.option.shift)}
-            <span className="muted small"> · {dayRange(advice.option.start, advice.option.end)} · clashes {clashText(advice.current)} → {clashText(advice.option)}</span>
+            <span className="muted small"> · {dayRange(advice.option.start, advice.option.end)} · clashes <Derived how={moveWorking(advice.site, advice.current, advice.option, cfg)}>{clashText(advice.current)} → {clashText(advice.option)}</Derived></span>
           </span>
           <button className="button" onClick={onApply}>Apply</button>
         </div>
       ) : advice ? (
         <div className="suggestion muted">
-          <span>No date move clears this: ask to finish <strong>{shortTitle(advice.site.title)}</strong> (until {formatShort(advice.site.end)}) sooner.</span>
+          <span>
+            <Derived how={finishWorking(advice.site, sites.filter((s) => s.id !== advice.site.id))}>No date move clears this</Derived>: ask to finish{' '}
+            <strong>{shortTitle(advice.site.title)}</strong> (until {formatShort(advice.site.end)}) sooner.
+          </span>
         </div>
       ) : null}
       <ul className="plain sites">
@@ -103,10 +110,12 @@ function ProjectForm({ place, today, onAdd, onCancel }: { place: string; today: 
 }
 
 function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
+  const cfg = useSettings();
   const [cell, setCell] = useState<{ district: string; period: PeriodKey } | null>(null);
   const max = Math.max(1, ...balance.rows.flatMap((r) => PERIODS.map(([k]) => balance.cells.get(r)![k].count)));
-  const projects: ProgrammeProject[] = cell
-    ? [...balance.cells.get(cell.district)![cell.period].projects].sort((a, b) =>
+  const picked = cell ? balance.cells.get(cell.district)![cell.period] : null;
+  const projects: ProgrammeProject[] = picked
+    ? [...picked.projects].sort((a, b) =>
         Number(a.status === 'im Bau') - Number(b.status === 'im Bau') || a.points - b.points)
     : [];
   return (
@@ -144,6 +153,14 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
       {cell && (
         <div className="block">
           <h4>{cell.district}, {PERIODS.find(([k]) => k === cell.period)![1]}: deferral candidates first</h4>
+          <p className="muted small">
+            <Derived how={[
+              ['Middle district', `${plural(balance.medians[cell.period], 'project')} in this period`],
+              ['▲ overloaded', `from ${cfg['overload.min']} projects and ${num(cfg['overload.factor'])} × the middle district: ${picked!.overloaded ? 'yes' : 'no'}`],
+            ]}>
+              {plural(picked!.count, 'project')} in construction{picked!.overloaded ? ' ▲' : ''}
+            </Derived>
+          </p>
           <ul className="plain">
             {projects.map((p) => (
               <li key={p.id}>
@@ -162,17 +179,18 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
 }
 
 export function CoordinateTab(props: Props) {
+  const cfg = useSettings();
   const { byId, clusters, advice, bundles, today, horizon } = props;
   return (
     <div className="tab-body">
       <section className="block">
         <h3>Clashes <span className="count">{clusters.length}</span></h3>
         <Info>
-          Serious works within 400 m of each other at the same time make each other's detours worse. "3 sites on 40 days" means: on
-          40 days, up to 3 other serious sites within 1 km run at the same time. Click a card to see it on the map.
+          Serious works within {metres(cfg['cluster.radius'])} of each other at the same time make each other's detours worse. "3 sites on
+          40 days" means: on 40 days, up to 3 other serious sites within {metres(cfg['clash.radius'])} run at the same time. Click a card to see it on the map.
           {horizon !== null && ` Suggestions know the works published up to ${formatShort(horizon)}; later ones aren't announced yet.`}
         </Info>
-        {clusters.length === 0 && <p className="ok">No serious works clash within 400 m in the coming year.</p>}
+        {clusters.length === 0 && <p className="ok">No serious works clash within {metres(cfg['cluster.radius'])} in the coming year.</p>}
         <ul className="cards">
           {clusters.map((c) => (
             <ClusterCard
@@ -195,7 +213,7 @@ export function CoordinateTab(props: Props) {
       <section className="block">
         <h3>Do these together <span className="count">{bundles.length}</span></h3>
         <Info>Works on the same stretch of street at different times close it twice. Starting the later one while the first runs spares residents the second closure.</Info>
-        {bundles.length === 0 && <p className="muted">No works on the same stretch follow each other within six months.</p>}
+        {bundles.length === 0 && <p className="muted">No works on the same stretch follow each other within {cfg['together.maxGap']} days.</p>}
         <ul className="cards">
           {bundles.map((b) => {
             const [first, second] = [byId.get(b.a)!, byId.get(b.b)!].sort((x, y) => x.start - y.start);
@@ -206,7 +224,7 @@ export function CoordinateTab(props: Props) {
                 <div><button className="link-button" title={first.title} onClick={() => props.onSelectSite(first.id)}>{shortTitle(first.title)}</button> <span className="muted">{first.owner}</span></div>
                 <div><button className="link-button" title={second.title} onClick={() => props.onSelectSite(second.id)}>{shortTitle(second.title)}</button> <span className="muted">{second.owner}</span></div>
                 <div className="suggestion">
-                  <span>Same street, {plural(b.days, 'day')} apart. Start the second on {formatShort(target)}: one closure instead of two.</span>
+                  <span><Derived how={alignWorking(first, second, target, cfg)}>Same street, {plural(b.days, 'day')} apart</Derived>. Start the second on {formatShort(target)}: one closure instead of two.</span>
                   <button className="button" onClick={() => props.onShift(second.id, [target - second.baseStart, target - second.baseStart])}>Align</button>
                 </div>
               </li>
@@ -231,7 +249,7 @@ export function CoordinateTab(props: Props) {
         <h3>Works programme 2025–2028</h3>
         <Info>
           Projects of the Tiefbauamt in the "Bau" stage per period: 2026 by quarter, the other years whole. <span aria-hidden="true">▲</span> marks
-          a district with at least 1.5 times the period's middle value, a candidate for moving work to a quieter period. Click a cell for its projects.
+          a district with at least {cfg['overload.min']} projects and {num(cfg['overload.factor'])} times the period's middle value, a candidate for moving work to a quieter period. Click a cell for its projects.
         </Info>
         {props.balance ? <ProgrammeGrid balance={props.balance} /> : <p className="muted">The Tiefbauamt's works programme couldn't be loaded.</p>}
       </section>
