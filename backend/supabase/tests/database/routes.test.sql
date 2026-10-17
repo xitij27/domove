@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(52);
+select plan(54);
 
 -- Inject a child-insert failure to verify that the RPC is atomic.
 create function pg_temp.reject_test_stop() returns trigger language plpgsql as $$
@@ -156,6 +156,13 @@ select is_empty($$select 1 from routes where id = '33333333-3333-4333-8333-33333
   'a failed save leaves no route');
 select is_empty($$select 1 from route_waypoints where route_id = '33333333-3333-4333-8333-333333333333'$$,
   'a failed save leaves no stops');
+
+-- Updating (Issue #43)
+select is(
+  public.update_saved_route('22222222-2222-4222-8222-222222222222', pg_temp.place('Home'), pg_temp.place('Work'), 'bike') ->> 'mode',
+  'bike', 'updating a saved route returns its new bike mode');
+select is((select modality::text from routes where id = '22222222-2222-4222-8222-222222222222'),
+  'bike', 'updating a saved route persists its new bike mode');
 
 -- Deleting
 delete from routes where id = '11111111-1111-4111-8111-111111111111';

@@ -63,6 +63,16 @@ try {
   assert.ok(!after.some(({ route }) => route.id === newest));
   for (const id of created.slice(0, 2)) assert.ok(after.some(({ route }) => route.id === id));
 
+  // Issue #43: the app edits through this RPC. Changing an existing route to
+  // bike must reach the function instead of failing as an unavailable route API.
+  const updated = await request('rpc/update_saved_route', 'POST', {
+    p_id: created[0], p_start: place('REST Station', 51.5178, 7.4592), p_finish: place('REST Park'), p_modality: 'bike',
+    p_waypoints: [place('Cafe'), place('Library')],
+  });
+  assert.equal(updated.id, created[0]);
+  assert.equal(updated.mode, 'bike');
+  assert.equal((await request(`saved_routes?id=eq.${created[0]}&select=route`))[0].route.mode, 'bike');
+
   // Validation errors carry the message the app shows.
   for (const [start, message] of [
     [place(''), 'Starting location must contain 1 to 200 characters.'],
@@ -81,7 +91,7 @@ try {
   assert.deepEqual(await request(`saved_routes?id=eq.${deleted}`), []);
   assert.deepEqual(await request(`route_waypoints?route_id=eq.${deleted}`), []);
   assert.equal((await request(`saved_routes?id=eq.${retained}`)).length, 1);
-  console.log('PASS: REST creation with coordinates and leaving date and time, three modes, ordered stops, idempotent retry, reload, keyset paging, validation, deletion and waypoint cascade.');
+  console.log('PASS: REST creation and editing with coordinates and leaving date and time, three modes, ordered stops, idempotent retry, reload, keyset paging, validation, deletion and waypoint cascade.');
 } finally {
   for (const id of created) await request(`routes?id=eq.${id}`, 'DELETE');
 }

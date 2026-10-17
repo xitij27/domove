@@ -11,8 +11,11 @@
    5. `20261016154000_routes_leaving_time.sql`
    6. `20261016190000_routes_leaving_date.sql` (after the obstacles migrations)
    7. `20261016200000_update_saved_route.sql`
+   8. `20261017130000_restore_update_saved_route.sql`
 
-   The team database already runs all of them; see [Team database](#team-database).
+   Apply all of them in order; see [Team database](#team-database) for the
+   manually recorded deployment history. Issue #43 remains visible in the app
+   until the eighth migration is applied to that database.
    The second file was renamed from `20261016160000_create_delete_routes.sql`
    so it no longer shares a version with the obstacles branch; its content is
    unchanged. The third adds table constraints, so it fails if a route has a start
@@ -23,7 +26,9 @@
    to 48, so it fails if a route has more than 48 stops. The sixth adds the
    optional leaving date, puts weekdays into the RPC and the read view, and
    changes no data. The seventh adds `update_saved_route` for editing and
-   changes no data.
+   changes no data. The eighth repairs Issue #43 by reapplying that function at
+   the migration tip and fixing its route-label assignments; it is idempotent
+   for databases where the seventh migration was already applied.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
