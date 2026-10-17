@@ -1,11 +1,12 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import MapView, { Marker, Polyline, type MapViewProps } from 'react-native-maps';
 import type { Coordinate } from '../routes/model';
 import { COLORS, type Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { useUserPosition } from './location';
+import { FOLLOW_PITCH, FOLLOW_TOP, UNFOLLOW_MS } from './navigation';
 import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
@@ -34,7 +35,7 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
 
 const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
-export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, ref }: {
+export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, navigating, onUserMove, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -45,10 +46,16 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
   /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
   onCenterChange?: (center: Coordinate | null) => void;
   showUser: boolean; // location is allowed
+  navigating: boolean; // the camera is on the user, so the route isn't brought into view meanwhile
+  /** While set, the camera follows the user, and this reports that they moved the map themselves (not on Apple Maps, which doesn't tell). */
+  onUserMove?: () => void;
   ref?: Ref<MapHandle>;
 }) {
   const map = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
+  const { height } = useWindowDimensions();
+  // The camera has followed the user since the route was last brought into view.
+  const followed = useRef(false);
   useImperativeHandle(ref, () => ({
     pointNorth: () => map.current?.animateCamera({ heading: 0 }, { duration: POINT_NORTH_MS }),
     zoomTo: async (center) => {
@@ -57,13 +64,33 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       map.current?.animateCamera({ center: at, zoom: STREET_ZOOM, altitude: 1000 }, { duration: MOVE_MS });
       return at;
     },
+    // the map's top padding puts the user low on screen
+    follow: ({ center, heading, zoom, ms }) => {
+      followed.current = true;
+      map.current?.animateCamera({ center, ...(heading === null ? {} : { heading }), pitch: FOLLOW_PITCH, zoom, altitude: altitudeAt(zoom) }, { duration: ms });
+    },
   }), []);
 
-  // Brings a route into view when it opens and again when its routed path replaces the straight line.
+  // Brings a route into view when it opens, again when its routed path replaces the straight line, and after navigating.
   // Fitting before the map has a size fails, so wait for it.
   useEffect(() => {
-    if (ready && route) map.current?.fitToCoordinates(routePoints(route), { edgePadding: routePadding, animated: true });
-  }, [ready, route, routePadding]);
+    if (!ready || navigating) return;
+    let wait = 0;
+    if (followed.current) {
+      followed.current = false;
+      // flat and north up again, before the overview
+      map.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: UNFOLLOW_MS });
+      wait = UNFOLLOW_MS;
+    }
+    if (!route) return;
+    const fit = () => map.current?.fitToCoordinates(routePoints(route), { edgePadding: routePadding, animated: true });
+    if (!wait) {
+      fit();
+      return;
+    }
+    const timer = setTimeout(fit, wait);
+    return () => clearTimeout(timer);
+  }, [ready, route, routePadding, navigating]);
 
   // The region events carry no heading, so ask the map for it on every frame of a gesture or animation.
   // Its camera centre is also exact where the region's middle is not, as on a tilted map.
@@ -88,9 +115,14 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       // shortcut: Apple Maps can't turn a marker, so iOS shows its own dot without the facing arrow; draw one turned by heading minus the map's heading if iOS users need it.
       showsUserLocation={showUser && Platform.OS === 'ios'}
       showsMyLocationButton={false}
-      // keeps the Google logo in sight; while choosing a place, the top padding keeps the centre under the pin mid-map
-      mapPadding={{ top: onCenterChange ? bottomInset : 0, right: 0, bottom: bottomInset, left: 0 }}
-      onRegionChange={() => { onCenterChange?.(null); readCamera(false); }}
+      // keeps the Google logo in sight; while choosing a place, the top padding keeps the centre under the pin mid-map,
+      // and while navigating it puts the user low on screen
+      mapPadding={{ top: navigating ? height * FOLLOW_TOP : onCenterChange ? bottomInset : 0, right: 0, bottom: bottomInset, left: 0 }}
+      onRegionChange={(_region, { isGesture }) => {
+        if (isGesture) onUserMove?.();
+        onCenterChange?.(null);
+        readCamera(false);
+      }}
       onRegionChangeComplete={() => readCamera(true)}
       onMapReady={() => setReady(true)}
       onPress={(e) => {
@@ -111,6 +143,11 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       {route && <Marker coordinate={route.destination.coordinate} pinColor={STOP_COLORS.destination} title="Destination" description={route.destination.label ?? undefined} />}
     </MapView>
   );
+}
+
+/** How high Apple Maps on iOS puts the camera for a Google zoom level: 1000 m at street level, half that one level closer. */
+function altitudeAt(zoom: number) {
+  return 1000 * 2 ** (STREET_ZOOM - zoom);
 }
 
 const USER_BLUE = '#1a73e8';
