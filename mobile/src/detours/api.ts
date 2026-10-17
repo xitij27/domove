@@ -81,14 +81,16 @@ type Feature = { geometry?: { type?: unknown; coordinates?: unknown } | null; pr
 export function parseAreas(body: unknown): PlanSite[] {
   const features = (body as { features?: unknown } | null)?.features;
   if (!Array.isArray(features)) throw new Error('The server returned invalid construction site areas.');
-  return features.flatMap((f: Feature | null) => {
+  return features.flatMap((f: Feature | null): PlanSite[] => {
     const id = f?.properties?.id;
     if (typeof id !== 'string') return [];
-    const { type, coordinates } = f?.geometry ?? {};
+    const type = f?.geometry?.type;
+    const coordinates = f?.geometry?.coordinates;
     if (Array.isArray(coordinates) && (type === 'Polygon' || type === 'MultiPolygon')) {
       return [{ id, shape: shapeOf(type === 'Polygon' ? [coordinates] : coordinates) }];
     }
-    const { longitude, latitude } = f?.properties ?? {};
+    const longitude = f?.properties?.longitude;
+    const latitude = f?.properties?.latitude;
     if (typeof longitude !== 'number' || typeof latitude !== 'number') return [];
     return [{ id, shape: circleShape(toXY([longitude, latitude] as LonLat), POINT_RADIUS_M) }];
   });

@@ -86,8 +86,10 @@ async function ask(fetchImpl: typeof fetch, body: string, signal?: AbortSignal):
     signal?.removeEventListener('abort', stop);
   }
   if (!response.ok) {
-    const code = typeof answer?.error_code === 'number' ? answer.error_code : null;
-    throw routerError(typeof answer?.error === 'string' ? `Routing server: ${answer.error}` : `Routing server: HTTP ${response.status}`, code);
+    const message = answer?.error;
+    const code = answer?.error_code;
+    throw routerError(typeof message === 'string' ? `Routing server: ${message}` : `Routing server: HTTP ${response.status}`,
+      typeof code === 'number' ? code : null);
   }
   return readTrip(answer);
 }
