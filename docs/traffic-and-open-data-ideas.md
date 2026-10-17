@@ -48,6 +48,8 @@ Take the saved car route from Dortmund Hbf to Westfalenpark. On the path the FOS
 
 ## 1. Rate each site's effect
 
+> Worked out as a 0–10 rating per mode and time, and used to pick detours, in [site-rating-and-detours.md](site-rating-and-detours.md) (17 Oct 2026).
+
 Today a site counts as an obstacle when its area comes within 30 m of the path, whatever it does to traffic. Three facts would let the app tell the sites apart:
 
 - **What the site restricts.** The feed's restriction field (`einschrankung`) is empty for all 158 current sites, so this has to come from the title text, as issue #12's closure parser plans. Across the 212 current and planned sites, the titles name about 89 full closures, 63 half closures, 28 lane reductions or narrowings, 18 temporary traffic lights and 12 one-way rules, and 17 mention the sidewalk or a cycle path. 28 titles name no restriction at all, and a title can name several. A few give hours, e.g. "Fahrspureinzug (09-15 Uhr)".
