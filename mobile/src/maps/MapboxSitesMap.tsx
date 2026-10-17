@@ -6,7 +6,7 @@ import type { Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { FOLLOW_PITCH, FOLLOW_TOP, UNFOLLOW_MS } from './navigation';
-import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
+import { ALTERNATIVE_COLORS, CASING_COLORS, LINE_COLORS, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 import { NAMED_SIGNS, signName, stackingOf } from './signs';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -16,7 +16,7 @@ const FIT_ROUTE_MS = 900;
 // Camera padding outlives the move that set it, such as a route's fit.
 const NO_PADDING = { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
-export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, navigating, onUserMove, ref }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onPickAlternative, onCenterChange, showUser, navigating, onUserMove, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -24,6 +24,8 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
   bottomInset: number; // covered by what lies over the map's bottom edge
   route: RouteOverlay | null;
   routePadding: RoutePadding; // on top of bottomInset
+  /** A grey alternative of the route was tapped, by its index. */
+  onPickAlternative?: (index: number) => void;
   /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
   onCenterChange?: (center: Coordinate | null) => void;
   showUser: boolean; // location is allowed
@@ -58,7 +60,9 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
     },
   }), [height, bottomInset]);
 
-  // Brings a route into view when it opens, again when its routed path replaces the straight line, and after navigating.
+  // Brings a route into view when it opens, again when its routed path or its ways around replace the line drawn, and
+  // after navigating; not when another way is picked.
+  const fit = route?.fit ?? null;
   useEffect(() => {
     if (navigating) return;
     let wait = 0;
@@ -69,30 +73,38 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
       camera.current?.setCamera({ padding: NO_PADDING, heading: 0, pitch: 0, animationDuration: UNFOLLOW_MS, animationMode: 'easeTo' });
       wait = UNFOLLOW_MS;
     }
-    if (!route) return;
-    const points = routePoints(route);
-    const lons = points.map((p) => p.longitude);
-    const lats = points.map((p) => p.latitude);
+    if (!fit) return;
+    const lons = fit.map((p) => p.longitude);
+    const lats = fit.map((p) => p.latitude);
     const { top, right, bottom, left } = routePadding;
-    const fit = () => camera.current?.fitBounds(
+    const bringIntoView = () => camera.current?.fitBounds(
       [Math.max(...lons), Math.max(...lats)],
       [Math.min(...lons), Math.min(...lats)],
       [top, right, bottom + bottomInset, left],
       FIT_ROUTE_MS,
     );
     if (!wait) {
-      fit();
+      bringIntoView();
       return;
     }
-    const timer = setTimeout(fit, wait);
+    const timer = setTimeout(bringIntoView, wait);
     return () => clearTimeout(timer);
-  }, [route, routePadding, bottomInset, navigating]);
+  }, [fit, routePadding, bottomInset, navigating]);
 
   const line = useMemo<GeoJSON.Feature | null>(() => route && {
     type: 'Feature',
     properties: {},
     geometry: { type: 'LineString', coordinates: route.path.map((p) => [p.longitude, p.latitude]) },
   }, [route]);
+
+  const alternatives = useMemo<GeoJSON.FeatureCollection | null>(() => route?.alternatives.length ? {
+    type: 'FeatureCollection',
+    features: route.alternatives.map((path, index) => ({
+      type: 'Feature',
+      properties: { index },
+      geometry: { type: 'LineString', coordinates: path.map((p) => [p.longitude, p.latitude]) },
+    })),
+  } : null, [route]);
 
   const stops = useMemo<GeoJSON.FeatureCollection | null>(() => route && {
     type: 'FeatureCollection',
@@ -162,6 +174,23 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
             id="route-line"
             belowLayerID="site-signs"
             style={{ lineColor: LINE_COLORS[theme], lineWidth: 4, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1 }}
+          />
+        </ShapeSource>
+      )}
+      {alternatives && (
+        // Under the way picked, so it stays on top where they share streets.
+        <ShapeSource
+          id="route-alternatives"
+          shape={alternatives}
+          onPress={(e) => {
+            const index = e.features[0]?.properties?.index;
+            if (typeof index === 'number') onPickAlternative?.(index);
+          }}
+        >
+          <LineLayer
+            id="route-alternatives"
+            belowLayerID="route-casing"
+            style={{ lineColor: ALTERNATIVE_COLORS[theme], lineWidth: 5, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1 }}
           />
         </ShapeSource>
       )}

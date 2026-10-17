@@ -66,6 +66,14 @@ route also closes it. The path comes from the same FOSSGIS OSRM request as
 until it answers, or if it fails, a straight line joins the stops. A route the
 job has not checked yet shows no sites.
 
+Meanwhile the app looks for the best way around the construction sites that run
+when the route is next taken, for its mode ([site-rating-and-detours.md](site-rating-and-detours.md#in-the-app)).
+The card reads "Looking for a way around construction…" for a few seconds, then
+e.g. "Recommended · 18 min (+4 min) · 6.2 km" and "Avoids Kaiserstraße (9/10)",
+or "No detour needed". The way replaces the line on the map, up to two other ways
+show in grey, and tapping one, or its button on the card, picks it for **Start**.
+A site the way can't avoid is named on the card.
+
 **Start** on the route card turns the map into a navigation view, as in Google
 Maps. The camera comes down to you, tilts towards the horizon and keeps you low
 on the screen with the way ahead above, and the map turns with you: it faces

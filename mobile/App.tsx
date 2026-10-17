@@ -14,6 +14,8 @@ import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
 import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
+import DetourSummary from './src/detours/DetourSummary';
+import { siteName, wayRating } from './src/detours/text';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import HowScoresWork from './src/ratings/HowScoresWork';
@@ -214,7 +216,15 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   const [explaining, setExplaining] = useState(false);
   const routeRatings = useRouteRatings(onRoute && route ? route.id : null);
   const siteRating = useSiteRating(selected && !onRoute ? selected.id : null, scoreMode);
-  const highCount = routeRatings.value ? highOnRoute(routeRatings.value.values()) : 0;
+  // Once the way around construction is found, the route's scores count for the way shown, not the router's first line.
+  const detours = onRoute?.detours ?? null;
+  const planned = detours?.status === 'ready' ? detours : null;
+  const way = planned && onRoute ? planned.plan.options[onRoute.chosen] : null;
+  const selectedOnWay = planned && onRoute && selected ? planned.scores.get(selected.id) : undefined;
+  const wayScore = planned && onRoute && selectedOnWay ? wayRating(planned.plan, onRoute.chosen, selectedOnWay) : null;
+  const highCount = way ? way.sites.filter((s) => s.effectiveRating >= 7).length
+    : routeRatings.value ? highOnRoute(routeRatings.value.values()) : 0;
+  const nameOf = useCallback((siteId: string) => siteName(sites.find((s) => s.id === siteId)?.title), [sites]);
 
   // Start turns the shown route's map into a navigation view, as in Google Maps: the camera follows the user,
   // tilted and turned the way they go, until Exit. It pauses while a place is chosen, which has the map to itself.
@@ -307,6 +317,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         bottomInset={picking ? insets.bottom : SHEET_RADIUS}
         route={onRoute?.overlay ?? null}
         routePadding={routePadding}
+        onPickAlternative={onRoute?.chooseAlternative}
         onCenterChange={picking ? setCenter : undefined}
         showUser={located}
         navigating={navigating}
@@ -430,7 +441,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
               )}
               {onRoute && route ? (
                 <ImpactScore
-                  rating={routeRatings.value?.get(selected.id) ?? null}
+                  rating={wayScore ?? routeRatings.value?.get(selected.id) ?? null}
                   loading={routeRatings.loading}
                   error={routeRatings.error}
                   onRetry={routeRatings.retry}
@@ -467,7 +478,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
                   <View style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
                     <Text style={{ color: palette.muted }}>
-                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}
+                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(way ? way.sites.length : onRoute.siteIds && !loading && !error ? nearby.length : null)}
                       {highCount > 0 ? ` · ${highCount} with high impact` : ''}
                     </Text>
                   </View>
@@ -505,6 +516,19 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
                   </>
                 )}
               </View>
+              {/* The way around construction and the others to pick; picked before leaving, so out of the way while navigating. */}
+              <Reveal space={8} clip>
+                {!navigating && (
+                  <DetourSummary
+                    detours={onRoute.detours}
+                    chosen={onRoute.chosen}
+                    onChoose={onRoute.choose}
+                    onRetry={onRoute.retryDetours}
+                    nameOf={nameOf}
+                    theme={theme}
+                  />
+                )}
+              </Reveal>
               {/* The route's alerts, next to the sites they are about; set before leaving, so out of the way while navigating. */}
               <Reveal space={4} clip>{alerts && !navigating && <RouteAlerts alerts={alerts} theme={theme} />}</Reveal>
             </View>

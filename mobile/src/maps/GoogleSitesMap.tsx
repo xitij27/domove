@@ -7,7 +7,7 @@ import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { useUserPosition } from './location';
 import { FOLLOW_PITCH, FOLLOW_TOP, UNFOLLOW_MS } from './navigation';
-import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
+import { ALTERNATIVE_COLORS, CASING_COLORS, LINE_COLORS, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 import { signOf, stackingOf } from './signs';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
@@ -36,7 +36,7 @@ const LIGHT_STYLE: MapViewProps['customMapStyle'] = [
 
 const STYLES: Record<MapTheme, MapViewProps['customMapStyle']> = { day: LIGHT_STYLE, night: DARK_STYLE };
 
-export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, navigating, onUserMove, ref }: {
+export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onPickAlternative, onCenterChange, showUser, navigating, onUserMove, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -44,6 +44,8 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
   bottomInset: number; // covered by what lies over the map's bottom edge
   route: RouteOverlay | null;
   routePadding: RoutePadding; // on top of bottomInset
+  /** A grey alternative of the route was tapped, by its index. */
+  onPickAlternative?: (index: number) => void;
   /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
   onCenterChange?: (center: Coordinate | null) => void;
   showUser: boolean; // location is allowed
@@ -72,8 +74,9 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
     },
   }), []);
 
-  // Brings a route into view when it opens, again when its routed path replaces the straight line, and after navigating.
-  // Fitting before the map has a size fails, so wait for it.
+  // Brings a route into view when it opens, again when its routed path or its ways around replace the line drawn, and
+  // after navigating; not when another way is picked. Fitting before the map has a size fails, so wait for it.
+  const fit = route?.fit ?? null;
   useEffect(() => {
     if (!ready || navigating) return;
     let wait = 0;
@@ -83,15 +86,15 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       map.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: UNFOLLOW_MS });
       wait = UNFOLLOW_MS;
     }
-    if (!route) return;
-    const fit = () => map.current?.fitToCoordinates(routePoints(route), { edgePadding: routePadding, animated: true });
+    if (!fit) return;
+    const bringIntoView = () => map.current?.fitToCoordinates(fit, { edgePadding: routePadding, animated: true });
     if (!wait) {
-      fit();
+      bringIntoView();
       return;
     }
-    const timer = setTimeout(fit, wait);
+    const timer = setTimeout(bringIntoView, wait);
     return () => clearTimeout(timer);
-  }, [ready, route, routePadding, navigating]);
+  }, [ready, fit, routePadding, navigating]);
 
   // The region events carry no heading, so ask the map for it on every frame of a gesture or animation.
   // Its camera centre is also exact where the region's middle is not, as on a tilted map.
@@ -131,6 +134,18 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
         else if (e.nativeEvent.action !== 'marker-press') onSelect(null);
       }}
     >
+      {/* under the way picked, so it stays on top where they share streets */}
+      {route?.alternatives.map((path, index) => (
+        <Polyline
+          key={`alternative-${index}`}
+          coordinates={path}
+          strokeWidth={5}
+          strokeColor={ALTERNATIVE_COLORS[theme]}
+          zIndex={0}
+          tappable
+          onPress={() => onPickAlternative?.(index)}
+        />
+      ))}
       {route && <Polyline coordinates={route.path} strokeWidth={7} strokeColor={CASING_COLORS[theme]} zIndex={1} />}
       {route && <Polyline coordinates={route.path} strokeWidth={4} strokeColor={LINE_COLORS[theme]} zIndex={2} />}
       {sites.map((s) => (
