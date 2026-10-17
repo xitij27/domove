@@ -17,7 +17,7 @@ stored on the phone, in `construction-notifications.json` in the app's
 documents folder.
 
 When the app starts and whenever it comes back to the foreground, it reads
-`public.obstacles` (filled every 15 minutes by the `detect-obstacles` pg_cron
+`public.obstacles` (filled every 5 minutes by the `detect-obstacles` pg_cron
 job, see #5) together with each site's dates and each route's destination. For
 every obstacle on a route with notifications on, it schedules one local
 reminder:
