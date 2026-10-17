@@ -33,8 +33,8 @@ function useKeyed<T>(key: string | null, load: (() => Promise<T>) | null, fallba
   };
 }
 
-/** A site's score for a mode, worked out for now. */
-export function useSiteRating(siteId: string | null, mode: TransportMode, api: RatingsApi = ratingsApi): Loaded<SiteRating> {
+/** A site's score for a mode, worked out for now; null when the site has left the feed. */
+export function useSiteRating(siteId: string | null, mode: TransportMode, api: RatingsApi = ratingsApi): Loaded<SiteRating | null> {
   const load = useCallback(() => api.site(siteId!, mode), [api, siteId, mode]);
   return useKeyed(siteId && `${siteId}|${mode}`, siteId ? load : null, 'Could not load the impact score.');
 }
