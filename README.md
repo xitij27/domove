@@ -23,6 +23,8 @@ Checks: `npm test`, `npx tsc --noEmit`, `npx expo lint`.
 
 Route creation and deletion (Issue #1): see [setup, shared route model, API and tests](docs/routes.md).
 
+Each site's card shows an impact score from 0 to 10 for the way you travel, with every point behind it and a "How scores work" sheet; a route's card counts its sites with high impact. How the score is worked out, the database functions and their setup (one migration, then `select private.sync_places();`): [docs/site-rating-and-detours.md](docs/site-rating-and-detours.md).
+
 ## Planner dashboard (`dashboard/`)
 
 Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city's planners, on the same data: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).

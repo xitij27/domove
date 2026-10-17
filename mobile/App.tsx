@@ -12,10 +12,14 @@ import { CLOSURE_LABELS, signOf, SIGNS } from './src/maps/signs';
 import { fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
-import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute } from './src/routes/model';
+import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
+import HowScoresWork from './src/ratings/HowScoresWork';
+import ImpactScore from './src/ratings/ImpactScore';
+import { highOnRoute } from './src/ratings/model';
+import { useRouteRatings, useSiteRating } from './src/ratings/useRatings';
 import { QuizButton, QuizQuestion, useQuiz } from './src/quiz/Quiz';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 import { DURATION, Fade, FadeTo, Reveal, useTween } from './src/motion';
@@ -205,6 +209,12 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   // A place for a new route is chosen among every site, not only the shown route's.
   const onRoute = picking ? null : routeOnMap;
   const alerts = useRouteAlerts(route?.id ?? null);
+  // A site's impact score is for the shown route's mode at its leaving time, else for the mode picked on the card, now.
+  const [scoreMode, setScoreMode] = useState<TransportMode>('car');
+  const [explaining, setExplaining] = useState(false);
+  const routeRatings = useRouteRatings(onRoute && route ? route.id : null);
+  const siteRating = useSiteRating(selected && !onRoute ? selected.id : null, scoreMode);
+  const highCount = routeRatings.value ? highOnRoute(routeRatings.value.values()) : 0;
 
   // Start turns the shown route's map into a navigation view, as in Google Maps: the camera follows the user,
   // tilted and turned the way they go, until Exit. It pauses while a place is chosen, which has the map to itself.
@@ -418,6 +428,28 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
                   <Text style={{ color: palette.text }}>{selectedAlert}</Text>
                 </View>
               )}
+              {onRoute && route ? (
+                <ImpactScore
+                  rating={routeRatings.value?.get(selected.id) ?? null}
+                  loading={routeRatings.loading}
+                  error={routeRatings.error}
+                  onRetry={routeRatings.retry}
+                  mode={route.mode}
+                  theme={theme}
+                  onExplain={() => setExplaining(true)}
+                />
+              ) : (
+                <ImpactScore
+                  rating={siteRating.value}
+                  loading={siteRating.loading}
+                  error={siteRating.error}
+                  onRetry={siteRating.retry}
+                  mode={scoreMode}
+                  onModeChange={setScoreMode}
+                  theme={theme}
+                  onExplain={() => setExplaining(true)}
+                />
+              )}
             </View>
           )}
         </Reveal>
@@ -434,7 +466,10 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
                 ) : (
                   <View style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
-                    <Text style={{ color: palette.muted }}>{TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}</Text>
+                    <Text style={{ color: palette.muted }}>
+                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}
+                      {highCount > 0 ? ` · ${highCount} with high impact` : ''}
+                    </Text>
                   </View>
                 )}
                 {navigating ? (
@@ -477,6 +512,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         </Reveal>
       </KeyboardAvoidingView>
 
+      <HowScoresWork visible={explaining} onClose={() => setExplaining(false)} theme={theme} />
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
   );
