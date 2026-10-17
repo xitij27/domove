@@ -1,6 +1,7 @@
 import type { Priority } from '../model/analysis';
 import { formatDay } from '../model/days';
 import { plural } from './format';
+import { Info } from './Info';
 
 type Props = { priorities: Priority[]; date: number; onSelectSite: (id: string) => void };
 
@@ -9,12 +10,15 @@ export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
     <div className="tab-body">
       <section className="block">
         <h3>Finish these first <span className="count">{priorities.length} running</span></h3>
-        <p className="muted">
-          Running works ranked by how much finishing them sooner would help on {formatDay(date)}: how disruptive they are,
-          how long they still run, what else overlaps, and whether people have another way to go. The top ten are numbered on the map.
-        </p>
+        <Info>
+          Running works ranked by how much finishing them sooner would help on {formatDay(date)}: how disruptive they are, how
+          long they still run, what else overlaps, and whether people have another way to go. The top ten are numbered on the map.
+          Score = severity × remaining days ÷ 30 (at most 180 days) × (1 + ½ for each overlapping site within 1 km, at most 6)
+          × 1.5 within 500 m of a fire and rescue station or 300 m of a hospital × 1.5 with no Stadtbahn stop within 600 m.
+          Severity = restriction weight × road weight, so a full closure on a main road is 1 and on a residential street 0.3.
+        </Info>
         <ol className="ranked">
-          {priorities.slice(0, 15).map((p, i) => (
+          {priorities.map((p, i) => (
             <li key={p.site.id}>
               <span className="rank" aria-hidden="true">{i + 1}</span>
               <div>
@@ -28,14 +32,6 @@ export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
             </li>
           ))}
         </ol>
-        <details className="explain">
-          <summary>How the ranking works</summary>
-          <p>
-            Score = severity × remaining days ÷ 30 (at most 180 days) × (1 + ½ for each overlapping site within 1 km, at most 6)
-            × 1.5 within 500 m of a fire and rescue station or 300 m of a hospital × 1.5 with no Stadtbahn stop within 600 m.
-            Severity = restriction weight × road weight, so a full closure on a main road is 1 and on a residential street 0.3.
-          </p>
-        </details>
       </section>
     </div>
   );

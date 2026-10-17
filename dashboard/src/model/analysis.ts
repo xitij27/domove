@@ -143,6 +143,9 @@ export type WindowOption = {
   overlap: number;
   /** Severity-weighted days shared with works on the same stretch. */
   together: number;
+  /** In plain numbers: how many of those works 50 m–1 km away it runs alongside, and on how many days. */
+  clashes: number;
+  clashDays: number;
   holidayDays: number;
   afterHorizon: boolean;
   cost: number;
@@ -163,18 +166,25 @@ export function bestWindows(
     const end = start + length;
     let overlap = 0;
     let together = 0;
+    const clashing: DayRange[] = [];
     for (const n of neighbours) {
       const o = byId.get(n.id);
       if (!o) continue;
       const days = overlapDays(start, end, o.start, o.end);
       if (!days) continue;
       if (n.m <= BUNDLE_RADIUS) together += site.severity * o.severity * days;
-      else if (Math.min(site.severity, o.severity) >= COMPOUND_MIN_SEVERITY) overlap += site.severity * o.severity * days * (1 - n.m / NEIGHBOUR_RADIUS);
+      else if (Math.min(site.severity, o.severity) >= COMPOUND_MIN_SEVERITY) {
+        overlap += site.severity * o.severity * days * (1 - n.m / NEIGHBOUR_RADIUS);
+        clashing.push([Math.max(start, o.start), Math.min(end, o.end)]);
+      }
     }
     const holidayDays = holidays.reduce((sum, [a, b]) => sum + overlapDays(start, end, a, b), 0);
     const shift = start - site.baseStart;
     const cost = overlap - 0.5 * together + site.severity * (SHIFT_COST * Math.abs(shift) - HOLIDAY_BONUS * holidayDays);
-    return { start, end, shift, overlap, together, holidayDays, afterHorizon: horizon !== null && start > horizon, cost };
+    return {
+      start, end, shift, overlap, together, clashes: clashing.length, clashDays: unionDays(clashing), holidayDays,
+      afterHorizon: horizon !== null && start > horizon, cost,
+    };
   };
   const current = evaluate(site.start);
   const earliest = site.hypothetical ? Math.max(today, site.baseStart) : Math.max(today + 1, site.baseStart - 30);
@@ -195,6 +205,68 @@ export function bestWindows(
     if (options.every((o) => Math.abs(o.start - c.start) >= 7)) options.push(c);
   }
   return { current, options };
+}
+
+/** Days covered by at least one of the ranges. */
+function unionDays(ranges: DayRange[]): number {
+  let total = 0;
+  let reach = -Infinity;
+  for (const [a, b] of [...ranges].sort((x, y) => x[0] - y[0])) {
+    if (b <= reach) continue;
+    total += b - Math.max(a, reach + 1) + 1;
+    reach = b;
+  }
+  return total;
+}
+
+/** For a cluster: the one move worth asking an owner for, or else (option null) the running works to finish sooner. */
+export type ClusterAdvice = { site: Site; option: WindowOption; current: WindowOption } | { site: Site; option: null };
+
+export function adviseClusters(
+  clusters: Cluster[], byId: Map<string, Site>, sites: Site[], neighbours: Map<string, Neighbour[]>,
+  holidays: DayRange[], today: number, horizon: number | null,
+): Map<string, ClusterAdvice | null> {
+  return new Map(clusters.map((c): [string, ClusterAdvice | null] => {
+    const members = c.siteIds.map((id) => byId.get(id)).filter((s): s is Site => !!s);
+    let best: { advice: ClusterAdvice; gain: number } | null = null;
+    for (const s of members.filter((m) => m.hypothetical || m.baseStart > today)) {
+      const advice = bestWindows(s, sites, neighbours.get(s.id) ?? [], holidays, today, horizon);
+      // only a move that at least halves the site's overlap is worth asking an owner for
+      const option = advice.options.find((o) => o.overlap <= 0.5 * advice.current.overlap);
+      const gain = option ? advice.current.cost - option.cost : 0;
+      if (option && (!best || gain > best.gain)) best = { advice: { site: s, option, current: advice.current }, gain };
+    }
+    if (best) return [c.id, best.advice];
+    // otherwise the works that keep the cluster going longest are the ones to speed up
+    const longest = members.filter((s) => !s.hypothetical && s.baseStart <= today).sort((a, b) => b.end - a.end || b.severity - a.severity)[0];
+    return [c.id, longest ? { site: longest, option: null } : null];
+  }));
+}
+
+/** One decision for the planner, in the order the To do list shows them. */
+export type Todo =
+  | { kind: 'move'; site: Site; option: WindowOption; current: WindowOption }
+  | { kind: 'align'; first: Site; second: Site; start: number; days: number }
+  | { kind: 'finish'; site: Site; cluster: Cluster }
+  | { kind: 'transit'; gap: DistrictGap };
+
+/** Every action the views suggest, none left out: moves, works to do together, works to finish sooner, districts needing transit help. */
+export function todoList(
+  clusters: Cluster[], advice: Map<string, ClusterAdvice | null>, bundles: Conflict[], byId: Map<string, Site>, gaps: DistrictGap[], today: number,
+): Todo[] {
+  const moves: Todo[] = [];
+  const finish: Todo[] = [];
+  for (const c of clusters) {
+    const a = advice.get(c.id);
+    if (a?.option) moves.push({ kind: 'move', site: a.site, option: a.option, current: a.current });
+    else if (a) finish.push({ kind: 'finish', site: a.site, cluster: c });
+  }
+  const aligns = bundles.flatMap((b): Todo[] => {
+    const [first, second] = [byId.get(b.a), byId.get(b.b)].sort((x, y) => (x?.start ?? 0) - (y?.start ?? 0));
+    return first && second ? [{ kind: 'align', first, second, start: Math.max(today + 1, first.start), days: b.days }] : [];
+  });
+  const transit = gaps.filter((g) => g.score > 0).map((gap): Todo => ({ kind: 'transit', gap }));
+  return [...moves, ...aligns, ...finish, ...transit];
 }
 
 export type Priority = { site: Site; score: number; remaining: number; overlapping: number; freedOverlapDays: number; reasons: string[] };

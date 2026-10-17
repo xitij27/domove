@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Reveal } from '../motion';
 import { MAX_LOCATION_LENGTH, type Place, type PlaceDraft } from './model';
 import { searchPlaces } from './places';
 
@@ -59,17 +60,21 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
           </Pressable>
         )}
       </View>
-      {!suggestions && <Text style={styles.failed}>Could not load suggestions. Check your connection.</Text>}
-      {!!suggestions?.length && (
-        <View style={styles.list}>
-          {suggestions.map((place) => (
-            <Pressable key={place.label} accessibilityRole="button" accessibilityLabel={place.label} disabled={!editable} onPress={() => onChange(place)} style={styles.item}>
-              <Text style={styles.itemText}>{place.label}</Text>
-            </Pressable>
-          ))}
-          <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
-        </View>
-      )}
+      {/* opens under the field, moving what follows down smoothly, and closes once a place is picked */}
+      <Reveal clip>
+        {!suggestions ? (
+          <Text style={styles.failed}>Could not load suggestions. Check your connection.</Text>
+        ) : suggestions.length > 0 && (
+          <View style={styles.list}>
+            {suggestions.map((place) => (
+              <Pressable key={place.label} accessibilityRole="button" accessibilityLabel={place.label} disabled={!editable} onPress={() => onChange(place)} style={styles.item}>
+                <Text style={styles.itemText}>{place.label}</Text>
+              </Pressable>
+            ))}
+            <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
+          </View>
+        )}
+      </Reveal>
     </View>
   );
 }

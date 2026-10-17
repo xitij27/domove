@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Animated, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { STOP_COLORS } from '../maps/routeOverlay';
+import { Appear, DURATION, useTween } from '../motion';
 import { PALETTES, type MapTheme } from '../theme';
 import type { Coordinate, PlacePick } from './model';
 import { placeNameAt } from './places';
@@ -37,6 +38,9 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
   const [found, setFound] = useState<{ at: Coordinate; label: string | null } | null>(null);
   const latitude = center?.latitude;
   const longitude = center?.longitude;
+  // The pin lifts briskly as the map starts to move, and settles more gently once it stops.
+  const lifted = useTween(center ? 0 : 1, center ? DURATION.medium : DURATION.short);
+  const lift = useMemo(() => [{ translateY: lifted.interpolate({ inputRange: [0, 1], outputRange: [0, -LIFT] }) }], [lifted]);
 
   // By value: the map reports the same middle again when it idles after loading tiles.
   useEffect(() => {
@@ -67,11 +71,13 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
         {/* The pin's tip and this spot mark the chosen point; the pin lifts off it while the map moves. */}
         <View style={styles.middle}>
           <View style={[styles.spot, { backgroundColor: color }]} />
-          <MaterialIcons name="place" size={PIN} color={color} style={[styles.pin, { top: -PIN_TIP - (center ? 0 : LIFT) }]} />
+          <Animated.View style={[styles.pin, { transform: lift }]}>
+            <MaterialIcons name="place" size={PIN} color={color} style={styles.pinShadow} />
+          </Animated.View>
         </View>
       </View>
 
-      <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, bottom: insets.bottom + LOGO_ROOM }]}>
+      <Appear from={{ y: 24 }} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, bottom: insets.bottom + LOGO_ROOM }]}>
         <View style={styles.head}>
           <MaterialIcons name="place" size={20} color={color} />
           <Text accessibilityRole="header" style={[styles.title, { color: palette.text }]}>{pick.title}</Text>
@@ -95,7 +101,7 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
         >
           <Text style={styles.useText}>Use this location</Text>
         </Pressable>
-      </View>
+      </Appear>
     </>
   );
 }
@@ -105,7 +111,8 @@ const styles = StyleSheet.create({
   // zero-sized, at the map's exact middle, so what hangs off it is placed from that point
   middle: { width: 0, height: 0 },
   spot: { position: 'absolute', left: -4, top: -4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#ffffff' },
-  pin: { position: 'absolute', left: -PIN / 2, textShadowColor: 'rgba(0, 0, 0, 0.35)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 2 } },
+  pin: { position: 'absolute', left: -PIN / 2, top: -PIN_TIP },
+  pinShadow: { textShadowColor: 'rgba(0, 0, 0, 0.35)', textShadowRadius: 4, textShadowOffset: { width: 0, height: 2 } },
   card: { position: 'absolute', left: 12, right: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { flex: 1, fontSize: 14, fontWeight: '600' },

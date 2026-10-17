@@ -8,7 +8,8 @@ The app answers one resident's question: which works are on my route? The dashbo
 
 | Question | Where | How |
 |---|---|---|
-| Are works piling up in one place at one time? | **Coordinate** · overlap clusters, and the timeline | works close together on the same days, linked into clusters |
+| What should I act on first? | **To do** (the first view) | every suggestion the other views make, one line each, numbered like the map: moves that clear clashes, works to do together, clashes only finishing sooner can clear, districts needing transit help |
+| Are works piling up in one place at one time? | **Coordinate** · clashes, and the timeline | works close together on the same days, linked into clusters |
 | Which works should happen together instead? | **Coordinate** · do these together | works on the same stretch at different times |
 | When should these works start? | a site's panel · best windows; **Plan a new project** | start dates scored against everything else planned |
 | Is the Tiefbauamt's programme balanced? | **Coordinate** · works programme | projects in construction per district and period |
@@ -19,9 +20,11 @@ The app answers one resident's question: which works are on my route? The dashbo
 
 Every view follows the chosen day: the header's arrows (a week at a time), a click or drag on the timeline, or the arrow keys on it (a day; PgUp/PgDn a week; Home is today). The map is the same map in every tab, with the tab's layers on top.
 
+Numbers are stated in things a planner can count. A clash is another serious site within 1 km running on the same days, so a suggestion reads "clashes 6 sites on 60 days → 2 sites on 9 days". Disruption is in points: 1 point is a full closure on a main road, and lighter restrictions and side streets count less. Each section's (i) holds its rules; lists are never cut short.
+
 ### Scenarios
 
-Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and the last KPI says how overlap and peak load changed. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
+Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and the header counts the clashes and the busiest day's points, published → yours. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
 
 ## How it scores
 

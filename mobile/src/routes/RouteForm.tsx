@@ -3,8 +3,11 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type Place, type PlaceDraft, type PlacePick, type RouteDraft, type RouteErrors, type RouteLocation, type SavedRoute } from './model';
 import LeavingAtInput, { type Leaving } from './LeavingAtInput';
 import PlaceInput from './PlaceInput';
+import { Appear, Reveal } from '../motion';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
+// Between the form's rows.
+const GAP = 10;
 
 type Props = {
   /** A saved route to change; the form starts empty without one. */
@@ -24,7 +27,8 @@ export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPic
   const [mode, setMode] = useState<RouteDraft['mode']>(route?.mode ?? '');
   const [stops, setStops] = useState<{ id: number; place: PlaceDraft }[]>(() => route?.waypoints.map((stop, index) => ({ id: index, place: placeDraft(stop) })) ?? []);
   const [leaving, setLeaving] = useState<Leaving>({ startTime: route?.startTime ?? '', weekdays: route?.weekdays ?? [] });
-  const nextId = useRef(route?.waypoints.length ?? 0);
+  const savedStops = route?.waypoints.length ?? 0;
+  const nextId = useRef(savedStops);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<RouteErrors>({});
@@ -64,14 +68,16 @@ export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPic
         <Text style={styles.hint}>Stops are visited in the order shown. Empty stops are ignored.</Text>
         {stops.map((stop, index) => {
           const setStop = (place: PlaceDraft) => setStops((current) => current.map((item) => item.id === stop.id ? { ...item, place } : item));
-          return (
-            <View key={stop.id} style={styles.stop}>
+          const row = (
+            <View style={styles.stop}>
               <PlaceInput accessibilityLabel={`Intermediate stop ${index + 1}`} value={stop.place} editable={!busy} placeholder={`Stop ${index + 1}`} style={styles.stopInput} inputStyle={styles.input} onChange={setStop} onPickOnMap={pickOnMap?.(`Stop ${index + 1}`, 'stop', stop.place, setStop)} />
               <Pressable accessibilityRole="button" accessibilityLabel={`Remove stop ${index + 1}`} disabled={busy} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} style={styles.remove}>
                 <Text style={styles.removeText}>Remove</Text>
               </Pressable>
             </View>
           );
+          // A stop added here grows in, taking up the gap before it as it does; the saved ones are simply there.
+          return stop.id < savedStops ? <View key={stop.id}>{row}</View> : <Reveal key={stop.id} space={GAP} clip style={styles.added}>{row}</Reveal>;
         })}
         {errors.waypoints && <ErrorText message={errors.waypoints} />}
         <Pressable accessibilityRole="button" disabled={busy || stops.length >= MAX_WAYPOINTS} accessibilityState={{ disabled: busy || stops.length >= MAX_WAYPOINTS }} style={styles.secondary} onPress={() => setStops((current) => [...current, { id: nextId.current++, place: EMPTY }])}>
@@ -114,18 +120,23 @@ function placeDraft({ label, coordinate }: RouteLocation): PlaceDraft {
 }
 
 function ErrorText({ message }: { message: string }) {
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{message}</Text>;
+  return (
+    <Appear from={{ y: -4 }}>
+      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{message}</Text>
+    </Appear>
+  );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { padding: 20, gap: 10, width: '100%', maxWidth: 640, alignSelf: 'center', paddingBottom: 32 },
+  content: { padding: 20, gap: GAP, width: '100%', maxWidth: 640, alignSelf: 'center', paddingBottom: 32 },
   title: { fontSize: 28, fontWeight: '700', color: '#182332' },
   hint: { color: '#526173', lineHeight: 21 },
   label: { fontSize: 15, fontWeight: '600', color: '#182332', marginTop: 10 },
   input: { borderWidth: 1, borderColor: '#b8c3cf', backgroundColor: '#fff', borderRadius: 12, padding: 14, color: '#182332', fontSize: 16, minHeight: 50 },
   invalid: { borderColor: '#b42318' },
   stop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  added: { marginTop: -GAP },
   stopInput: { flex: 1, minWidth: 0 },
   remove: { padding: 10, minHeight: 48, justifyContent: 'center' },
   removeText: { color: '#a52621', fontWeight: '600' },

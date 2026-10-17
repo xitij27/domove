@@ -59,11 +59,28 @@ type Props = {
 };
 
 const SITE_LAYERS = ['site-fill', 'site-dot'];
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+// the route around the works draws itself from A to B: coloured up to t of its length
+const drawnTo = (color: string, t: number): ExpressionSpecification => ['step', ['line-progress'], color, t, TRANSPARENT];
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Calls draw(t) with t from 0 to 1 over `ms`, once per frame; returns a cancel for effect cleanup. */
+function animate(ms: number, draw: (t: number) => void): () => void {
+  const start = performance.now();
+  let frame = requestAnimationFrame(function tick(now) {
+    const t = Math.min(1, (now - start) / ms);
+    draw(t);
+    if (t < 1) frame = requestAnimationFrame(tick);
+  });
+  return () => cancelAnimationFrame(frame);
+}
+
 const collection = (features: Feature[]): FeatureCollection => ({ type: 'FeatureCollection', features });
 
 function addLayers(map: MlMap, p: Palette) {
   const empty = collection([]);
-  for (const id of ['districts', 'sites', 'site-points', 'links', 'pois', 'route', 'reach']) map.addSource(id, { type: 'geojson', data: empty });
+  for (const id of ['districts', 'sites', 'site-points', 'links', 'pois', 'route', 'reach']) map.addSource(id, { type: 'geojson', data: empty, lineMetrics: id === 'route' });
   const band: ExpressionSpecification = ['match', ['get', 'band'], 'high', p.severity.high, 'medium', p.severity.medium, p.severity.low];
   const seq = p.sequential;
   map.addLayer({
@@ -109,7 +126,11 @@ function addLayers(map: MlMap, p: Palette) {
   });
   map.addLayer({
     id: 'route-aware', type: 'line', source: 'route', filter: ['==', ['get', 'role'], 'aware'],
-    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': p.accent, 'line-width': 3.5 },
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-gradient': drawnTo(p.accent, 1), 'line-width': 3.5 },
+  });
+  map.addLayer({
+    id: 'site-ping', type: 'circle', source: 'site-points', filter: ['==', ['get', 'sel'], 1],
+    paint: { 'circle-radius': 0, 'circle-color': TRANSPARENT, 'circle-stroke-color': p.ink, 'circle-stroke-width': 2, 'circle-stroke-opacity': 0 },
   });
   map.addLayer({
     id: 'site-dot', type: 'circle', source: 'site-points',
@@ -304,7 +325,25 @@ export function MapView(props: Props) {
     if (o?.reach) areas.push({ type: 'Feature', geometry: o.reach, properties: { role: 'reach' } });
     if (o?.lost) areas.push({ type: 'Feature', geometry: o.lost, properties: { role: 'lost' } });
     setData(mapRef.current, 'reach', collection(areas));
+    const map = mapRef.current;
+    if (!map || !o?.aware || reducedMotion()) return;
+    const color = PALETTES[themeRef.current ?? 'light'].accent;
+    return animate(1100, (t) => {
+      if (map.getLayer('route-aware')) map.setPaintProperty('route-aware', 'line-gradient', drawnTo(color, easeOut(t)));
+    });
   }, [props.overlay, styleVersion]);
+
+  // three rings ripple out from the site just picked, while the camera flies there
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !props.selectedId || reducedMotion()) return;
+    return animate(1800, (t) => {
+      if (!map.getLayer('site-ping')) return;
+      const k = (t * 3) % 1;
+      map.setPaintProperty('site-ping', 'circle-radius', 6 + 26 * easeOut(k));
+      map.setPaintProperty('site-ping', 'circle-stroke-opacity', t < 1 ? 1 - k : 0);
+    });
+  }, [props.selectedId]);
 
   useEffect(() => {
     if (props.focus) mapRef.current?.fitBounds(props.focus.bounds, { padding: 72, maxZoom: 16, duration: 600 });

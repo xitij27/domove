@@ -12,7 +12,7 @@ import { NAMED_SIGNS, signName, stackingOf } from './signs';
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 if (TOKEN) Mapbox.setAccessToken(TOKEN);
 
-const FIT_ROUTE_MS = 600;
+const FIT_ROUTE_MS = 900;
 // Camera padding outlives the move that set it, such as a route's fit.
 const NO_PADDING = { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
