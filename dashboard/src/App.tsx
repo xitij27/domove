@@ -24,7 +24,7 @@ import { RoutesTab } from './ui/RoutesTab';
 import { SitePanel } from './ui/SitePanel';
 import { Summary } from './ui/Summary';
 import type { Stat } from './ui/Summary';
-import { useTheme } from './ui/theme';
+import { setThemePreference, useTheme } from './ui/theme';
 import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
@@ -297,6 +297,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
             </>
           ) : <span className="muted">No changes yet</span>}
+        </div>
+        <div className="segmented theme-choice" role="group" aria-label="Colour theme">
+          <button type="button" className={theme === 'light' ? 'selected' : ''} aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>Light</button>
+          <button type="button" className={theme === 'dark' ? 'selected' : ''} aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>Dark</button>
         </div>
         {problems.length > 0 && <div className="banner" role="status">Some layers couldn't load ({problems.join('; ')}). Everything else works.</div>}
       </header>
