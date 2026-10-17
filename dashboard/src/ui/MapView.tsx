@@ -52,6 +52,8 @@ type Props = {
   ranks: Map<string, number> | null;
   links: MapLink[];
   districts: DistrictValue[];
+  /** What a value of 1 means on the district colours; the biggest value when unset. */
+  districtMax?: number;
   selectedDistrict: string | null;
   pois: MapPoi[];
   overlay: MapOverlay | null;
@@ -334,12 +336,12 @@ export function MapView(props: Props) {
   }, [siteData, styleVersion]);
 
   useEffect(() => {
-    const max = Math.max(0, ...props.districts.map((d) => d.value ?? 0));
+    const max = props.districtMax ?? Math.max(0, ...props.districts.map((d) => d.value ?? 0));
     setData(mapRef.current, 'districts', collection(props.districts.map((d) => ({
       type: 'Feature', geometry: d.geometry,
       properties: { name: d.name, sel: d.name === props.selectedDistrict ? 1 : 0, ...(d.value !== null && max > 0 ? { v: d.value / max } : {}) },
     }))));
-  }, [props.districts, props.selectedDistrict, styleVersion]);
+  }, [props.districts, props.districtMax, props.selectedDistrict, styleVersion]);
 
   useEffect(() => {
     setData(mapRef.current, 'links', collection(props.links.map((l) => ({
