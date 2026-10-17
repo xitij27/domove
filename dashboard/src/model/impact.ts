@@ -96,6 +96,8 @@ function conflictFactor(p: ProjectEvidence, all: ProjectEvidence[], conflicts: P
     if (other.id === p.id) return false;
     if (other.start !== null && other.start > p.end || other.end !== null && other.end < p.start) return false;
     if (other.shape && bboxGap(p.shape!.bbox, other.shape.bbox) > 250) return false;
+    // A point-only project far from this footprint cannot be a 250 m conflict, so it must not void every score in the city.
+    if (!other.shape && other.center && pointShapeDist(toXY(other.center), p.shape!) > 250) return false;
     return !validPeriod(other) || !other.shape;
   });
   if (unresolved) return { value: null, reason: 'Other potentially concurrent projects have missing dates or geometry; a maximum conflict factor cannot be established.' };

@@ -93,6 +93,8 @@ describe('construction conflicts reuse Outlook results', () => {
     expect(assess(a, evidence(a, { shape: null })).factors[2].value).toBeNull();
     expect(assess(a, p, [p, { ...other, shape: null }]).factors[2].value).toBeNull();
     expect(assess(a, p, [p, evidence(site('far', 5000), { start: null })]).factors[2].value).toBe(0);
+    expect(assess(a, p, [p, evidence(site('far', 5000), { shape: null })]).factors[2].value).toBe(0);
+    expect(assess(a, p, [p, evidence(site('lost', 100), { shape: null, center: null })]).factors[2].value).toBeNull();
   });
 
   it('can establish the maximum intersection factor despite an unrelated unknown project', () => {
