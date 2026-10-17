@@ -399,8 +399,8 @@ function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView:
           <div className="legend-row"><i className="key-line bundle" />Same stretch: do together</div>
         </>
       )}
-      {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>To do item</div>}
-      {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Rank to speed up</div>}
+      {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>Matches the number in the To do list</div>}
+      {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Priority rank (1 = finish first)</div>}
       {tab === 'capacity' && <div className="legend-row"><i className="ramp" />Road load: 0 → 125% (top colour = full)</div>}
       {tab === 'transit' && (
         <>
