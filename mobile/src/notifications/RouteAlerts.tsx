@@ -1,11 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Reveal, useTween } from '../motion';
 import { PALETTES, type MapTheme } from '../theme';
 import type { NotificationPreference, RouteNotificationSettings } from './model';
 import { constructionNotifications, sendDevelopmentTestAlert } from './runtime';
 import type { SiteReminder } from './service';
+
+// Between the rows of the open choices.
+const BODY_GAP = 10;
 
 const CHOICES: Record<NotificationPreference, string> = {
   ONE_WEEK_BEFORE: '1 week before',
@@ -90,6 +94,9 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
   const [open, setOpen] = useState(false);
   // iOS has no clock dialog, so its clock opens in the card instead
   const [clockOpen, setClockOpen] = useState(false);
+  // The chevron turns over as the choices open, rather than flipping.
+  const turn = useTween(open ? 1 : 0);
+  const chevron = useMemo(() => [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }], [turn]);
   const { settings, saving } = alerts;
   const on = !!settings && settings.preference !== 'DISABLED';
   const next = alerts.reminders.filter((r) => !r.sent).sort((a, b) => a.at - b.at)[0];
@@ -123,62 +130,75 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
           <Text style={{ color: palette.text }}>{summary}</Text>
           {next && <Text style={{ color: palette.muted }}>Next {when(next.at)}</Text>}
         </View>
-        {saving ? <ActivityIndicator size="small" color={palette.muted} /> : <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={22} color={palette.muted} />}
+        {saving ? (
+          <ActivityIndicator size="small" color={palette.muted} />
+        ) : (
+          <Animated.View style={{ transform: chevron }}>
+            <MaterialIcons name="expand-more" size={22} color={palette.muted} />
+          </Animated.View>
+        )}
       </Pressable>
 
-      {open && settings && (
-        <View style={styles.body}>
-          <View accessibilityRole="radiogroup" accessibilityLabel="When to alert" style={styles.choices}>
-            {(Object.keys(CHOICES) as NotificationPreference[]).map((preference) => {
-              const chosen = settings.preference === preference;
-              return (
+      {/* Each part below opens and closes smoothly, bringing the space above it. */}
+      <Reveal space={8} clip>
+        {open && settings && (
+          <View>
+            <View accessibilityRole="radiogroup" accessibilityLabel="When to alert" style={styles.choices}>
+              {(Object.keys(CHOICES) as NotificationPreference[]).map((preference) => {
+                const chosen = settings.preference === preference;
+                return (
+                  <Pressable
+                    key={preference}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: chosen, disabled: saving }}
+                    disabled={saving}
+                    onPress={() => alerts.save({ ...settings, preference })}
+                    style={[styles.choice, { borderColor: palette.border }, chosen && { backgroundColor: palette.thumb }]}
+                  >
+                    <Text style={{ color: chosen ? palette.text : palette.muted, fontWeight: chosen ? '600' : '400' }}>{CHOICES[preference]}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Reveal space={BODY_GAP} clip>
+              {on && (
                 <Pressable
-                  key={preference}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: chosen, disabled: saving }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Alert time"
+                  accessibilityValue={{ text: settings.notificationTime }}
+                  accessibilityState={{ expanded: Platform.OS === 'android' ? undefined : clockOpen, disabled: saving }}
                   disabled={saving}
-                  onPress={() => alerts.save({ ...settings, preference })}
-                  style={[styles.choice, { borderColor: palette.border }, chosen && { backgroundColor: palette.thumb }]}
+                  onPress={pickTime}
+                  style={styles.timeRow}
                 >
-                  <Text style={{ color: chosen ? palette.text : palette.muted, fontWeight: chosen ? '600' : '400' }}>{CHOICES[preference]}</Text>
+                  <Text style={{ color: palette.muted }}>At</Text>
+                  <Text style={[styles.time, { color: palette.text }]}>{settings.notificationTime}</Text>
                 </Pressable>
-              );
-            })}
+              )}
+            </Reveal>
+            <Reveal space={BODY_GAP} clip>
+              {on && clockOpen && Platform.OS !== 'android' && (
+                <DateTimePicker
+                  value={clockValue(settings.notificationTime)}
+                  mode="time"
+                  display="spinner"
+                  is24Hour
+                  themeVariant={theme === 'night' ? 'dark' : 'light'}
+                  onValueChange={(_, date) => alerts.save({ ...settings, notificationTime: toTime(date) })}
+                />
+              )}
+            </Reveal>
+            <Text style={[styles.spaced, { color: palette.muted }]}>The phone reminds you about each construction site on this route at that time.</Text>
+            {__DEV__ && (
+              <Pressable accessibilityRole="button" onPress={alerts.sendTest} style={[styles.choice, styles.spaced, styles.test, { borderColor: palette.border }]}>
+                <Text style={{ color: palette.text }}>Send test alert</Text>
+              </Pressable>
+            )}
           </View>
-          {on && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Alert time"
-              accessibilityValue={{ text: settings.notificationTime }}
-              accessibilityState={{ expanded: Platform.OS === 'android' ? undefined : clockOpen, disabled: saving }}
-              disabled={saving}
-              onPress={pickTime}
-              style={styles.timeRow}
-            >
-              <Text style={{ color: palette.muted }}>At</Text>
-              <Text style={[styles.time, { color: palette.text }]}>{settings.notificationTime}</Text>
-            </Pressable>
-          )}
-          {on && clockOpen && Platform.OS !== 'android' && (
-            <DateTimePicker
-              value={clockValue(settings.notificationTime)}
-              mode="time"
-              display="spinner"
-              is24Hour
-              themeVariant={theme === 'night' ? 'dark' : 'light'}
-              onValueChange={(_, date) => alerts.save({ ...settings, notificationTime: toTime(date) })}
-            />
-          )}
-          <Text style={{ color: palette.muted }}>The phone reminds you about each construction site on this route at that time.</Text>
-          {__DEV__ && (
-            <Pressable accessibilityRole="button" onPress={alerts.sendTest} style={[styles.choice, styles.test, { borderColor: palette.border }]}>
-              <Text style={{ color: palette.text }}>Send test alert</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-      {alerts.message && <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{alerts.message}</Text>}
-      {alerts.error && <Text accessibilityRole="alert" style={{ color: palette.status.current }}>{alerts.error}</Text>}
+        )}
+      </Reveal>
+      <Reveal space={8} clip>{alerts.message && <Text accessibilityLiveRegion="polite" style={{ color: palette.muted }}>{alerts.message}</Text>}</Reveal>
+      <Reveal space={8} clip>{alerts.error && <Text accessibilityRole="alert" style={{ color: palette.status.current }}>{alerts.error}</Text>}</Reveal>
     </View>
   );
 }
@@ -204,10 +224,10 @@ function describe(error: unknown, fallback: string) {
 }
 
 const styles = StyleSheet.create({
-  alerts: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 6, gap: 8 },
+  alerts: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 6 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
   headText: { flex: 1 },
-  body: { gap: 10 },
+  spaced: { marginTop: BODY_GAP },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36, justifyContent: 'center' },
   timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, alignSelf: 'flex-start', minHeight: 44, paddingVertical: 4 },

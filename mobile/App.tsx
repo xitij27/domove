@@ -18,6 +18,7 @@ import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/Rout
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
 import { QuizButton, QuizQuestion, useQuiz } from './src/quiz/Quiz';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
+import { DURATION, Fade, FadeTo, Reveal, useTween } from './src/motion';
 import { useWeather, WeatherButton, WeatherForecast } from './src/weather/Weather';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
@@ -28,6 +29,10 @@ const THEMES: { theme: MapTheme; icon: 'light-mode' | 'dark-mode'; label: string
 ];
 const TOGGLE_CELL = 42;
 const TOGGLE_PAD = 3;
+// A status chip's opacity while its sites are hidden.
+const CHIP_OFF = 0.45;
+// Between the cards over the bottom of the map.
+const CARD_GAP = 10;
 
 // Written here and by plugins/withCrashLog.js when a run crashes; shown on the next launch.
 const crashFile = () => new File(Paths.document, 'last-crash.txt');
@@ -301,156 +306,175 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
         <View style={styles.legend}>
           {(Object.keys(LABELS) as Status[]).map((st) => (
-            <Pressable
-              key={st}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: shown[st] }}
-              onPress={() => setShown({ ...shown, [st]: !shown[st] })}
-              style={[styles.chip, surface, !shown[st] && styles.chipOff]}
-            >
-              {/* the roadworks sign as current and planned sites show it */}
-              <Image source={SIGNS.other[st]} style={styles.chipSign} />
-              <Text style={{ color: palette.text }}>{LABELS[st]} ({nearby.filter((s) => s.status === st).length})</Text>
-            </Pressable>
+            <FadeTo key={st} opacity={shown[st] ? 1 : CHIP_OFF}>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: shown[st] }}
+                onPress={() => setShown({ ...shown, [st]: !shown[st] })}
+                style={[styles.chip, surface]}
+              >
+                {/* the roadworks sign as current and planned sites show it */}
+                <Image source={SIGNS.other[st]} style={styles.chipSign} />
+                <Text style={{ color: palette.text }}>{LABELS[st]} ({nearby.filter((s) => s.status === st).length})</Text>
+              </Pressable>
+            </FadeTo>
           ))}
-          {loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}
+          <Fade>{loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}</Fade>
           {/* the other map would open elsewhere than the pin, or than the user it follows */}
-          {MapboxSitesMap && GOOGLE_OK && !picking && !navigating && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Map provider: ${mapboxOn ? 'Mapbox' : 'Google'}. Tap to switch.`}
-              // the other map opens pointing north
-              onPress={() => { setSelected(null); setMapboxOn(!mapboxOn); heading.setValue(0); }}
-              style={[styles.chip, surface, styles.switch]}
-            >
-              <Text style={{ color: palette.text }}>{mapboxOn ? 'Mapbox' : 'Google'} ⇄</Text>
-            </Pressable>
-          )}
+          <Fade style={styles.switch}>
+            {MapboxSitesMap && GOOGLE_OK && !picking && !navigating && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Map provider: ${mapboxOn ? 'Mapbox' : 'Google'}. Tap to switch.`}
+                // the other map opens pointing north
+                onPress={() => { setSelected(null); setMapboxOn(!mapboxOn); heading.setValue(0); }}
+                style={[styles.chip, surface]}
+              >
+                <Text style={{ color: palette.text }}>{mapboxOn ? 'Mapbox' : 'Google'} ⇄</Text>
+              </Pressable>
+            )}
+          </Fade>
         </View>
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
         {/* while navigating, north stays up until the user re-centres */}
         <Compass heading={heading} theme={theme} onPress={() => { if (navigating) setFollowing(false); map.current?.pointNorth(); }} />
         {/* choosing a place has the map to itself */}
-        {!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}
+        <Fade>{!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}</Fade>
         {/* last of the round controls, so it sits under the weather */}
-        {!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}
+        <Fade>{!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}</Fade>
       </View>
 
-      {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
+      <Fade style={StyleSheet.absoluteFill}>
+        {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
+      </Fade>
 
       {/* lifts the cards over the keyboard while a quiz answer is typed */}
       <KeyboardAvoidingView behavior="padding" style={styles.bottom}>
-        {navigating && !following && (
-          <Pressable accessibilityRole="button" accessibilityHint="Follows you again, turning the map the way you go" onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
-            <MaterialIcons name="navigation" size={18} color={LINE_COLORS[theme]} />
-            <Text style={{ color: palette.text }}>Re-centre</Text>
-          </Pressable>
-        )}
+        <Reveal space={CARD_GAP}>
+          {navigating && !following && (
+            <Pressable accessibilityRole="button" accessibilityHint="Follows you again, turning the map the way you go" onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
+              <MaterialIcons name="navigation" size={18} color={LINE_COLORS[theme]} />
+              <Text style={{ color: palette.text }}>Re-centre</Text>
+            </Pressable>
+          )}
+        </Reveal>
 
-        {error && !picking && (
-          <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
-            <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
-            <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
-          </Pressable>
-        )}
+        <Reveal space={CARD_GAP}>
+          {error && !picking && (
+            <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
+              <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
+              <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
+            </Pressable>
+          )}
+        </Reveal>
 
-        {located && gyroscope === false && !gyroWarned && !picking && (
-          <View style={[styles.card, surface]}>
-            <View style={styles.routeHead}>
-              <View style={styles.routeText}>
-                <Text style={[styles.title, { color: palette.text }]}>No gyroscope in this phone</Text>
-                <Text style={{ color: palette.muted }}>The arrow showing which way you face may be off or jumpy.</Text>
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Dismiss the gyroscope warning" hitSlop={8} onPress={() => setGyroWarned(true)} style={styles.routeClose}>
-                <MaterialIcons name="close" size={22} color={palette.muted} />
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {forecastOpen && weather && !picking && (
-          <View style={[styles.card, surface]}>
-            <WeatherForecast weather={weather} theme={theme} onClose={() => setForecastOpen(false)} />
-          </View>
-        )}
-
-        {quizShown && (
-          <View style={[styles.card, surface]}>
-            <QuizQuestion quiz={quiz} theme={theme} onClose={() => setQuizOpen(false)} />
-          </View>
-        )}
-
-        {selected && !error && !picking && (
-          <View style={[styles.card, surface]}>
-            <View style={styles.siteKind}>
-              <Image source={signOf(selected)} style={styles.siteSign} />
-              <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
-              <Text style={{ color: palette.muted }}>· {CLOSURE_LABELS[selected.closure]}</Text>
-            </View>
-            <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
-            <Text style={{ color: palette.muted }}>{selected.period}</Text>
-            <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
-            {selectedAlert && (
-              <View style={styles.siteAlert}>
-                <MaterialIcons name="notifications" size={16} color={palette.accent} />
-                <Text style={{ color: palette.text }}>{selectedAlert}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {route && onRoute && (
-          <View style={[styles.card, surface]}>
-            <View style={styles.routeHead}>
-              {onRoute.error ? (
-                <Pressable accessibilityRole="button" onPress={onRoute.retry} style={styles.routeText}>
-                  <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
-                  <Text style={{ color: palette.status.current }}>{onRoute.error} — tap to retry</Text>
-                </Pressable>
-              ) : (
+        <Reveal space={CARD_GAP}>
+          {located && gyroscope === false && !gyroWarned && !picking && (
+            <View style={[styles.card, surface]}>
+              <View style={styles.routeHead}>
                 <View style={styles.routeText}>
-                  <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
-                  <Text style={{ color: palette.muted }}>{TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}</Text>
+                  <Text style={[styles.title, { color: palette.text }]}>No gyroscope in this phone</Text>
+                  <Text style={{ color: palette.muted }}>The arrow showing which way you face may be off or jumpy.</Text>
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel="Dismiss the gyroscope warning" hitSlop={8} onPress={() => setGyroWarned(true)} style={styles.routeClose}>
+                  <MaterialIcons name="close" size={22} color={palette.muted} />
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </Reveal>
+
+        <Reveal space={CARD_GAP}>
+          {forecastOpen && weather && !picking && (
+            <View style={[styles.card, surface]}>
+              <WeatherForecast weather={weather} theme={theme} onClose={() => setForecastOpen(false)} />
+            </View>
+          )}
+        </Reveal>
+
+        <Reveal space={CARD_GAP}>
+          {quizShown && (
+            <View style={[styles.card, surface]}>
+              <QuizQuestion quiz={quiz} theme={theme} onClose={() => setQuizOpen(false)} />
+            </View>
+          )}
+        </Reveal>
+
+        <Reveal space={CARD_GAP}>
+          {selected && !error && !picking && (
+            <View style={[styles.card, surface]}>
+              <View style={styles.siteKind}>
+                <Image source={signOf(selected)} style={styles.siteSign} />
+                <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
+                <Text style={{ color: palette.muted }}>· {CLOSURE_LABELS[selected.closure]}</Text>
+              </View>
+              <Text style={[styles.title, { color: palette.text }]}>{selected.title}</Text>
+              <Text style={{ color: palette.muted }}>{selected.period}</Text>
+              <Text style={{ color: palette.muted }}>{[selected.district, selected.owner].filter(Boolean).join(' · ')}</Text>
+              {selectedAlert && (
+                <View style={styles.siteAlert}>
+                  <MaterialIcons name="notifications" size={16} color={palette.accent} />
+                  <Text style={{ color: palette.text }}>{selectedAlert}</Text>
                 </View>
               )}
-              {navigating ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityHint="Stops following you and shows the whole route"
-                  onPress={() => setStarted(false)}
-                  style={[styles.navButton, { backgroundColor: palette.status.current }]}
-                >
-                  <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Exit</Text>
-                </Pressable>
-              ) : (
-                <>
-                  {/* white or near-black on the route's blue, as the line's casing is */}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityHint="Follows you along the route, turning the map the way you go"
-                    onPress={start}
-                    style={[styles.navButton, { backgroundColor: LINE_COLORS[theme] }]}
-                  >
-                    <MaterialIcons name="navigation" size={18} color={CASING_COLORS[theme]} />
-                    <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Start</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Close the route and show every construction site"
-                    hitSlop={8}
-                    onPress={onCloseRoute}
-                    style={styles.routeClose}
-                  >
-                    <MaterialIcons name="close" size={22} color={palette.muted} />
-                  </Pressable>
-                </>
-              )}
             </View>
-            {/* The route's alerts, next to the sites they are about; set before leaving, so out of the way while navigating. */}
-            {alerts && !navigating && <RouteAlerts alerts={alerts} theme={theme} />}
-          </View>
-        )}
+          )}
+        </Reveal>
+
+        <Reveal space={CARD_GAP}>
+          {route && onRoute && (
+            <View style={[styles.card, styles.routeCard, surface]}>
+              <View style={styles.routeHead}>
+                {onRoute.error ? (
+                  <Pressable accessibilityRole="button" onPress={onRoute.retry} style={styles.routeText}>
+                    <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
+                    <Text style={{ color: palette.status.current }}>{onRoute.error} — tap to retry</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.routeText}>
+                    <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
+                    <Text style={{ color: palette.muted }}>{TRANSPORT_MODES[route.mode]} · {sitesOnWay(onRoute.siteIds && !loading && !error ? nearby.length : null)}</Text>
+                  </View>
+                )}
+                {navigating ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityHint="Stops following you and shows the whole route"
+                    onPress={() => setStarted(false)}
+                    style={[styles.navButton, { backgroundColor: palette.status.current }]}
+                  >
+                    <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Exit</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    {/* white or near-black on the route's blue, as the line's casing is */}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityHint="Follows you along the route, turning the map the way you go"
+                      onPress={start}
+                      style={[styles.navButton, { backgroundColor: LINE_COLORS[theme] }]}
+                    >
+                      <MaterialIcons name="navigation" size={18} color={CASING_COLORS[theme]} />
+                      <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Start</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Close the route and show every construction site"
+                      hitSlop={8}
+                      onPress={onCloseRoute}
+                      style={styles.routeClose}
+                    >
+                      <MaterialIcons name="close" size={22} color={palette.muted} />
+                    </Pressable>
+                  </>
+                )}
+              </View>
+              {/* The route's alerts, next to the sites they are about; set before leaving, so out of the way while navigating. */}
+              <Reveal space={4} clip>{alerts && !navigating && <RouteAlerts alerts={alerts} theme={theme} />}</Reveal>
+            </View>
+          )}
+        </Reveal>
       </KeyboardAvoidingView>
 
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
@@ -469,11 +493,8 @@ function sitesOnWay(count: number | null) {
 function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: MapTheme) => void }) {
   const palette = PALETTES[theme];
   const index = THEMES.findIndex((t) => t.theme === theme);
-  const slide = useRef(new Animated.Value(index)).current;
-
-  useEffect(() => {
-    Animated.spring(slide, { toValue: index, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
-  }, [slide, index]);
+  const slide = useTween(index, DURATION.long);
+  const offset = useMemo(() => Animated.multiply(slide, TOGGLE_CELL), [slide]);
 
   return (
     <View
@@ -484,7 +505,7 @@ function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: M
       <Animated.View
         style={[
           styles.toggleThumb,
-          { backgroundColor: palette.thumb, transform: [{ translateY: Animated.multiply(slide, TOGGLE_CELL) }] },
+          { backgroundColor: palette.thumb, transform: [{ translateY: offset }] },
         ]}
       />
       {THEMES.map((t) => (
@@ -510,7 +531,6 @@ const styles = StyleSheet.create({
   overlay: { position: 'absolute', left: 12, right: 12, gap: 10, pointerEvents: 'box-none' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, pointerEvents: 'box-none' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 6, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
-  chipOff: { opacity: 0.45 },
   switch: { marginLeft: 'auto' },
   chipSign: { width: 20, height: 20 },
   // map controls go top right, as in Google and Apple Maps
@@ -518,9 +538,11 @@ const styles = StyleSheet.create({
   toggleThumb: { position: 'absolute', top: TOGGLE_PAD, left: TOGGLE_PAD, width: TOGGLE_CELL, height: TOGGLE_CELL, borderRadius: TOGGLE_CELL / 2 },
   toggleCell: { width: TOGGLE_CELL, height: TOGGLE_CELL, alignItems: 'center', justifyContent: 'center' },
   // no safe-area inset at the bottom: the routes sheet below the map already clears it, but its rounded top
-  // reaches SHEET_RADIUS over the map
-  bottom: { position: 'absolute', left: 12, right: 12, bottom: SHEET_RADIUS + 12, gap: 10, pointerEvents: 'box-none' },
+  // reaches SHEET_RADIUS over the map. No gap: each card brings its own space above it, which grows and shrinks with it.
+  bottom: { position: 'absolute', left: 12, right: 12, bottom: SHEET_RADIUS + 12, pointerEvents: 'box-none' },
   card: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 4, elevation: 4, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  // its alerts row brings its own space, as it opens and closes
+  routeCard: { gap: 0 },
   routeHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   siteAlert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   siteKind: { flexDirection: 'row', alignItems: 'center', gap: 6 },

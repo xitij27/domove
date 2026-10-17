@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Reveal } from '../motion';
 import { repeatSummary, WEEKDAYS, type RouteDraft, type Weekday } from './model';
 
 export type Leaving = Pick<RouteDraft, 'startTime' | 'weekdays'>;
@@ -97,9 +98,11 @@ export default function LeavingAtInput({ value, onChange, editable, invalid }: P
           })}
         </View>
       </View>
-      {open && Platform.OS !== 'android' && (
-        <DateTimePicker testID="leaving-picker" value={pickerValue(value.startTime)} mode="time" display="spinner" is24Hour accentColor="#a8520e" onValueChange={(_, date) => onChange({ ...value, startTime: toTime(date) })} />
-      )}
+      <Reveal clip>
+        {open && Platform.OS !== 'android' && (
+          <DateTimePicker testID="leaving-picker" value={pickerValue(value.startTime)} mode="time" display="spinner" is24Hour accentColor="#a8520e" onValueChange={(_, date) => onChange({ ...value, startTime: toTime(date) })} />
+        )}
+      </Reveal>
     </View>
   );
 }

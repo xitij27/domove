@@ -20,9 +20,9 @@ export const FOLLOW_TOP = 0.35;
 /** About the time between fixes, so each glide ends as the next fix comes in. */
 export const FOLLOW_MS = 1000;
 /** From the route's overview down to the user. */
-export const FOLLOW_START_MS = 800;
+export const FOLLOW_START_MS = 1200;
 /** From following back to a flat map, north up, before the route's overview. */
-export const UNFOLLOW_MS = 300;
+export const UNFOLLOW_MS = 450;
 /** A turn of the phone on foot. */
 export const TURN_MS = 300;
 /** Smaller turns are the compass shaking, not worth a camera move. */
