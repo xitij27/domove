@@ -155,6 +155,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   const [located, askLocation] = useLocationGranted();
   const gyroscope = useHasGyroscope();
   const [gyroWarned, setGyroWarned] = useState(false);
+  const quiz = useQuiz();
+  const [quizOpen, setQuizOpen] = useState(false);
   const { weather, failed: weatherFailed, reload: reloadWeather } = useWeather();
   // The forecast card takes the site card's place, so only one of them is open.
   const [forecastOpen, setForecastOpen] = useState(false);
@@ -331,6 +333,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         <Compass heading={heading} theme={theme} onPress={() => { if (navigating) setFollowing(false); map.current?.pointNorth(); }} />
         {/* choosing a place has the map to itself */}
         {!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}
+        {/* last of the round controls, so it sits under the weather */}
+        {!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}
       </View>
 
       {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
@@ -368,6 +372,12 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         {forecastOpen && weather && !picking && (
           <View style={[styles.card, surface]}>
             <WeatherForecast weather={weather} theme={theme} onClose={() => setForecastOpen(false)} />
+          </View>
+        )}
+
+        {quizShown && (
+          <View style={[styles.card, surface]}>
+            <QuizQuestion quiz={quiz} theme={theme} onClose={() => setQuizOpen(false)} />
           </View>
         )}
 
