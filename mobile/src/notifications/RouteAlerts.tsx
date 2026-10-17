@@ -61,7 +61,7 @@ export function useRouteAlerts(routeId: string | null): RouteAlertsState | null 
   const sendTest = useCallback(() => {
     if (!routeId) return;
     sendDevelopmentTestAlert(routeId).then(
-      () => setStatus({ routeId, saving: false, message: 'A test alert will appear shortly. Tap it to see the site on the map.', error: null }),
+      () => setStatus({ routeId, saving: false, message: 'A test alert will appear shortly. Tap it to open the route in Google Maps.', error: null }),
       (e: unknown) => setStatus({ routeId, saving: false, message: null, error: describe(e, 'Could not send the test alert.') }),
     );
   }, [routeId]);

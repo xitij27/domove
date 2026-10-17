@@ -12,7 +12,7 @@ type StoredState = {
 /** A site's reminder as scheduled on the phone: when it fires, or fired. */
 export type SiteReminder = { siteId: string; at: number; sent: boolean };
 export type PendingReminder = { id: string; signature: string };
-export type ReminderPayload = { title: string; body: string; siteId: string; signature: string };
+export type ReminderPayload = { title: string; body: string; routeId: string; siteId: string; signature: string; googleMapsUrl: string | null };
 export type NotificationDriver = {
   permission: (request: boolean) => Promise<boolean>;
   /** Only the reminders this service scheduled. */
@@ -36,7 +36,12 @@ function readState(raw: string | null): StoredState {
 }
 
 /** Operations run one at a time, so a sync and a settings change can't schedule the same reminder twice. */
-export function createNotificationService(storage: TextStorage, driver: NotificationDriver, now: () => Date = () => new Date()) {
+export function createNotificationService(
+  storage: TextStorage,
+  driver: NotificationDriver,
+  now: () => Date = () => new Date(),
+  routeLink: (routeId: string) => Promise<string | null> = async () => null,
+) {
   let tail: Promise<unknown> = Promise.resolve();
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = tail.then(operation);
@@ -49,7 +54,7 @@ export function createNotificationService(storage: TextStorage, driver: Notifica
   async function reconcile(state: StoredState, requestPermission: boolean): Promise<string | null> {
     const time = now();
     const due: StoredState['due'] = {};
-    const wanted = new Map<string, { date: Date; key: string; payload: ReminderPayload }>();
+    const planned: { date: Date; key: string; obstacle: RouteObstacle; content: ReturnType<typeof notificationContent> }[] = [];
     for (const obstacle of state.obstacles) {
       const key = obstacleKey(obstacle);
       if (state.due[key] !== undefined && state.due[key] <= time.getTime()) {
@@ -59,10 +64,23 @@ export function createNotificationService(storage: TextStorage, driver: Notifica
       const date = reminderDate(obstacle, state.settings[obstacle.routeId] ?? DEFAULT_SETTINGS, time);
       if (!date) continue;
       const content = notificationContent(obstacle, time);
-      const signature = JSON.stringify([key, date.getTime(), content.body]);
-      wanted.set(signature, { date, key, payload: { ...content, siteId: obstacle.siteId, signature } });
+      planned.push({ date, key, obstacle, content });
     }
-    const allowed = wanted.size > 0 && await driver.permission(requestPermission);
+    const allowed = planned.length > 0 && await driver.permission(requestPermission);
+    const links = new Map<string, string | null>();
+    if (allowed) {
+      await Promise.all([...new Set(planned.map(({ obstacle }) => obstacle.routeId))].map(async (routeId) => {
+        links.set(routeId, await routeLink(routeId).catch(() => null));
+      }));
+    }
+    const wanted = new Map<string, { date: Date; key: string; payload: ReminderPayload }>();
+    for (const { date, key, obstacle, content } of planned) {
+      const googleMapsUrl = links.get(obstacle.routeId) ?? null;
+      const signature = JSON.stringify([key, date.getTime(), content.body, googleMapsUrl]);
+      wanted.set(signature, { date, key, payload: {
+        ...content, routeId: obstacle.routeId, siteId: obstacle.siteId, signature, googleMapsUrl,
+      } });
+    }
     const kept = new Set<string>();
     for (const item of await driver.pending()) {
       if (allowed && wanted.has(item.signature) && !kept.has(item.signature)) kept.add(item.signature);
@@ -76,7 +94,7 @@ export function createNotificationService(storage: TextStorage, driver: Notifica
     }
     state.due = due;
     storage.write(JSON.stringify(state));
-    return wanted.size > 0 && !allowed
+    return planned.length > 0 && !allowed
       ? 'Notifications are turned off for this app in your phone settings, so no alert was scheduled.'
       : null;
   }

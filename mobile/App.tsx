@@ -15,6 +15,7 @@ import PlacePicker from './src/routes/PlacePicker';
 import { TRANSPORT_MODES, sitesOnWay, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import { routesRepository } from './src/routes/api';
+import { googleMapsDirectionsUrl } from './src/routes/googleMaps';
 import DetourSummary from './src/detours/DetourSummary';
 import { siteName, wayRating } from './src/detours/text';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
@@ -226,6 +227,17 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   const detours = onRoute?.detours ?? null;
   const planned = detours?.status === 'ready' ? detours : null;
   const way = planned && onRoute ? planned.plan.options[onRoute.chosen] : null;
+  const googleMapsUrl = useMemo(() => {
+    if (!route) return null;
+    if (planned && way) {
+      return googleMapsDirectionsUrl(route, way, planned.plan.direct) ?? googleMapsDirectionsUrl(route);
+    }
+    return googleMapsDirectionsUrl(route);
+  }, [route, planned, way]);
+  const openInGoogleMaps = useCallback(() => {
+    if (!googleMapsUrl) return;
+    Linking.openURL(googleMapsUrl).catch(() => Alert.alert('Could not open Google Maps', 'Try again from the saved route.'));
+  }, [googleMapsUrl]);
   const selectedOnWay = planned && onRoute && selected ? planned.scores.get(selected.id) : undefined;
   const wayScore = planned && onRoute && selectedOnWay ? wayRating(planned.plan, onRoute.chosen, selectedOnWay) : null;
   const highCount = way ? way.sites.filter((s) => s.effectiveRating >= 7).length
@@ -604,6 +616,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
                     chosen={onRoute.chosen}
                     onChoose={onRoute.choose}
                     onRetry={onRoute.retryDetours}
+                    onOpenInGoogleMaps={googleMapsUrl ? openInGoogleMaps : undefined}
                     nameOf={nameOf}
                     theme={theme}
                   />

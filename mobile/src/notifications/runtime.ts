@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance, AndroidNotificationVisibility, type NotificationResponse } from 'expo-notifications';
 import { File, Paths } from 'expo-file-system';
 import { notificationContent } from './core';
+import { notificationRouteLink } from './link';
 import { fetchObstacles } from './obstacles';
 import type { RouteObstacle } from './model';
 import { createNotificationService, type NotificationDriver } from './service';
+import { planTrip } from '../detours/trip';
+import { routesRepository } from '../routes/api';
+import { googleMapsDirectionsUrl } from '../routes/googleMaps';
+import type { SavedRoute } from '../routes/model';
 
 const CHANNEL_ID = 'construction-reminders';
 
@@ -29,9 +34,9 @@ export const notificationDriver: NotificationDriver = {
       ? [{ id: identifier, signature: content.data.signature }]
       : []);
   },
-  schedule(date, { title, body, siteId, signature }) {
+  schedule(date, { title, body, routeId, siteId, signature, googleMapsUrl }) {
     return Notifications.scheduleNotificationAsync({
-      content: { title, body, data: { siteId, signature } },
+      content: { title, body, data: { routeId, siteId, signature, googleMapsUrl } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL_ID },
     });
   },
@@ -50,7 +55,28 @@ export const constructionNotifications = createNotificationService({
     }
   },
   write: (value) => settingsFile().writeSync(value),
-}, notificationDriver);
+}, notificationDriver, undefined, notificationGoogleMapsUrl);
+
+let routesCache: { at: number; value: Promise<SavedRoute[]> } | null = null;
+
+/** Plans the same construction-aware route as the map; if that fails, Google still gets the original saved trip. */
+async function notificationGoogleMapsUrl(routeId: string): Promise<string | null> {
+  const now = Date.now();
+  if (!routesCache || now - routesCache.at > 60_000) {
+    const value = routesRepository.list();
+    const entry = { at: now, value };
+    routesCache = entry;
+    value.catch(() => { if (routesCache === entry) routesCache = null; });
+  }
+  const route = (await routesCache.value).find((item) => item.id === routeId);
+  if (!route) return null;
+  try {
+    const { plan } = await planTrip(route);
+    return googleMapsDirectionsUrl(route, plan.options[0], plan.direct) ?? googleMapsDirectionsUrl(route);
+  } catch {
+    return googleMapsDirectionsUrl(route);
+  }
+}
 
 async function syncObstacles() {
   try {
@@ -74,14 +100,32 @@ export function startNotificationRuntime(): () => void {
 /** The construction site of the alert the user tapped last; a new object for every tap, even on the same site. */
 export function useTappedSite(): { siteId: string } | null {
   // The tap that launched the app, then every tap while it runs.
-  const [tap, setTap] = useState(() => tappedSite(Notifications.getLastNotificationResponse()));
+  const [initial] = useState(() => Notifications.getLastNotificationResponse());
+  const [tap, setTap] = useState(() => notificationLink(initial) ? null : tappedSite(initial));
   useEffect(() => {
     // Otherwise the launching tap comes back on the next launch.
+    void openNotificationRoute(initial);
     Notifications.clearLastNotificationResponse();
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => setTap(tappedSite(response)));
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (notificationLink(response)) void openNotificationRoute(response);
+      else setTap(tappedSite(response));
+    });
     return () => subscription.remove();
-  }, []);
+  }, [initial]);
   return tap;
+}
+
+const notificationLink = (response: NotificationResponse | null) =>
+  notificationRouteLink(response?.notification.request.content.data);
+
+async function openNotificationRoute(response: NotificationResponse | null): Promise<void> {
+  const link = notificationLink(response);
+  if (!link) return;
+  try {
+    await Linking.openURL(link);
+  } catch {
+    Alert.alert('Could not open Google Maps', 'Open the saved route to view the calculated way.');
+  }
 }
 
 function tappedSite(response: NotificationResponse | null) {
@@ -100,9 +144,10 @@ export async function sendDevelopmentTestAlert(routeId: string): Promise<void> {
 export async function sendAlertSoon(obstacle: RouteObstacle, seconds: number, title?: string): Promise<void> {
   if (!await notificationDriver.permission(true)) throw new Error('Allow notifications in your phone settings to see the alert.');
   const content = notificationContent(obstacle);
+  const googleMapsUrl = await notificationGoogleMapsUrl(obstacle.routeId);
   await Notifications.scheduleNotificationAsync({
     // No signature, so the reminder sync leaves it alone.
-    content: { ...content, title: title ?? content.title, data: { siteId: obstacle.siteId } },
+    content: { ...content, title: title ?? content.title, data: { routeId: obstacle.routeId, siteId: obstacle.siteId, googleMapsUrl } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: CHANNEL_ID },
   });
 }

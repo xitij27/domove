@@ -83,7 +83,9 @@ The card reads "Looking for a way around construction…" for a few seconds, the
 e.g. "Recommended · 18 min (+4 min) · 6.2 km" and "Avoids Kaiserstraße (9/10)",
 or "No detour needed". The way replaces the line on the map, up to two other ways
 show in grey, and tapping one, or its button on the card, picks it for **Start**.
-A site the way can't avoid is named on the card.
+A site the way can't avoid is named on the card. **Open in Google Maps** opens the
+selected way (or the original route if no detour is needed) in Google Maps with the
+route's stops and detour anchors (Issue #55).
 
 **Start** on the route card turns the map into a navigation view, as in Google
 Maps. The camera comes down to you, tilts towards the horizon and keeps you low
