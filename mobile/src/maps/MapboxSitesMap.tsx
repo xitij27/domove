@@ -1,10 +1,11 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Mapbox, { Camera, CircleLayer, Images, LineLayer, LocationPuck, MapView, ShapeSource, StyleImport, SymbolLayer } from '@rnmapbox/maps';
 import type { Coordinate } from '../routes/model';
 import type { Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
+import { FOLLOW_PITCH, FOLLOW_TOP, UNFOLLOW_MS } from './navigation';
 import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
 import { NAMED_SIGNS, signName, stackingOf } from './signs';
 
@@ -15,7 +16,7 @@ const FIT_ROUTE_MS = 600;
 // Camera padding outlives the move that set it, such as a route's fit.
 const NO_PADDING = { paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
 
-export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, ref }: {
+export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange, bottomInset, route, routePadding, onCenterChange, showUser, navigating, onUserMove, ref }: {
   sites: Site[];
   onSelect: (site: Site | null) => void;
   theme: MapTheme;
@@ -26,10 +27,16 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
   /** While set, a place is being chosen: the map reports where its middle settles (null while it moves), and a tap moves the middle there. */
   onCenterChange?: (center: Coordinate | null) => void;
   showUser: boolean; // location is allowed
+  navigating: boolean; // the camera is on the user, so the route isn't brought into view meanwhile
+  /** While set, the camera follows the user, and this reports that they moved the map themselves. */
+  onUserMove?: () => void;
   ref?: Ref<MapHandle>;
 }) {
   const mapView = useRef<MapView>(null);
   const camera = useRef<Camera>(null);
+  const { height } = useWindowDimensions();
+  // The camera has followed the user since the route was last brought into view.
+  const followed = useRef(false);
   useImperativeHandle(ref, () => ({
     pointNorth: () => camera.current?.setCamera({ heading: 0, animationDuration: POINT_NORTH_MS, animationMode: 'easeTo' }),
     zoomTo: async (center) => {
@@ -37,22 +44,49 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
       camera.current?.setCamera({ centerCoordinate: [longitude, latitude], zoomLevel: STREET_ZOOM, padding: NO_PADDING, animationDuration: MOVE_MS, animationMode: 'easeTo' });
       return { latitude, longitude };
     },
-  }), []);
+    follow: ({ center, heading, zoom, ms, glide }) => {
+      followed.current = true;
+      camera.current?.setCamera({
+        centerCoordinate: [center.longitude, center.latitude],
+        heading: heading ?? undefined,
+        zoomLevel: zoom,
+        pitch: FOLLOW_PITCH,
+        padding: { paddingTop: height * FOLLOW_TOP, paddingRight: 0, paddingBottom: bottomInset, paddingLeft: 0 },
+        animationDuration: ms,
+        animationMode: glide ? 'linearTo' : 'easeTo',
+      });
+    },
+  }), [height, bottomInset]);
 
-  // Brings a route into view when it opens and again when its routed path replaces the straight line.
+  // Brings a route into view when it opens, again when its routed path replaces the straight line, and after navigating.
   useEffect(() => {
+    if (navigating) return;
+    let wait = 0;
+    if (followed.current) {
+      followed.current = false;
+      // Bounds fit inside the camera's padding, so first drop the padding that kept the user low on screen, and lay
+      // the map flat, north up. An animation, as that stops the last glide, which would otherwise put it all back.
+      camera.current?.setCamera({ padding: NO_PADDING, heading: 0, pitch: 0, animationDuration: UNFOLLOW_MS, animationMode: 'easeTo' });
+      wait = UNFOLLOW_MS;
+    }
     if (!route) return;
     const points = routePoints(route);
     const lons = points.map((p) => p.longitude);
     const lats = points.map((p) => p.latitude);
     const { top, right, bottom, left } = routePadding;
-    camera.current?.fitBounds(
+    const fit = () => camera.current?.fitBounds(
       [Math.max(...lons), Math.max(...lats)],
       [Math.min(...lons), Math.min(...lats)],
       [top, right, bottom + bottomInset, left],
       FIT_ROUTE_MS,
     );
-  }, [route, routePadding, bottomInset]);
+    if (!wait) {
+      fit();
+      return;
+    }
+    const timer = setTimeout(fit, wait);
+    return () => clearTimeout(timer);
+  }, [route, routePadding, bottomInset, navigating]);
 
   const line = useMemo<GeoJSON.Feature | null>(() => route && {
     type: 'Feature',
@@ -103,7 +137,11 @@ export default function MapboxSitesMap({ sites, onSelect, theme, onHeadingChange
         if (onCenterChange) camera.current?.setCamera({ centerCoordinate: feature.geometry.coordinates, animationDuration: MOVE_MS, animationMode: 'easeTo' });
         else onSelect(null);
       }}
-      onCameraChanged={(state) => { onHeadingChange(state.properties.heading); onCenterChange?.(null); }}
+      onCameraChanged={(state) => {
+        onHeadingChange(state.properties.heading);
+        onCenterChange?.(null);
+        if (state.gestures.isGestureActive) onUserMove?.();
+      }}
       onMapIdle={(state) => {
         const [longitude, latitude] = state.properties.center;
         onCenterChange?.({ latitude, longitude });

@@ -66,6 +66,22 @@ route also closes it. The path comes from the same FOSSGIS OSRM request as
 until it answers, or if it fails, a straight line joins the stops. A route the
 job has not checked yet shows no sites.
 
+**Start** on the route card turns the map into a navigation view, as in Google
+Maps. The camera comes down to you, tilts towards the horizon and keeps you low
+on the screen with the way ahead above, and the map turns with you: it faces
+the way you move (the GPS course, from about 1 m/s up). While you stand still on foot it
+faces the way the phone points; on a bike or in a car it keeps its last
+direction, since the phone may lie anywhere. Before your first move, the way the phone points sets
+the direction in every mode. Each GPS fix (about one a second) glides the
+camera on. Start asks for location access if it was refused; if the phone
+won't ask again, it offers to open Settings. While navigating, the card shows
+**Exit** instead of Start and ✕, and the alert settings are hidden. Dragging,
+pinching or turning the map, or tapping the compass, stops the camera following; **Re-centre**
+brings it back. **Exit**, or Android's back button, returns to the whole
+route, flat and north up. Apple Maps (iOS without Mapbox) doesn't say when
+the user moves the map, so there the camera snaps back on the next fix.
+The screen isn't kept awake yet.
+
 Suggestions come from [Photon](https://photon.komoot.io) (OpenStreetMap data,
 free, no key), nearest to Dortmund first, from the third character on. Only a
 picked suggestion gives a place its coordinate; typing over it removes the
