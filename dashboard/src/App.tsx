@@ -275,7 +275,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     <div className="app">
       <header className="topbar">
         <div className="header-main">
-          <div className="brand"><img src="/domovelogo.png" alt="do.move" /><span>Planner</span><span className="muted">Dortmund</span></div>
+          <div className="brand"><img src="/domovelogo.png" alt="do.move" /></div>
           <div className="date-control" aria-label="Day shown">
             <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
             <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
