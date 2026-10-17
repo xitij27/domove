@@ -116,9 +116,21 @@ button, input, select { font: inherit; color: inherit; }
 
 /* layout */
 .app { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr); height: 100vh; }
-.topbar { display: flex; align-items: center; gap: 12px 24px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+/* the right padding keeps the wrapped rows clear of the settings gear in the corner */
+.topbar { position: relative; display: flex; align-items: center; gap: 12px 24px; padding: 8px 60px 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .brand { display: flex; align-items: baseline; gap: 8px; font-weight: 650; }
 .brand img { height: 22px; width: auto; align-self: center; }
+.beta {
+  align-self: center; padding: 1px 6px; border: 1px solid currentColor; border-radius: 4px; color: var(--accent-ink);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.4; cursor: default;
+}
+/* always the page's top-right corner, however the header wraps */
+.settings-button { position: absolute; top: 8px; right: 16px; display: grid; place-items: center; color: var(--ink-2); }
+.settings-button[aria-pressed='true'] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.settings-count {
+  position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--accent); color: var(--surface); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+}
 .date-control { display: flex; align-items: center; gap: 8px; }
 .date-value { font-weight: 600; min-width: 150px; text-align: center; font-variant-numeric: tabular-nums; }
 .scenario { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
@@ -367,6 +379,10 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
   .date-value { min-width: 0; }
 }
 
+/* on a phone the brand row is as wide as the screen; the city name gives way to the settings gear */
+@media (max-width: 480px) {
+  .brand .muted { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

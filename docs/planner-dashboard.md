@@ -30,7 +30,7 @@ Moving works (planned sites move; running sites can finish sooner) and adding pr
 
 ## How it scores
 
-All weights and thresholds below are judgement calls and these are their defaults. A planner can change them in the dashboard's **Settings** (header button): each is a slider held between limits that keep its formula meaningful, for example severity weights never above a full closure on a main road (1 point), the high band always above the medium one, and works never taking a whole district's road (which would divide by zero). Changed settings go into the scenario link, so whoever opens it sees the same numbers, and a link carrying a value outside its limits has that value dropped. Defaults, limits and the reasons for them are in `src/model/settings.ts`; change a default there and here.
+All weights and thresholds below are judgement calls and these are their defaults. A planner can change them in the dashboard's **Settings** (the gear at the top right): each is a slider held between limits that keep its formula meaningful, for example severity weights never above a full closure on a main road (1 point), the high band always above the medium one, and works never taking a whole district's road (which would divide by zero). Changed settings go into the scenario link, so whoever opens it sees the same numbers, and a link carrying a value outside its limits has that value dropped. Defaults, limits and the reasons for them are in `src/model/settings.ts`; change a default there and here.
 
 | | Rule |
 |---|---|

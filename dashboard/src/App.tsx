@@ -316,7 +316,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     <SettingsContext value={cfg}>
     <div className="app">
       <header className="topbar">
-        <div className="brand"><img src="/domovelogo.png" alt="do.move" /><span>Planner</span><span className="muted">Dortmund</span></div>
+        <div className="brand"><img src="/domovelogo.png" alt="do.move" /><span>Planner</span><span className="beta" title="Early version: the weights behind the figures are judgement calls">Beta</span><span className="muted">Dortmund</span></div>
         <div className="date-control" aria-label="Day shown">
           <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
           <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
@@ -325,9 +325,6 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         </div>
         <Summary items={stats} />
         <div className="scenario">
-          <button className="button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
-            Settings{settingsChanged ? ` · ${settingsChanged} changed` : ''}
-          </button>
           {changes || settingsChanged ? (
             <>
               {changes > 0 && <strong>{plural(changes, 'change')}</strong>}
@@ -349,6 +346,17 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             </>
           ) : <span className="muted">No changes yet</span>}
         </div>
+        <button
+          className="icon-button settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+          aria-label={settingsChanged ? `Settings, ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+          title={settingsChanged ? `Settings: ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+        >
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
+        </button>
         {problems.length > 0 && <div className="banner" role="status">Some layers couldn't load ({problems.join('; ')}). Everything else works.</div>}
       </header>
       <div className="workspace">
