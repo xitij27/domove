@@ -23,6 +23,19 @@ Checks: `npm test`, `npx tsc --noEmit`, `npx expo lint`.
 
 Route creation and deletion (Issue #1): see [setup, shared route model, API and tests](docs/routes.md).
 
+## Planner dashboard (`dashboard/`)
+
+Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city's planners, on the same data: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+
+1. Copy `dashboard/.env.example` to `dashboard/.env` (gitignored) and set `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`: the same public values as the app's `EXPO_PUBLIC_SUPABASE_*`.
+2. `cd dashboard && npm ci && npm run dev`, then open the printed URL.
+
+Everything else it reads (city open data, school holidays, the FOSSGIS router and OpenFreeMap tiles) is free and needs no key.
+
+Checks: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`. `LIVE=1 npx vitest run src/live.test.ts` runs the whole analysis against today's real data.
+
+Deploy: a Vercel project (free Hobby plan) with **Root Directory** `dashboard` and the two `VITE_SUPABASE_*` variables; Vercel detects Vite. From the folder, `npx vercel@latest deploy --prod` uploads the local code.
+
 ## Backend (`backend/supabase/`)
 
 Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city area feeds every hour (`private.sync_construction_sites()`), storing each site's centre and polygon. A second job fills `obstacles` every 15 minutes (`private.detect_obstacles()`): it asks the public [FOSSGIS router](https://routing.openstreetmap.de) for the path of each new or changed route and stores the sites near it. So there is no server to deploy.
