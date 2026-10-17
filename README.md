@@ -60,7 +60,7 @@ The routes the user is planning to take with planned departure schedule, start, 
 
 ## Obstacles
 
-The construction sites on the way of each route: every site whose area comes within 30 m of the route's path, or within 55 m of its centre when it has no area. A `pg_cron` job recalculates them every 5 minutes; the app can only read them.
+The construction sites on the way of each route: every site whose area comes within 30 m of the route's path, or within 55 m of its centre when it has no area, and whose active dates overlap the route's schedule. Repeating routes need an upcoming selected weekday within the site's inclusive date range; single trips use their departure date; routes without a schedule use today. Missing site dates are open-ended. A `pg_cron` job recalculates them every 5 minutes and removes matches that no longer overlap; the app can only read them. Apply `backend/supabase/migrations/20261017140000_obstacles_weekday_alignment.sql` to enable schedule filtering in an existing database.
 
 ## Construction Sites
 
