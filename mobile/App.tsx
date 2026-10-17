@@ -240,7 +240,9 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   }, [googleMapsUrl]);
   const selectedOnWay = planned && onRoute && selected ? planned.scores.get(selected.id) : undefined;
   const wayScore = planned && onRoute && selectedOnWay ? wayRating(planned.plan, onRoute.chosen, selectedOnWay) : null;
-  const highCount = way ? way.sites.filter((s) => s.effectiveRating >= 7).length
+  // The card counts the sites on the original route, the reason any way around exists; the chosen way's are in DetourSummary.
+  const original = planned && onRoute ? planned.plan.direct : null;
+  const highCount = original ? original.sites.filter((s) => s.effectiveRating >= 7).length
     : routeRatings.value ? highOnRoute(routeRatings.value.values()) : 0;
   const nameOf = useCallback((siteId: string) => siteName(sites.find((s) => s.id === siteId)?.title), [sites]);
 
@@ -570,7 +572,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
                   <View style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
                     <Text style={{ color: palette.muted }}>
-                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(way ? way.sites.length : onRoute.siteIds && !loading && !error ? nearby.length : null)}
+                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(original ? original.sites.length : onRoute.siteIds && !loading && !error ? nearby.length : null)}
                       {highCount > 0 ? ` · ${highCount} with high impact` : ''}
                     </Text>
                   </View>
