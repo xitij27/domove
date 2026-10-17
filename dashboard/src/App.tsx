@@ -19,6 +19,8 @@ import { buildSites, findNeighbours, nearestRoad, prepareContext } from './model
 import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
 import { OutlookPanel } from './ui/OutlookPanel';
+import { trafficContext } from './model/trafficContext';
+import { TrafficContextPanel } from './ui/TrafficContextPanel';
 import { plural } from './ui/format';
 import { MapView } from './ui/MapView';
 import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
@@ -125,6 +127,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
+  const selectedEvidence = evidence.find((p) => p.id === selectedId);
+  const selectedTraffic = useMemo(() => selected && selectedEvidence ? trafficContext(selected, selectedEvidence,
+    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts) : null,
+  [selected, selectedEvidence, data, analyticsConflicts]);
   const selectedConflicts = useMemo(() => (selected ? conflicts.filter((c) => c.a === selected.id || c.b === selected.id) : []), [selected, conflicts]);
   const siteAdvice = useMemo(() => (
     selected && (selected.hypothetical || selected.baseStart > today)
@@ -369,11 +375,14 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           </nav>
           <div className="panel-body" ref={panelBody}>
             {selected && (
+              <>
               <SitePanel
                 key={selected.id} site={selected} byId={byId} conflicts={selectedConflicts} advice={siteAdvice} shift={scenario.shifts[selected.id]} date={date} today={today}
                 priority={(() => { const i = ranked.findIndex((p) => p.site.id === selected.id); return i >= 0 ? { rank: i + 1, of: ranked.length, p: ranked[i] } : null; })()}
                 onShift={(s) => setShift(selected.id, s)} onSelect={selectSite} onBack={() => setSelectedId(null)} onRemove={() => removeProject(selected.id)}
               />
+              <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} />
+              </>
             )}
             <div hidden={!!selected || tab !== 'todo'}>
               <TodoTab todo={todo} horizon={horizon} onSelectSite={selectSite} onShift={setShift}

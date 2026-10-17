@@ -373,3 +373,4 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 .source-note { margin-top: 12px; }
 .outlook-window { fill: var(--accent); opacity: 0.12; pointer-events: none; }
 .outlook-key { background: var(--accent); opacity: 0.3; }
+.project-analytics { border-top: 1px solid var(--border); padding-top: 14px; }
