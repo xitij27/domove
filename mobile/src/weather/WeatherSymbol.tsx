@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, useAnimatedValue, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { PALETTES, type MapTheme } from '../theme';
 import { isWet, skyOf } from './weather';
@@ -232,7 +232,7 @@ function Bolt({ clock, s, color }: Part) {
 }
 
 function useClock(running: boolean) {
-  const clock = useRef(new Animated.Value(0)).current;
+  const clock = useAnimatedValue(0);
   const reduceMotion = useReduceMotion();
   const moving = running && reduceMotion === false;
   useEffect(() => {

@@ -20,10 +20,15 @@ export function useWeather() {
 
   const load = useCallback(() => {
     fetchedAt.current = Date.now();
-    setFailed(false);
     // a failed refresh keeps the last weather, whose card says how old it is
-    fetchWeather().then(setWeather, () => setFailed(true));
+    fetchWeather().then((latest) => { setWeather(latest); setFailed(false); }, () => setFailed(true));
   }, []);
+
+  // tapped after a failure: shows it loading again
+  const reload = useCallback(() => {
+    setFailed(false);
+    load();
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -38,7 +43,7 @@ export function useWeather() {
     };
   }, [load]);
 
-  return { weather, failed, reload: load };
+  return { weather, failed, reload };
 }
 
 /** The sky and temperature under the compass; opens the forecast, or tries again when there is no weather. */
