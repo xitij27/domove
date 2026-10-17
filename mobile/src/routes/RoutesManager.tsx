@@ -7,7 +7,7 @@ import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
 import TransportModeIcon from './TransportModeIcon';
 import { routesRepository, type RoutesRepository } from './api';
-import { formatLeaving, type PlacePick, type RouteDraft, type RouteLocation, type SavedRoute } from './model';
+import { formatLeaving, sitesOnWay, sitesSummary, type PlacePick, type RouteDraft, type RouteLocation, type SavedRoute, type SiteCount } from './model';
 
 /** The sheet's corner radius, which is also how far it reaches over the bottom of the map. */
 export const SHEET_RADIUS = 24;
@@ -25,6 +25,7 @@ const SWITCH_SHIFT = 32;
 const LOAD_IN = { y: 12 };
 
 type Open = { creating: boolean } | null;
+type SiteCounts = ReadonlyMap<string, SiteCount> | 'failed' | null;
 /** Where a drag let go of the sheet, and how fast it was moving then (px/ms, down is positive). */
 type Fling = { at: number; vy: number };
 
@@ -266,9 +267,16 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   const [saving, setSaving] = useState(false);
   const active = useRef(true);
   const loadGeneration = useRef(0);
+  // How many construction sites lie on each route's way: null until they first load, 'failed' when they could not.
+  const [siteCounts, setSiteCounts] = useState<SiteCounts>(null);
 
   const load = useCallback(() => {
     const generation = ++loadGeneration.current;
+    // Alongside the list rather than before it; a failure only leaves the counts out.
+    repository.siteCounts().then(
+      (counts) => { if (active.current && generation === loadGeneration.current) setSiteCounts(counts); },
+      () => { if (active.current && generation === loadGeneration.current) setSiteCounts('failed'); },
+    );
     return repository.list().then((saved) => {
       if (active.current && generation === loadGeneration.current) {
         setRoutes(saved);
@@ -387,6 +395,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
                 <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
                 {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
                 {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
+                <SitesOnWay route={item} counts={siteCounts} />
                 <View style={styles.actions}>
                   {/* The route's construction sites and their alerts are all on the map. */}
                   {onView && (
@@ -408,6 +417,20 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
           />
         )}
       </Appear>
+    </View>
+  );
+}
+
+/** The construction sites the obstacles job found on a route's way, the same ones Map & alerts shows. */
+function SitesOnWay({ route, counts }: { route: SavedRoute; counts: SiteCounts }) {
+  const count = counts && counts !== 'failed' ? counts.get(route.id) : undefined;
+  const text = counts === null ? sitesOnWay(null) : counts === 'failed' ? 'Could not check for construction sites' : sitesSummary(route, count);
+  const found = !!count?.total;
+  return (
+    // Read out as its text alone, without the icon.
+    <View accessible accessibilityLabel={text} style={styles.sites}>
+      <MaterialIcons name="construction" size={18} color={found ? '#a8520e' : '#526173'} />
+      <Text style={[styles.sitesText, found && styles.sitesFound]}>{text}</Text>
     </View>
   );
 }
@@ -457,6 +480,9 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#7c3d0e', fontWeight: '600' },
   card: { padding: 18, gap: 10, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#e1e6eb' },
   cardTitle: { color: '#182332', fontSize: 18, fontWeight: '600' },
+  sites: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sitesText: { flex: 1, color: '#526173', lineHeight: 20 },
+  sitesFound: { color: '#7c3d0e', fontWeight: '600' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   show: { alignSelf: 'flex-start', paddingVertical: 14, paddingHorizontal: 12, backgroundColor: '#e9eef2', borderRadius: 10 },
   iconActions: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },

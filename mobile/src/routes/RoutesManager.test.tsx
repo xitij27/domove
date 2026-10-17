@@ -73,6 +73,7 @@ beforeEach(() => {
     }),
     delete: jest.fn(async (id: string) => { persisted = persisted.filter((route) => route.id !== id); }),
     obstacleSiteIds: jest.fn(async (_routeId: string): Promise<string[]> => []),
+    siteCounts: jest.fn(async () => new Map()),
   };
 });
 
@@ -353,6 +354,34 @@ test('a location saved without a label gets a generic name', async () => {
   await mount();
   expect(screen.getByText('Station → Final destination')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: 'Delete route from Station to Final destination' })).toBeOnTheScreen();
+});
+
+test('each saved route says how many construction sites lie on its way, and Refresh counts them again', async () => {
+  persisted = [
+    stationToPark,
+    { ...stationToPark, id: '2', start: { label: 'Home', coordinate: at }, destination: { label: 'Work', coordinate: at } },
+    { ...stationToPark, id: '3', start: { label: 'Lake', coordinate: at }, destination: { label: 'Zoo', coordinate: at } },
+  ];
+  repository.siteCounts.mockResolvedValueOnce(new Map([['1', { total: 3, planned: 1 }], ['2', { total: 1, planned: 0 }]]));
+  await mount();
+  expect(await screen.findByText('3 construction sites on the way · 1 of them planned')).toBeOnTheScreen();
+  expect(screen.getByText('1 construction site on the way')).toBeOnTheScreen();
+  expect(screen.getByText('No construction sites on the way')).toBeOnTheScreen();
+  repository.siteCounts.mockResolvedValueOnce(new Map([['3', { total: 2, planned: 2 }]]));
+  await press('Refresh routes');
+  expect(await screen.findByText('2 construction sites on the way · all planned')).toBeOnTheScreen();
+  expect(screen.getAllByText('No construction sites on the way')).toHaveLength(2);
+});
+
+test('a new route reads as still being checked, and the routes still list when the sites cannot be counted', async () => {
+  persisted = [{ ...stationToPark, createdAt: new Date().toISOString() }];
+  await mount();
+  expect(await screen.findByText(/^Checking for construction sites, which takes up to 15 minutes/)).toBeOnTheScreen();
+  repository.siteCounts.mockRejectedValueOnce(new Error('HTTP 500'));
+  await press('Refresh routes');
+  expect(await screen.findByText('Could not check for construction sites')).toBeOnTheScreen();
+  expect(screen.getByText('Station → Park')).toBeOnTheScreen();
+  expect(screen.queryByRole('alert')).toBeNull();
 });
 
 test('cancelling discards the draft and load failures can be retried', async () => {

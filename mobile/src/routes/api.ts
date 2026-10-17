@@ -1,5 +1,5 @@
 import { uuid } from 'expo';
-import { normalizeRoute, type RouteDraft, type SavedRoute } from './model';
+import { normalizeRoute, type RouteDraft, type SavedRoute, type SiteCount } from './model';
 
 export type RoutesRepository = {
   list: () => Promise<SavedRoute[]>;
@@ -9,6 +9,8 @@ export type RoutesRepository = {
   delete: (id: string) => Promise<void>;
   /** IDs of the construction sites the backend's job found on the way of a route; none until it has checked it. */
   obstacleSiteIds: (routeId: string) => Promise<string[]>;
+  /** How many sites the job found on the way of each route, by route ID; a route it found none on is left out. */
+  siteCounts: () => Promise<ReadonlyMap<string, SiteCount>>;
 };
 
 // React Native's fetch never times out on its own, and the route screens stay
@@ -94,6 +96,26 @@ export function createRoutesRepository(
       const rows = await request(`obstacles?route_id=eq.${encodeURIComponent(routeId)}&select=construction_site_id`);
       if (!Array.isArray(rows)) throw new Error('The server returned an invalid list of construction sites.');
       return rows.flatMap((row) => (typeof row?.construction_site_id === 'string' ? [row.construction_site_id] : []));
+    },
+    async siteCounts() {
+      // Routes are shared, so the obstacles of every route are those of the listed ones. Keyset pages, as in list().
+      const counts = new Map<string, SiteCount>();
+      let after = '';
+      for (;;) {
+        const rows = await request(`obstacles?select=id,route_id,construction_sites(status)&order=id&limit=${PAGE_SIZE}${after}`);
+        if (!Array.isArray(rows)) throw new Error('The server returned an invalid list of construction sites.');
+        for (const row of rows) {
+          if (typeof row?.route_id !== 'string') continue;
+          const count = counts.get(row.route_id) ?? { total: 0, planned: 0 };
+          count.total += 1;
+          if (row.construction_sites?.status === 'planned') count.planned += 1;
+          counts.set(row.route_id, count);
+        }
+        if (rows.length < PAGE_SIZE) return counts;
+        const last = rows[rows.length - 1]?.id;
+        if (typeof last !== 'string') throw new Error('The server returned an invalid list of construction sites.');
+        after = `&id=gt.${encodeURIComponent(last)}`;
+      }
     },
   };
 }
