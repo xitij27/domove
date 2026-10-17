@@ -2,11 +2,12 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'reac
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline, type MapViewProps } from 'react-native-maps';
 import type { Coordinate } from '../routes/model';
-import { COLORS, type Site } from '../sites';
+import type { Site } from '../sites';
 import type { MapTheme } from '../theme';
 import { MOVE_MS, POINT_NORTH_MS, STREET_ZOOM, type MapHandle } from './Compass';
 import { useUserPosition } from './location';
 import { CASING_COLORS, LINE_COLORS, routePoints, STOP_COLORS, type RouteOverlay, type RoutePadding } from './routeOverlay';
+import { signOf, stackingOf } from './signs';
 
 const DORTMUND = { latitude: 51.5136, longitude: 7.4653, latitudeDelta: 0.22, longitudeDelta: 0.22 };
 
@@ -101,7 +102,14 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
       {route && <Polyline coordinates={route.path} strokeWidth={7} strokeColor={CASING_COLORS[theme]} zIndex={1} />}
       {route && <Polyline coordinates={route.path} strokeWidth={4} strokeColor={LINE_COLORS[theme]} zIndex={2} />}
       {sites.map((s) => (
-        <Marker key={s.id} coordinate={s.coordinate} pinColor={COLORS[s.status]} onPress={() => onSelect(s)} />
+        <Marker
+          key={s.id}
+          coordinate={s.coordinate}
+          image={signOf(s)}
+          anchor={{ x: 0.5, y: 0.5 }}
+          zIndex={stackingOf(s) - 10} // under the route's stops (0) and the user's dot (3)
+          onPress={() => onSelect(s)}
+        />
       ))}
       {showUser && Platform.OS === 'android' && <UserMarker />}
       {route && <Marker coordinate={route.start.coordinate} pinColor={STOP_COLORS.start} title="Start" description={route.start.label ?? undefined} />}

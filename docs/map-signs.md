@@ -1,10 +1,12 @@
 # Traffic signs for construction sites on the map
 
-Proposal · not decided yet · 17 Oct 2026
+Decided · 17 Oct 2026
 
-Today every site on the map is a red pin (current) or a yellow pin (planned), so the map shows where something is happening but not what it does to traffic. This page proposes German traffic signs (StVO) for the map, one per kind of restriction. The site counts come from a keyword match on the titles of the 212 sites in the two city feeds on 17 Oct 2026; [issue #12](https://github.com/xitij27/domove/issues/12)'s closure parser will count a little differently.
+**Decision:** the eight signs in the first table, on both maps. **Decided by:** xitij27, 17 Oct 2026.
 
-## The proposal
+Until then every site on the map was a red pin (current) or a yellow pin (planned), so the map showed where something was happening but not what it did to traffic. Now each site shows a German traffic sign (StVO) for its kind of restriction. The site counts come from the app's title matcher (`closureOf` in [mobile/src/sites.ts](../mobile/src/sites.ts)) run on the titles of the 212 sites in the two city feeds on 17 Oct 2026.
+
+## The signs
 
 The signs come in two shapes, and German drivers already read them this way:
 
@@ -18,13 +20,13 @@ That matches the "blocked" and "slowed" impacts that #12's route planner works w
 | <img src="images/signs/250-closed-to-vehicles.svg" width="56" alt="Zeichen 250"> | **250** *Verbot für Fahrzeuge aller Art*: no vehicles, bikes included; people on foot may pass | full closure (*Vollsperrung*, *VSP*) | 92 | Langenacker - Straßenbau // Vollsperrung |
 | <img src="images/signs/267-no-entry.svg" width="56" alt="Zeichen 267"> | **267** *Verbot der Einfahrt*: no entry from this end, as at the wrong end of a one-way street | one-way rule (*Einbahnstraße*) | 11 | Poststraße - Neubau // Einbahnstraße |
 | <img src="images/signs/254-no-bikes.svg" width="56" alt="Zeichen 254"> | **254** *Verbot für Radverkehr*: no cycling | cycle path closed | 4 | Emscherradweg zw. "Bergparte" und "Schürener Vorstadt" - Ausbau Radweg /// Vollsperrung |
-| <img src="images/signs/259-no-pedestrians.svg" width="56" alt="Zeichen 259"> | **259** *Verbot für Fußgänger*: no walking | sidewalk or footpath closed | 6 | Preinstraße 74 - Neubau Wohnhaus // Gehwegsperrung |
-| <img src="images/signs/131-traffic-lights.svg" width="56" alt="Zeichen 131"> | **131** *Lichtzeichenanlage*: traffic lights ahead | temporary traffic lights (*LSA*, *Ampel*) | 13 | Kurze Hecke - Wasserrohrbruch // halbseitige Sperrung mit Ampel |
+| <img src="images/signs/259-no-pedestrians.svg" width="56" alt="Zeichen 259"> | **259** *Verbot für Fußgänger*: no walking | sidewalk or footpath closed | 5 | Preinstraße 74 - Neubau Wohnhaus // Gehwegsperrung |
+| <img src="images/signs/131-traffic-lights.svg" width="56" alt="Zeichen 131"> | **131** *Lichtzeichenanlage*: traffic lights ahead | temporary traffic lights (*LSA*, *Ampel*) | 15 | Kurze Hecke - Wasserrohrbruch // halbseitige Sperrung mit Ampel |
 | <img src="images/signs/121-narrows-one-side.svg" width="56" alt="Zeichen 121"> | **121** *Einseitig verengte Fahrbahn*: the road narrows on one side | half closure (*halbseitige Sperrung*, *halbs. Sp.*) | 41 | Feldstraße 81 - Kranstellung für Neubau // Halbseitige Sperrung |
-| <img src="images/signs/120-narrows.svg" width="56" alt="Zeichen 120"> | **120** *Verengte Fahrbahn*: the road narrows | narrowing or lane reduction (*Fahrbahneinengung*, *Spureinzug*) | 23 | Linnigmannstr. 26 - Hausanschluss /// Fahrbahneinengung |
-| <img src="images/signs/123-roadworks.svg" width="56" alt="Zeichen 123"> | **123** *Arbeitsstelle*: roadworks | everything else: the title names no restriction, or only closed parking | 22 | Leostraße - Fahrbahnerneuerung |
+| <img src="images/signs/120-narrows.svg" width="56" alt="Zeichen 120"> | **120** *Verengte Fahrbahn*: the road narrows | narrowing or lane reduction (*Fahrbahneinengung*, *Spureinzug*) | 24 | Linnigmannstr. 26 - Hausanschluss /// Fahrbahneinengung |
+| <img src="images/signs/123-roadworks.svg" width="56" alt="Zeichen 123"> | **123** *Arbeitsstelle*: roadworks | everything else: the title names no restriction, or only closed parking | 20 | Leostraße - Fahrbahnerneuerung |
 
-A site shows one sign. When a title names several restrictions, the most restrictive one for road traffic wins, in this order: full closure, one-way, traffic lights, half closure, narrowing. So "Halbseitige Sperrung + LSA" shows the traffic light, and "Vollsperrung u. Halbs. Sperrung" the full closure. The bike and pedestrian signs show where only the cycle path or the sidewalk is closed, as in "Ausbau Radweg /// Vollsperrung" or "Vollsperrung Fußweg", so a closed cycle path doesn't get the sign for cars.
+A site shows one sign. When a title names several restrictions, the most restrictive one for road traffic wins, in this order: full closure, one-way, traffic lights, half closure, narrowing. So "Halbseitige Sperrung + LSA" shows the traffic light, and "Vollsperrung u. Halbs. Sperrung" the full closure. The restriction usually follows "//" and is read first, so "Austausch LSA // Einengung" (traffic lights being replaced, road narrowed) shows the narrowing. The bike and pedestrian signs show where only the cycle path or the sidewalk is closed, as in "Ausbau Radweg /// Vollsperrung" or "Gehwegsperrung", so a closed cycle path doesn't get the sign for cars.
 
 ## Why not the stop sign
 
@@ -34,7 +36,7 @@ In Germany the stop sign (**206** *Halt! Vorfahrt gewähren!*) means "stop at th
 
 250 also says exactly what we decided for full closures in [route planning question 4](route-planning-open-questions.md#4-does-a-full-road-closure-block-people-on-foot-and-on-bikes): bikes can't ride through, but people on foot can, and you may push a bike.
 
-## Alternatives worth a look
+## Alternatives we looked at
 
 | Sign | Instead of | For | Against |
 |:---:|---|---|---|
@@ -50,20 +52,23 @@ In Germany the stop sign (**206** *Halt! Vorfahrt gewähren!*) means "stop at th
 | <img src="images/signs/283-no-stopping.svg" width="56" alt="Zeichen 283"> | **283** *Absolutes Haltverbot*: only 2 sites close parking ("Haltverbote für Neubau", "Sperrung Parkstreifen"), and that doesn't slow anyone driving through; they show 123 |
 | <img src="images/signs/454-detour.svg" width="80" alt="Zeichen 454"> | **454** *Umleitung*: a detour sign marks the way around, not the site. It may suit the detour line that #12 draws later |
 
-## To decide along with the signs
+## How the map shows them
 
-1. **Current and planned.** Today the colour says whether a site is current (red) or planned (yellow). Each sign already has its own colours. Suggestion: current sites show the sign as it is; planned sites show it faded, with a small clock badge. An alternative German drivers know: a white plate under the sign (*Zusatzzeichen*) reading "ab 26.10.", shown from street zoom on.
+<img src="images/map-signs-preview.png" width="608" alt="The eight signs on the night map (top) and the day map (bottom); in each, current sites above and planned sites below">
+
+1. **Current and planned.** Current sites show the sign as it is. Planned sites show it faded, with a yellow clock in the corner. The "Current" and "Planned" chips at the top of the map show the roadworks sign both ways. Not taken: a white plate under the sign (*Zusatzzeichen*) reading "ab 26.10.", which German drivers know but which is too small to read at marker size.
 2. **Size and zoom.** At marker size the three triangles 120, 121 and 123 are hard to tell apart, and 212 signs at city zoom are a lot. Here is the row at 24 px:
 
    <img src="images/signs/250-closed-to-vehicles.svg" width="24" alt="250"> <img src="images/signs/267-no-entry.svg" width="24" alt="267"> <img src="images/signs/254-no-bikes.svg" width="24" alt="254"> <img src="images/signs/259-no-pedestrians.svg" width="24" alt="259"> <img src="images/signs/131-traffic-lights.svg" width="24" alt="131"> <img src="images/signs/121-narrows-one-side.svg" width="24" alt="121"> <img src="images/signs/120-narrows.svg" width="24" alt="120"> <img src="images/signs/123-roadworks.svg" width="24" alt="123">
 
-   Suggestion: keep plain dots at city zoom and switch to signs from street zoom. If 120 and 121 still look the same, half closures and narrowings could share 121.
-3. **The sign is a guess from the title.** The feed's restriction field (`einschrankung`) is empty, so the kind comes from abbreviations in the title text such as "VSP", "halbs. Sp." and "LSA". The site card keeps showing the city's title, so people can check it.
+   The Mapbox map shrinks the signs at city zoom to about the size of the old dots (55 % at zoom 10) and shows them at full size, 32 dp, from zoom 14. The Google map can't scale a marker image by zoom, so it shows 32 dp at every zoom, about the size of its old pins. Where signs overlap, the more restrictive one lies on top. 120 and 121 stay separate signs for now; if they look the same on the phone, half closures and narrowings could share 121.
+3. **The sign is a guess from the title.** The feed's restriction field (`einschrankung`) is empty, so the kind comes from abbreviations in the title text such as "VSP", "halbs. Sp." and "LSA". The site card shows the sign with its meaning ("Current · Half closure") above the city's title, so people can check it.
 
-## What it would take
+## How it's built
 
-- **Backend:** #12's closure parser stores each site's closure kind. Nothing parses titles yet.
-- **App:** the signs as PNGs at 2× and 3×, rendered once from the SVGs here. The Google map passes them as the `Marker` image instead of `pinColor`. The Mapbox map swaps its `CircleLayer` for a `SymbolLayer` whose `iconImage` matches on the closure kind.
+- **Which sign:** `closureOf()` in [mobile/src/sites.ts](../mobile/src/sites.ts) reads each title when the sites load, with tests on real titles in `sites.test.ts`. It uses #12's closure kind names plus `cycle_path` and `other`. When #12's `classify_closures()` fills `construction_sites.closures` in the database, the app reads that column instead; #12's parser then needs the cycle path case too, or the Emscherradweg sites get the car sign.
+- **Images:** [mobile/assets/signs/](../mobile/assets/signs/) holds one PNG per kind and status at 1×, 2× and 3×, rendered from the SVGs here by [mobile/scripts/render-signs.py](../mobile/scripts/render-signs.py). Run it again after changing a sign, its size or the planned badge.
+- **Maps:** the Google map passes the image to each `Marker`; the Mapbox map draws a `SymbolLayer` instead of the old `CircleLayer`. Both live in [mobile/src/maps/](../mobile/src/maps/), with the image table in `signs.ts`.
 
 ## Sources
 
