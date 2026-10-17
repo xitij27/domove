@@ -761,7 +761,7 @@ begin
     why := jsonb_build_array(jsonb_build_object(
       'factor', 'closure', 'points', d.points, 'impact', d.impact, 'penalty_s', d.penalty_s,
       'closures', to_jsonb(closures), 'road_class', road, 'road_name', s.road_name,
-      'closure_factor', d.closure_factor, 'road_factor', d.road_factor));
+      'max', (w->>'disruption_max')::numeric, 'closure_factor', d.closure_factor, 'road_factor', d.road_factor));
     disruption := d.points;
 
     if p_modality = 'car' and d.impact = 'slowed' and road <> 'other' then
