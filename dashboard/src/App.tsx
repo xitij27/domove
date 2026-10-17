@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useData } from './data/useData';
 import type { Dataset } from './data/useData';
+import type { Poi } from './data/sources';
 import {
   adviseClusters, bestWindows, clusterConflicts, dailyLoad, findConflicts, isActive, priorities, programmeBalance, stopsUnderPressure,
   todoList, transitGaps,
 } from './model/analysis';
 import type { DayRange } from './model/analysis';
 import { formatDay, formatShort, isoDay, toDay } from './model/days';
-import { berlinToday, buildEvidence, outlook, potentialConflicts } from './model/outlook';
+import { berlinToday, buildEvidence, outlook, potentialConflicts, validLonLat } from './model/outlook';
+import { impactAssessment } from './model/impact';
+import type { ImpactTarget } from './model/impact';
 import type { OutlookDays } from './model/outlook';
 import { bboxOf, shapeOf, toLonLat, toXY } from './model/geo';
 import type { BBox, LonLat } from './model/geo';
@@ -21,6 +24,7 @@ import { CoordinateTab } from './ui/CoordinateTab';
 import { OutlookPanel } from './ui/OutlookPanel';
 import { trafficContext } from './model/trafficContext';
 import { TrafficContextPanel } from './ui/TrafficContextPanel';
+import { ImpactScorePanel } from './ui/ImpactScorePanel';
 import { plural } from './ui/format';
 import { MapView } from './ui/MapView';
 import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
@@ -66,6 +70,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const [date, setDate] = useState(today);
   const [outlookDays, setOutlookDays] = useState<OutlookDays>(7);
   const [outlookMap, setOutlookMap] = useState(true);
+  const [impactTarget, setImpactTarget] = useState<ImpactTarget>('public');
+  const [businessLocations, setBusinessLocations] = useState<Poi[]>([]);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('todo');
   const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,6 +135,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const selectedEvidence = evidence.find((p) => p.id === selectedId);
+  const assessment = useMemo(() => selected && selectedEvidence ? impactAssessment(selected, selectedEvidence,
+    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget) : null,
+  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations]);
   const selectedTraffic = useMemo(() => selected && selectedEvidence ? trafficContext(selected, selectedEvidence,
     data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts) : null,
   [selected, selectedEvidence, data, analyticsConflicts]);
@@ -384,6 +394,17 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 priority={(() => { const i = ranked.findIndex((p) => p.site.id === selected.id); return i >= 0 ? { rank: i + 1, of: ranked.length, p: ranked[i] } : null; })()}
                 onShift={(s) => setShift(selected.id, s)} onSelect={selectSite} onBack={() => setSelectedId(null)} onRemove={() => removeProject(selected.id)}
               />
+              <ImpactScorePanel assessment={assessment} target={impactTarget} locations={businessLocations} scenario={!isEmpty(scenario)}
+                locationError={locationError} onTarget={(target) => { setImpactTarget(target); setLocationError(null); }}
+                onAdd={() => {
+                  setLocationError(null);
+                  setPick({ hint: 'Click a business location in Dortmund (Escape to cancel)', done: (at) => {
+                    if (!validLonLat(at)) { setLocationError('Choose a location within the Dortmund study area.'); return; }
+                    setBusinessLocations((items) => [...items, { name: `Business location ${items.length + 1}`, detail: 'Selected in this browser tab', district: '', at }]);
+                  } });
+                }}
+                onRename={(index, name) => setBusinessLocations((items) => items.map((p, i) => i === index ? { ...p, name } : p))}
+                onRemove={(index) => setBusinessLocations((items) => items.filter((_, i) => i !== index))} />
               <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} scenario={!isEmpty(scenario)} />
               </>
             )}
