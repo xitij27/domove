@@ -12,7 +12,7 @@ serve({ fetch: app.fetch, port });
 // and rematch them against all routes. Skipped when DISABLE_DETECTION=1
 // (e.g. on Vercel — use an external cron hitting POST /api/detect/run).
 if (process.env.DISABLE_DETECTION !== "1") {
-  const intervalMs = Number(process.env.DETECTION_INTERVAL_MS ?? 15 * 60 * 1000);
+  const intervalMs = Number(process.env.DETECTION_INTERVAL_MS ?? 5 * 60 * 1000);
   const tick = async () => {
     if (isDetectionRunning()) return;
     try {
