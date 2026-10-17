@@ -1,19 +1,21 @@
 # Rating construction sites and finding a way around
 
-Design · a 0–10 impact rating for each construction site, and how a route uses it to pick another path · 17 Oct 2026
+Design and build · a 0–10 impact rating for each construction site, and how a route uses it to pick another path · 17 Oct 2026
+
+> **Status:** the rating and the way the app explains it are built: see [section 3](#3-how-it-is-built) and [section 4](#4-being-transparent-about-the-scores). Finding another path ([section 2](#2-from-ratings-to-another-path)) is next.
 
 Today a site counts as being on a route when its area comes within 30 m of the path, and every site counts the same. The route card says "Car · 3 construction sites on the way", whether the three are a closed motorway ramp or scaffolding on a residential street. This page proposes two things:
 
 1. **A rating from 0 to 10 for each site**, for each mode (car, bike, walking) and travel time, with the reasons behind it.
 2. **A way to use the ratings for another path**: when to look for one, which paths to try, and which one to recommend.
 
-It builds on #12's closure kinds and penalties ([route-planning-open-questions.md](route-planning-open-questions.md)), the dashboard's severity and detour code ([planner-dashboard.md](planner-dashboard.md)) and idea 1 in [traffic-and-open-data-ideas.md](traffic-and-open-data-ideas.md). The site counts and ratings come from a one-off run of the proposed rating over the 189 sites in the city's feeds on 17 Oct 2026 (136 current, 53 planned). Site names below are corrected where the feed has typos.
+It builds on #12's closure kinds and penalties ([route-planning-open-questions.md](route-planning-open-questions.md)), the dashboard's severity and detour code ([planner-dashboard.md](planner-dashboard.md)) and idea 1 in [traffic-and-open-data-ideas.md](traffic-and-open-data-ideas.md). The numbers below come from the database functions in section 3, run over the 189 sites in the city's feeds on 17 Oct 2026 (136 current, 53 planned) with the open data loaded the same day. Site names below are corrected where the feed has typos.
 
 ## The short version
 
 - **Rating = disruption (0–6) + surroundings (0–4), capped at 10.** Disruption is what the site does to this mode on this kind of road: a full closure is 6 on a main road and 1.8 on a residential street. Surroundings add points for a primary school nearby, a crossing on a school route inside the site, a kindergarten, a bus stop, a fire station or hospital, and other works close by.
 - **The rating depends on mode and time.** The half closure on Kaiserstraße next to the Berswordt-Europa-Grundschule is 9/10 for a car at 8:00 on a school day, 5/10 on a Saturday, and 4/10 on foot, because of the four crossings on a school route inside it.
-- **Today's sites, for a car at 8:00 on a school day:** 27 have no effect, 108 low (1–3), 40 medium (4–6), 11 high (7–8) and 3 severe (9–10). "3 sites on the way" becomes "3 sites · 1 high".
+- **Today's sites, for a car at 8:00 on a school day:** 27 have no effect, 110 low (1–3), 40 medium (4–6), 9 high (7–8) and 3 severe (9–10). "3 sites on the way" becomes "3 sites · 1 high".
 - **Blocked stays blocked.** A site the mode can't pass is avoided whatever its rating. The rating decides how hard to avoid the sites the mode *can* pass, and when to tell the user.
 - **Finding another path:** ask the router for up to four paths (as drawn; around blocked sites; also around sites rated 7+; also around sites rated 4+). Score each as travel time plus 10 s × rating² for every site it still uses, and recommend the cheapest one within a detour limit. The dashboard's `planDetour` already routes around blocked sites on the FOSSGIS Valhalla server, without a key.
 - **All the data is open:** the city's schools, kindergartens, care homes, hospitals, fire stations, Stadtbahn stops and street register, plus OpenStreetMap's crossings and bus stops. Two things are missing: where crossing guards (Schülerlotsen) stand, and where school entrances are.
@@ -26,7 +28,7 @@ disruption   = 6 × closure factor × road factor (× 1.3 for cars at rush hour)
 surroundings = sum of the points in the table below, at most 4
 ```
 
-Scoring uses the unrounded value; the app shows the rounded one.
+Each line is rounded to 0.1 before it is added, so the breakdown the app shows adds up exactly. Scoring paths uses the unrounded sum; the app shows the rounded rating.
 
 ### Disruption: what the site does to this mode on this road (0–6)
 
@@ -66,7 +68,7 @@ These points count only when the disruption is above 0. For walking they also co
 | Kindergarten or care home | within 100 m of a kindergarten, a day-care centre for older people or a home for people with disabilities | +0.5 | +0.5 | +1 | kindergartens weekdays 7:00–17:00; homes always |
 | Emergency access | within 500 m of a fire and rescue station or 300 m of a hospital | +1 | | | always |
 | Public transport | a bus stop within 30 m or a Stadtbahn stop within 50 m | +0.5 | +0.5 | +1 | always (later: while the line runs) |
-| Other works nearby | another site with dashboard severity 0.5 or more within 300 m, on overlapping days | +1 | +1 | | while both run |
+| Other works nearby | another site within 300 m that gets 3 or more disruption points for cars (e.g. a half closure of a main road), running on the same day | +1 | +1 | | while both run |
 
 School points count for drivers too. A site next to a school at 8:00 means children crossing, parents stopping and often a 30 km/h limit, so driving through is slower and riskier. School days come from OpenHolidays, which the dashboard already reads. The NRW autumn holidays run from 17 to 31 Oct 2026, so no school points count today.
 
@@ -86,7 +88,7 @@ School points count for drivers too. A site next to a school at 8:00 means child
 
 ### Examples from today's feeds
 
-Rated for a car and for walking at 8:00 on a school day (unrounded car rating in brackets):
+Rated for a car and for walking at 8:00 on Monday 2 Nov, a school day (car score in brackets):
 
 | Site | Car | Walk | Why, for a car |
 |---|---|---|---|
@@ -94,7 +96,7 @@ Rated for a car and for walking at 8:00 on a school day (unrounded car rating in
 | Flughafenstraße: resurfacing, full closure (planned, 19–28 Oct) | 10 (10.0) | 6 | full closure on a main road 6 · Erich Kästner-Schule 72 m +1.5 · crossing on a school route +1.5 · kindergarten +0.5 · bus stop +0.5, capped at 4 |
 | Kaiserstraße: renewing masts, half closure and lane reduction (until 13 Nov) | 9 (8.7) | 4 | half closure on a main road 3.6 · rush hour +1.1 · Berswordt-Europa-Grundschule 83 m +1.5 · 4 crossings on a school route +1.5 · kindergarten +0.5 · bus stop +0.5 |
 | Wellinghofer Straße: power line, half closure with temporary lights (until 28 Oct) | 8 (7.7) | 4 | half closure on a main road 3.6 · rush hour +1.1 · Brücherhofschule 95 m +1.5 · emergency access +1 · bus stop +0.5 |
-| A40 ramp at DO-Kley towards Dortmund: crash barriers, full closure (until 20 Nov) | 8 (7.5) | 3 | full closure on a main road 6 · 2 crossings +0.5 · 2 other sites nearby +1 |
+| A40 ramp at DO-Kley towards Dortmund: crash barriers, full closure (until 20 Nov) | 7 (6.5) | 3 | full closure on a main road 6 · 2 crossings +0.5; the works close by have ended by 2 Nov |
 | Wittbräucker Straße: fibre, half closure (until 20 Nov) | 5 (5.2) | 0 | half closure on a main road 3.6 · rush hour +1.1 · bus stop +0.5 |
 | Hülshof / Oberfeldstraße: replacing traffic lights, narrowing (until 3 Nov) | 4 (3.6) | 3 | narrowing on a main road 2.4 · rush hour +0.7 · 2 crossings +0.5 |
 | Heroldstraße: district heating, full closure (until 13 Nov) | 4 (4.3) | 3 | full closure on a residential street 1.8 · Grundschule Kleine Kielstraße 110 m +1.5 · another site nearby +1 |
@@ -105,10 +107,10 @@ Rated for a car and for walking at 8:00 on a school day (unrounded car rating in
 
 | | none (0) | low (1–3) | medium (4–6) | high (7–8) | severe (9–10) |
 |---|---|---|---|---|---|
-| Car, school day 8:00 (all 189) | 27 | 108 | 40 | 11 | 3 |
-| Bike, school day 8:00 (all 189) | 38 | 114 | 28 | 7 | 2 |
+| Car, school day 8:00 (all 189) | 27 | 110 | 40 | 9 | 3 |
+| Bike, school day 8:00 (all 189) | 27 | 126 | 27 | 7 | 2 |
 | Walk, school day 8:00 (all 189) | 74 | 92 | 23 | 0 | 0 |
-| Car, today, Saturday 12:00, autumn holidays (136 active) | 19 | 90 | 22 | 5 | 0 |
+| Car, today, Saturday 12:00, autumn holidays (136 active) | 19 | 91 | 22 | 4 | 0 |
 
 For a car, 23 of the 189 sites fall in a different band at 8:00 on a school day than at noon on a holiday.
 
@@ -118,8 +120,8 @@ What the inputs look like across the 189 sites:
 - 91 block cars and bikes (full closures and one-way rules), and 10 block walking (closed sidewalks).
 - 31 lie within 150 m of a school, 20 of them near a primary or special school.
 - 25 have a crossing with lights or markings within 20 m; at 11 of them the crossing is on a school route.
-- 25 lie within 100 m of a kindergarten, 47 at a bus or Stadtbahn stop, and 15 near a fire and rescue station or a hospital.
-- 18 have another serious site within 300 m on overlapping days.
+- 25 lie within 100 m of a kindergarten, 47 at a bus or Stadtbahn stop, and 12 near a fire and rescue station or a hospital.
+- 21 have another site within 300 m that gets 3 or more disruption points for cars.
 
 ## 2. From ratings to another path
 
@@ -141,7 +143,7 @@ flowchart TD
 | The path… | Test | Weight |
 |---|---|---|
 | uses the site's street | more than 20 m inside | 1 |
-| crosses it, e.g. straight over a junction with a closed side street | 20 m or less inside | 0.3 for slowed sites; 0 for blocked ones, since the junction stays open; 1 when walking over a crossing inside the site |
+| crosses it, e.g. straight over a junction with a closed side street | 20 m or less inside | 0.3 for slowed sites; 0 for blocked ones, since the junction stays open |
 | passes next to it | within 30 m, not inside | 0, shown as "next to your route" |
 
 A site's effective rating on a path is its rating × weight.
@@ -196,20 +198,41 @@ A path through a blocked site is out, unless every candidate goes through one. I
 | Monday 8:00, school day | 14 min + 10 s × 8.7² = 26.6 min | 18 min + 5 s = 18.1 min | D, +4 min |
 | Saturday 12:00 | 14 min + 10 s × 4.6² = 17.5 min | 18.1 min | A |
 
-## 3. Where it runs
+## 3. How it is built
 
-#12 decided that the construction-site logic lives in Postgres, so the app, the dashboard and the obstacles job agree on it. The rating fits there too:
+All of it lives in Postgres, as #12 decided for the construction-site logic, so the app, the dashboard and the obstacles job can share one score. Migration: [`20261017120000_site_ratings.sql`](../backend/supabase/migrations/20261017120000_site_ratings.sql); tests: [`site_ratings.test.sql`](../backend/supabase/tests/database/site_ratings.test.sql).
 
-- **`public.places`** (`kind`, `subtype`, `name`, `geom`, `source`, `synced_at`): schools with their type, kindergartens, care homes, homes for people with disabilities, hospitals, fire and rescue stations and Stadtbahn stops from the city, plus crossings and bus stops from OSM. A monthly pg_cron sync of about 800 rows from the city and 7,800 from OSM.
-- **`public.site_context`**, one row per site: road class and name, the distance to the nearest school, primary school, kindergarten, care home, hospital and fire station, the crossings within 20 m and how many lie on a school route, stops nearby, overlapping sites. None of it depends on the time, so refresh it after each site sync.
-- **`public.rating_weights`**: every number in section 1, so they can be tuned without a release, like #12's `closure_impacts`.
-- **`public.site_rating(p_site_id, p_modality, p_at timestamptz)`** returns `(rating numeric, band text, reasons jsonb)`. It applies the time rules (school days from a small `school_holidays` table synced once a year from OpenHolidays, rush hour, daytime-only sites, dates) on top of `site_context`.
-- **`sites_on_paths`** (#12) also returns how the path meets each site (uses, crosses, next to) and the effective rating. `obstacles` stores the rating and reasons for the route's next departure, so the route card and notifications can read them.
-- **The dashboard's** severity is the disruption part without time rules. Its Priorities tab can switch to `site_rating` later.
+| Part | What it holds or does |
+|---|---|
+| `closure_kind`, `impact`, `closure_impacts` | #12's closure kinds, with each one's impact and penalty for each mode |
+| `classify_closures(title)`, `is_daytime_only(title)` | what a site closes, read from its title with the dashboard's patterns |
+| `rating_weights` | every number in section 1, radii and hours included, each with a description. Change a value with an `update`; no release needed |
+| `places`, `roads`, `school_free_days` | schools, kindergartens, care homes, hospitals, fire stations and Stadtbahn stops (city); crossings and bus stops (OSM); main and through roads (street register); school and public holidays (OpenHolidays) |
+| `private.sync_places()` | loads all of the above; pg_cron runs it at 03:30 UTC on the 1st of each month. Each source replaces its rows only when it returned some, so an outage keeps the last good data |
+| `site_context` | one row per site: closures, road class and name, the nearest school, primary school, kindergarten, care home, hospital, fire station, bus and Stadtbahn stop with their distances, the crossings and school-route crossings, other serious works close by |
+| `private.refresh_site_context()` | fills `site_context`; pg_cron runs it at :02, after the hourly site sync |
+| `site_ratings(mode, at, site_ids)` | the rating, band, impact, whether the site runs then, the two parts, and `reasons`: every factor with its points and details, and why it doesn't count at that time when it doesn't |
+| `obstacles.along_m` | how far a route's path runs inside each site on its way, measured by a trigger whenever the obstacles job writes a row |
+| `route_departure(...)`, `route_site_ratings(route)` | a route's sites, rated for its mode at its next leaving time, with how the route meets each one (uses, crosses, passes) and the share that counts |
 
-Until #12's closure columns exist, a first version can compute the rating in TypeScript, next to `closureOf` in `mobile/src/sites.ts`, with the context data from the same open datasets. Watch for one difference: the app's `closureOf` and the dashboard's `classifyClosures` don't sort titles into quite the same kinds.
+Everything in the table can be read with the publishable key, so anyone can check a score against its inputs. Only the jobs write.
 
-## 4. Data
+To set it up on a database, paste the migration into the SQL editor, then run `select private.sync_places();` and `select private.refresh_site_context();` once, or wait for the jobs. The sync takes about a minute.
+
+## 4. Being transparent about the scores
+
+A score nobody can check is a score nobody should trust, so the app never shows the number on its own:
+
+- **Who and when.** "9/10 · Severe impact · for cars · Mon 2 Nov, 08:00". On a route, the score is for the route's mode at its next leaving time. Without one, the card has Car, Bicycle and Pedestrian buttons, and the score is for now.
+- **Every point.** One line per factor, with its points: "Half closure and lane narrowing on Kaiserstraße (main road) · Slows cars by about 2 min · 6 × 0.6 × 1 · +3.6", "Berswordt-Europa-Grundschule, 83 m away · +1.5", and so on.
+- **What doesn't count, and why.** A factor that applies but doesn't count at that time stays on the list with 0 points: "Not counted: school holidays (Herbstferien)", "Not counted: weekend", "Not counted: not rush hour". A cap shows as a line of its own: "Surroundings count 4 points at most · −1.0".
+- **How it adds up.** "Closure 4.7 + surroundings 4.0 = 8.7, rounded to 9/10".
+- **What it means for the route.** "Your route runs 150 m through it, so all of it counts", or "Your route only crosses it, so 30 % counts: 2.6".
+- **How scores work.** A sheet one tap away explains the method with the values the server uses right now (read from `rating_weights`), where the data comes from and how often it is loaded, and what the score can't know: crossing guards, school entrances, live traffic, vague titles, and that the weights are judgement calls.
+
+The app puts the reasons the server returns into words ([`mobile/src/ratings/model.ts`](../mobile/src/ratings/model.ts)); the server never sends a number without the reasons behind it.
+
+## 5. Data
 
 Checked on 17 Oct 2026.
 
@@ -236,14 +259,14 @@ The city's datasets are under Datenlizenz Deutschland – Zero 2.0. OpenStreetMa
 - **School-zone speed limits:** 280 road pieces in OSM have a time-dependent limit, but more than half are night-time noise limits (152, e.g. 120 at "30 @ (21:00-05:00)"). Only about 100 are daytime 30 km/h limits like "30 @ (Mo-Fr 07:00-18:00)", too few to rely on alone.
 - **Traffic volumes:** not open (see the traffic ideas). The road class stands in for them; Mapbox's congestion (idea 2) could later replace the rush-hour factor.
 
-## 5. Tuning and checking
+## 6. Tuning and checking
 
 - Every weight here is a judgement call. For the first month, check the top 20 sites by hand each week: does each 9/10 deserve it?
-- Keep the high and severe bands small, or the label stops meaning anything. Today they hold 14 of 189 sites for cars on a school morning (7 %).
+- Keep the high and severe bands small, or the label stops meaning anything. Today they hold 12 of 189 sites for cars on a school morning (6 %).
 - When idea 2's traffic data arrives, check whether high-rated sites really slow traffic more, and fit the road and rush-hour factors to it.
 - Let users answer "worse / as rated / better" for a site they passed, and look at the answers per band.
 
-## 6. Open questions
+## 7. Open questions
 
 1. **School points for drivers.** Should they raise a driver's rating, or only count for walking and cycling? Proposed: for all modes, as above. And should the planner keep car detours off streets next to schools, so that avoiding one school doesn't send traffic past another?
 2. **Number or band?** Proposed: the band colour on the map, and the number with its reasons on the site card.
@@ -252,15 +275,13 @@ The city's datasets are under Datenlizenz Deutschland – Zero 2.0. OpenStreetMa
 5. **"Avoid school zones" setting.** #12 decided against an "avoid all construction" switch for now. A narrower setting for school zones could make sense for parents.
 6. **Crossing guards.** Ask the city for their positions?
 
-## 7. Steps
+## 8. Steps
 
-| Step | What | Size |
+| Step | What | Status |
 |---|---|---|
-| 1 | `places` sync (city and OSM), and `site_context` after each site sync | M |
-| 2 | `rating_weights` and `site_rating()`, with SQL tests built on the examples above | M |
-| 3 | Rating and reasons on `obstacles`; "3 sites · 1 high" on the route card; the rating in each site's panel | S–M |
-| 4 | Candidates and scoring in the planner: Valhalla now, ORS once we have a key; `sites_on_paths` for the matching | M |
-| 5 | The recommended path and up to two others on the route map, with reasons | M |
-| 6 | Notifications (#25) for a new site rated 7 or more, or a changed recommendation | S |
-
-S is about a day of work, M a few days. Steps 1–3 don't need the planner and already make "3 sites on the way" useful.
+| 1 | `places` sync (city and OSM), and `site_context` after each site sync | done |
+| 2 | `rating_weights` and `site_ratings()`, with SQL tests built on the examples above | done |
+| 3 | The score with every point on the site card; "· 1 with high impact" on the route card; "How scores work" | done |
+| 4 | Candidates and scoring in the planner: Valhalla now, ORS once we have a key | next, a few days |
+| 5 | The recommended path and up to two others on the route map, with reasons | a few days |
+| 6 | Notifications (#25) for a new site rated 7 or more, or a changed recommendation | about a day |
