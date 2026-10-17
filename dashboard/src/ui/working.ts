@@ -1,6 +1,7 @@
 // The working behind each figure the dashboard derives, from the numbers and the settings the model used for it.
 import { PER_DAYS, PER_RESIDENTS } from '../model/analysis';
 import type { DistrictGap, Priority, WindowOption } from '../model/analysis';
+import type { ImpactAssessment } from '../model/impact';
 import type { CapacityResult, DistrictLoad, Params } from '../model/capacity';
 import { KIND_LABEL } from '../model/closures';
 import { formatDay, formatShort } from '../model/days';
@@ -127,4 +128,11 @@ export const finishWorking = (site: Site, others: Site[]): Working => [
   ['Clashes with', others.map((s) => shortTitle(s.title)).join(' · ')],
   ['No move', 'no planned works in the group can move to at least halve their overlap'],
   ['This one', `runs longest of the started works: ${site.openEnded ? 'no end date' : `until ${formatDay(site.end)}`}`],
+];
+
+/** The Construction Impact Score: each factor's 0–1 value × its share of the 100 points. */
+export const impactWorking = (a: ImpactAssessment, cfg: Settings): Working => [
+  ...a.factors.map((f): [string, string] => [f.label, f.value === null ? `unknown; share ${num(f.weight)} of 100` : `${num(f.value)} × ${num(f.weight)} = ${num(f.contribution!)}`]),
+  ['Total', a.total === null ? `not worked out: ${a.missing.join(', ')} unknown` : `${num(a.total)} of 100`],
+  ['Priority', `low up to ${cfg['impact.band.medium']}, medium up to ${cfg['impact.band.high']}, high up to ${cfg['impact.band.veryHigh']}, very high above`],
 ];

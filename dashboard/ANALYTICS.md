@@ -18,7 +18,7 @@ Before this change the Planner already provided the map, daily timeline, date na
 
 ## Disruption Points are unchanged
 
-`buildSites` in `model/sites.ts` computes `severity = KIND_WEIGHT[kind] * ROAD_WEIGHT[road]`. `dailyLoad` in `model/analysis.ts` sums severity for every site active on a day; the header and timeline show this daily sum. Restriction weights come from `closures.ts` (full closure 1, half closure 0.5, etc.); road weights are main 1, through 0.6, other 0.3. These are planning assumptions, not measured traffic.
+`weigh` in `model/sites.ts` computes `severity = weight.<kind> × road.<road>` from Settings (`model/settings.ts`). `dailyLoad` in `model/analysis.ts` sums severity for every site active on a day; the header and timeline show this daily sum. By default restriction weights are full closure 1, half closure 0.5, etc.; road weights are main 1, through 0.6, other 0.3. These are planning assumptions, not measured traffic.
 
 Duration determines the days on which each site contributes. The daily sum has no exposure or conflict multiplier. Concurrent sites each contribute their own points; pair relationships do not add an extra daily penalty. Capacity analysis is a separate module and is not an input to this sum. Existing coordination clashes use their own 50 m–1 km distance/severity rules, and existing finish-first priorities use another formula.
 
@@ -39,7 +39,7 @@ Data-quality rules:
 - Geometry must have valid closed rings, finite coordinates, valid topology and Dortmund-area coordinate order/bounds. Polygon holes are respected. Point-only locations can still be displayed, but synthetic circles do not establish exposure or conflict evidence.
 - Scenario shifts are applied only to originally verified date bounds. Proposed scenario geometry/dates are explicitly labelled as scenario evidence.
 
-`potentialConflicts` reuses `findNeighbours` and `overlapDays`: actual footprints touch/intersect or are within 250 m **and** both verified construction intervals intersect. The radius is configurable in the pure function. Bounding boxes prefilter spatial work; memoization avoids rerunning it when just changing the date window. Outlook clips these shared pairs to its selected window. Context and scoring reuse the full-period pairs, so changing the outlook window cannot incorrectly erase score conflicts.
+`potentialConflicts` reuses `findNeighbours` and `overlapDays`: actual footprints touch/intersect or are within `impact.radius` (default 250 m) **and** both verified construction intervals intersect. The radius is a planner setting. Bounding boxes prefilter spatial work; memoization avoids rerunning it when just changing the date window. Outlook clips these shared pairs to its selected window. Context and scoring reuse the full-period pairs, so changing the outlook window cannot incorrectly erase score conflicts.
 
 These are **Potential Construction Conflicts**, not confirmed traffic disruptions. Incomplete dates/footprints cannot prove an absence of conflicts.
 
@@ -57,20 +57,20 @@ The project detail panel offers Public Services / City Administration and Busine
 
 Pure functions in `model/impact.ts` calculate:
 
-`Impact Score = 35*S + 30*E + 20*C + 15*D`
+`Impact Score = 100 × (s_S·S + s_E·E + s_C·C + s_D·D) / (s_S + s_E + s_C + s_D)`, with the shares `impact.S/E/C/D` from Settings (default 35/30/20/15, so the default is `35*S + 30*E + 20*C + 15*D`). Every weight and threshold below is a Settings entry in the "Impact score" group; the defaults are given.
 
 | Factor | Normalization |
 | --- | --- |
-| S: Restriction Severity | Full road closure 1; partial/carriageway/one-way restriction 0.65; narrowing/reduction 0.45; documented minor/path-only restriction 0.25; explicitly reported no relevant restriction 0; unknown null. |
+| S: Restriction Severity | The heaviest named restriction's weight from the Severity settings (`weight.<kind>`, the same weights Disruption Points use: full closure 1, half closure 0.5, …); a path-only closure counts as `weight.sidewalk`; explicitly reported no relevant restriction 0; unknown null. |
 | E: Location Exposure | Nearest relevant point to the real footprint: ≤100 m 1; >100–250 m 0.75; >250–500 m 0.40; >500 m 0. Use the maximum exposure, never sum facilities. Missing geometry or relevant locations is null. |
 | C: Construction Conflict | Shared Outlook footprint intersection/contact + date overlap 1; within 250 m + overlap 0.5; no relevant pair 0 only with sufficient evidence; unresolved required data null. A known intersection establishes the maximum even if other data is incomplete. |
 | D: Construction Duration | Inclusive 1–2 days 0.25; 3–14 days 0.5; 15–30 days 0.75; >30 days 1. Missing/invalid/open/sentinel dates null. |
 
 Restriction information is classified from actual source wording, not a structured verified closure feed. The wrapper distinguishes path-only formulations in either word order from full road closures. A path-only score is an initial planning weight, not a judgement that the restriction is minor for affected pedestrians/cyclists. Unrecognized wording stays unknown. Synthetic scenario titles without restriction wording may also have an unknown S factor.
 
-Every required factor must be known before a total is displayed. Missing values never become zero and weights are never redistributed. Available factor values, weighted contributions, sources and explanations remain visible. Score thresholds are ≤30 Low, >30–60 Medium, >60–80 High, >80 Very High **Review Priority**. Weights/categories are provisional hackathon assumptions, not scientific validation or an official Dortmund metric. Traffic Context remains separate, with no fifth factor.
+Every required factor must be known before a total is displayed. Missing values never become zero and weights are never redistributed. Available factor values, weighted contributions, sources and explanations remain visible. Score thresholds (`impact.band.*`) default to ≤30 Low, >30–60 Medium, >60–80 High, >80 Very High **Review Priority**. Weights/categories are provisional hackathon assumptions, not scientific validation or an official Dortmund metric. Traffic Context remains separate, with no fifth factor.
 
-The 82.5 example exists only in tests (`S=1,E=1,C=.5,D=.5`); live results are calculated dynamically. Factor equations retain two decimals so 0.65 × 35 is displayed accurately as 22.75.
+The 82.5 example exists only in tests (`S=1,E=1,C=.5,D=.5`); live results are calculated dynamically. Factor equations retain two decimals so 0.65 × 35 is displayed accurately as 22.75. The total's working (each factor × its share) shows on hover, as for every derived figure.
 
 ## Sources and freshness
 

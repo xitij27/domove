@@ -1,5 +1,9 @@
 import type { Poi } from '../data/sources';
 import type { ImpactAssessment, ImpactTarget } from '../model/impact';
+import { Derived } from './Derived';
+import { Info } from './Info';
+import { useSettings } from './useSettings';
+import { impactWorking } from './working';
 
 const number = (value: number) => value.toLocaleString('en-GB', { maximumFractionDigits: 2 });
 
@@ -8,10 +12,16 @@ export function ImpactScorePanel({ assessment, target, locations, scenario, loca
   locationError: string | null; onTarget: (target: ImpactTarget) => void; onAdd: () => void;
   onRename: (index: number, name: string) => void; onRemove: (index: number) => void;
 }) {
+  const cfg = useSettings();
   return (
     <section className="block project-analytics" aria-labelledby="impact-title">
       <h3 id="impact-title">Construction Impact Score</h3>
-      <p className="muted small">A prototype review-priority indicator for one project. Disruption Points remain the separate, citywide daily sum of restriction × road weights.</p>
+      <Info>
+        <p>A prototype review-priority indicator for one project. Disruption Points remain the separate, citywide daily sum of restriction × road weights.</p>
+        <p>{cfg['impact.S']} × S + {cfg['impact.E']} × E + {cfg['impact.C']} × C + {cfg['impact.D']} × D, scaled to 100 (change the shares in Settings). All factors are between 0 and 1. No total is calculated if a required factor is unknown; weights are not redistributed.</p>
+        <p>Exposure uses the maximum factor from the nearest relevant location to the actual footprint. Public locations are schools, kindergartens and available rail stops. Conflict evidence is shared with Construction Outlook across full reported project periods.</p>
+        <p>Provisional weights and priority bands are unvalidated planning assumptions, not measured traffic impact, delays, economic losses or an official Dortmund metric. Proximity does not prove disruption. Traffic Context remains separate and adds no fifth factor.</p>
+      </Info>
       {scenario && <p className="note">Scenario assessment: includes proposed dates or footprints, not only published plans.</p>}
       <label className="assessment-target">Assessment context
         <select value={target} onChange={(e) => onTarget(e.target.value as ImpactTarget)}>
@@ -36,7 +46,7 @@ export function ImpactScorePanel({ assessment, target, locations, scenario, loca
       )}
       <div aria-live="polite">
         {assessment?.total !== null && assessment?.total !== undefined ? (
-          <p><strong>{number(assessment.total)} / 100</strong> · {assessment.priority}</p>
+          <p><Derived how={impactWorking(assessment, cfg)}><strong>{number(assessment.total)} / 100</strong></Derived> · {assessment.priority}</p>
         ) : (
           <>
             <p><strong>Insufficient data to calculate Impact Score</strong></p>
@@ -52,12 +62,6 @@ export function ImpactScorePanel({ assessment, target, locations, scenario, loca
           </details>
         </li>
       ))}</ul>}
-      <details>
-        <summary>Methodology and limitations</summary>
-        <p className="small">35 × S + 30 × E + 20 × C + 15 × D. All factors are between 0 and 1. No total is calculated if a required factor is unknown; weights are not redistributed.</p>
-        <p className="muted small">Exposure uses the maximum factor from the nearest relevant location to the actual footprint. Public locations are schools, kindergartens and available rail stops. Conflict evidence is shared with Construction Outlook across full reported project periods.</p>
-        <p className="muted small">Provisional weights and priority bands are unvalidated planning assumptions, not measured traffic impact, delays, economic losses or an official Dortmund metric. Proximity does not prove disruption. Traffic Context remains separate and adds no fifth factor.</p>
-      </details>
     </section>
   );
 }

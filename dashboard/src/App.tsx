@@ -107,8 +107,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const evidence = useMemo(() => buildEvidence([
     ...data.raw, ...scenario.added.map((h) => hypotheticalInput(h, districtShapes)),
   ], sites), [data.raw, scenario.added, districtShapes, sites]);
-  const analyticsConflicts = useMemo(() => potentialConflicts(evidence), [evidence]);
-  const outlookResult = useMemo(() => outlook(evidence, date, outlookDays, 250, analyticsConflicts), [evidence, date, outlookDays, analyticsConflicts]);
+  const analyticsConflicts = useMemo(() => potentialConflicts(evidence, cfg['impact.radius']), [evidence, cfg]);
+  const outlookResult = useMemo(() => outlook(evidence, date, outlookDays, cfg['impact.radius'], analyticsConflicts), [evidence, date, outlookDays, analyticsConflicts, cfg]);
   const byId = useMemo(() => new Map(sites.map((s) => [s.id, s])), [sites]);
   const published = useMemo(() => baseSites.filter((s) => !s.hypothetical), [baseSites]);
   const horizon = useMemo(() => {
@@ -148,11 +148,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const selectedEvidence = evidence.find((p) => p.id === selectedId);
   const assessment = useMemo(() => selected && selectedEvidence ? impactAssessment(selected, selectedEvidence,
-    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget) : null,
-  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations]);
+    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget, cfg) : null,
+  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations, cfg]);
   const selectedTraffic = useMemo(() => selected && selectedEvidence ? trafficContext(selected, selectedEvidence,
-    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts) : null,
-  [selected, selectedEvidence, data, analyticsConflicts]);
+    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts, cfg['stop.radius']) : null,
+  [selected, selectedEvidence, data, analyticsConflicts, cfg]);
   const selectedConflicts = useMemo(() => (selected ? conflicts.filter((c) => c.a === selected.id || c.b === selected.id) : []), [selected, conflicts]);
   const siteAdvice = useMemo(() => (
     selected && (selected.hypothetical || selected.baseStart > today)

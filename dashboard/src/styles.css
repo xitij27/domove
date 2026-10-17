@@ -415,6 +415,7 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 .outlook-window { fill: var(--accent); opacity: 0.12; pointer-events: none; }
 .outlook-key { background: var(--accent); opacity: 0.3; }
 .project-analytics { border-top: 1px solid var(--border); padding-top: 14px; }
+.project-analytics > .info > summary { top: 13px; }
 .assessment-target { display: grid; gap: 4px; margin: 10px 0; }
 .assessment-target select { width: 100%; min-width: 0; }
 .impact-factors { margin: 12px 0; }

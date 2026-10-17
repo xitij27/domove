@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Poi } from '../data/sources';
+import type { ClosureKind } from './closures';
 import { toLonLat, toXY } from './geo';
 import { calculateImpact, durationValue, exposureValue, impactAssessment, restrictionSeverity, reviewPriority } from './impact';
 import { potentialConflicts } from './outlook';
 import type { ProjectEvidence } from './outlook';
+import { DEFAULT_SETTINGS } from './settings';
 import type { Site } from './sites';
 import { testSite } from './testSites';
 
+// the restriction factor uses the planner's restriction weights from Settings
+const w = (kind: ClosureKind) => DEFAULT_SETTINGS[`weight.${kind}`];
 const site = (id = 'a', x = 0, start = 100, end = 109) => testSite(id, x, 0, start, end, { title: 'Example street - Vollsperrung' });
 const evidence = (s: Site, patch: Partial<ProjectEvidence> = {}): ProjectEvidence => ({
   id: s.id, start: s.start, end: s.end, openEnded: false, shape: s.shape, center: s.center, issues: [], ...patch,
@@ -20,13 +24,13 @@ const assess = (s: Site, p = evidence(s), all = [p], pois: Poi[] | null = [locat
 
 describe('restriction severity: reported wording and mode scope', () => {
   it.each([
-    ['Kampstraße - Vollsperrung', 1], ['Straße - VSP', 1], ['Halbseitige Sperrung', 0.65],
-    ['Vollsperrung der Richtungsfahrbahn', 0.65], ['Einbahnstraße', 0.65],
-    ['Fahrstreifenreduzierung', 0.45], ['Fahrbahneinengung', 0.45],
-    ['Gehwegsperrung', 0.25], ['Vollsperrung Fußweg', 0.25], ['Vollsperrung des Radwegs', 0.25],
-    ['Musterstraße - Gehweg voll gesperrt', 0.25], ['Musterstraße - Radweg-Vollsperrung', 0.25],
-    ['Musterstraße - Fußweg ist voll gesperrt', 0.25], ['Musterstraße - Gehweg - Vollsperrung', 0.25],
-    ['Emscherradweg - Vollsperrung', 0.25], ['Parkstreifen gesperrt', 0.25],
+    ['Kampstraße - Vollsperrung', w('full')], ['Straße - VSP', w('full')], ['Halbseitige Sperrung', w('half')],
+    ['Vollsperrung der Richtungsfahrbahn', w('carriageway')], ['Einbahnstraße', w('one_way')],
+    ['Fahrstreifenreduzierung', w('narrowing')], ['Fahrbahneinengung', w('narrowing')],
+    ['Gehwegsperrung', w('sidewalk')], ['Vollsperrung Fußweg', w('sidewalk')], ['Vollsperrung des Radwegs', w('sidewalk')],
+    ['Musterstraße - Gehweg voll gesperrt', w('sidewalk')], ['Musterstraße - Radweg-Vollsperrung', w('sidewalk')],
+    ['Musterstraße - Fußweg ist voll gesperrt', w('sidewalk')], ['Musterstraße - Gehweg - Vollsperrung', w('sidewalk')],
+    ['Emscherradweg - Vollsperrung', w('sidewalk')], ['Parkstreifen gesperrt', w('parking')],
     ['Keine Einschränkungen', 0], ['Straße - keine Verkehrseinschränkungen', 0],
     ['Leitungsarbeiten', null], ['', null], ['Keine Vollsperrung', null],
   ])('%s => %s', (title, value) => expect(restrictionSeverity(title).value).toBe(value));
@@ -35,7 +39,7 @@ describe('restriction severity: reported wording and mode scope', () => {
     expect(restrictionSeverity('Vollsperrung des Radwegs; Vollsperrung Straße').value).toBe(1);
     expect(restrictionSeverity('Musterstraße - Gehweg voll gesperrt; Fahrbahn voll gesperrt').value).toBe(1);
     expect(restrictionSeverity('Musterstraße - Radweg-Vollsperrung; Vollsperrung der Straße').value).toBe(1);
-    expect(restrictionSeverity('Musterstraße - Radweg-Vollsperrung; halbseitige Sperrung der Fahrbahn').value).toBe(0.65);
+    expect(restrictionSeverity('Musterstraße - Radweg-Vollsperrung; halbseitige Sperrung der Fahrbahn').value).toBe(w('half'));
     expect(restrictionSeverity('Gehwegsperrung').reason).toContain('not evidence of a full motor-vehicle closure');
     expect(restrictionSeverity('Vollsperrung des Radwegs').reason).toContain('walking/cycling only');
   });
@@ -148,6 +152,12 @@ describe('complete assessment', () => {
     for (const key of ['S', 'E', 'C', 'D'] as const) {
       expect(calculateImpact({ S: 1, E: 1, C: 1, D: 1, [key]: null })).toBeNull();
     }
+  });
+
+  it('scales the planner\'s shares to 100 and gives no total when every share is 0', () => {
+    const shares = (S: number, E: number, C: number, D: number) => ({ ...DEFAULT_SETTINGS, 'impact.S': S, 'impact.E': E, 'impact.C': C, 'impact.D': D });
+    expect(calculateImpact({ S: 1, E: 0, C: 0, D: 0 }, shares(10, 10, 0, 0))).toBe(50);
+    expect(calculateImpact({ S: 1, E: 1, C: 1, D: 1 }, shares(0, 0, 0, 0))).toBeNull();
   });
 
   it('rejects out-of-range or non-finite factors instead of silently clamping', () => {

@@ -47,7 +47,7 @@ describe('impact assessment UI integration', () => {
     const result = impactAssessment(partial, evidence[0], evidence, potentialConflicts(evidence), locations, 'public');
     const html = renderToStaticMarkup(<ImpactScorePanel assessment={result} target="public" locations={[]}
       scenario={false} locationError={null} onTarget={() => {}} onAdd={() => {}} onRename={() => {}} onRemove={() => {}} />);
-    expect(html).toContain('0.65 × 35 = 22.75 points');
-    expect(html).toContain('70.25 / 100');
+    expect(html).toContain('0.5 × 35 = 17.5 points');
+    expect(html).toContain('65 / 100');
   });
 });

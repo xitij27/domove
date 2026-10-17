@@ -18,6 +18,7 @@ export type Setting = {
 // at most 1: no restriction or road weighs more than a full closure on a main road, which is 1 point
 const weight = (label: string, value: number): Setting => ({ group: 'Severity', label, value, min: 0, max: 1, step: 0.05 });
 const lanes = (group: string, label: string, value: number, max: number): Setting => ({ group, label, value, min: 1, max, step: 1, unit: 'lanes' });
+const share = (label: string, value: number): Setting => ({ group: 'Impact score', label, value, min: 0, max: 100, step: 5, unit: 'of 100', why: 'the four shares are scaled to add up to 100' });
 const metres = (group: string, label: string, value: number, min: number, max: number, why?: string): Setting => ({ group, label, value, min, max, step: 10, unit: 'm', why });
 
 const TABLE = {
@@ -77,6 +78,22 @@ const TABLE = {
   'capacity.siteLanes.secondary': lanes('Road capacity', 'Lanes works take on a through road', 2, 6),
   'capacity.siteLanes.local': lanes('Road capacity', 'Lanes works take on a local street', 1, 4),
   'capacity.maxLoss': { group: 'Road capacity', label: 'Works take at most', value: 0.9, min: 0.5, max: 0.95, step: 0.05, unit: '× of a district\'s road', why: 'below 1: a district with no road left would divide by zero' },
+
+  // The Construction Impact Score: four shares scaled to add up to 100, and the steps each factor's 0–1 value moves at.
+  'impact.S': share('Share for the restriction', 35),
+  'impact.E': share('Share for schools, kindergartens and stops nearby', 30),
+  'impact.C': share('Share for works at the same time nearby', 20),
+  'impact.D': share('Share for how long the works run', 15),
+  'impact.radius': metres('Impact score', 'Works conflict within', 250, 100, 500),
+  'impact.near': metres('Impact score', 'A place counts fully within', 100, 50, 150, 'stays below the middle distance'),
+  'impact.mid': metres('Impact score', 'A place counts 0.75 within', 250, 160, 300, 'between the near and far distance'),
+  'impact.far': metres('Impact score', 'A place counts 0.4 within', 500, 310, 1000, 'stays above the middle distance'),
+  'impact.short': { group: 'Impact score', label: 'Works count 0.25 up to', value: 2, min: 1, max: 7, step: 1, unit: 'days', why: 'stays below the middle duration' },
+  'impact.medium': { group: 'Impact score', label: 'Works count 0.5 up to', value: 14, min: 8, max: 21, step: 1, unit: 'days', why: 'between the short and long duration' },
+  'impact.long': { group: 'Impact score', label: 'Works count 0.75 up to, and 1 beyond', value: 30, min: 22, max: 90, step: 1, unit: 'days', why: 'stays above the middle duration' },
+  'impact.band.medium': { group: 'Impact score', label: 'Medium review priority above', value: 30, min: 10, max: 45, step: 5, unit: 'points', why: 'stays below where high starts' },
+  'impact.band.high': { group: 'Impact score', label: 'High review priority above', value: 60, min: 50, max: 75, step: 5, unit: 'points', why: 'between medium and very high' },
+  'impact.band.veryHigh': { group: 'Impact score', label: 'Very high review priority above', value: 80, min: 80, max: 95, step: 5, unit: 'points', why: 'stays above where high starts' },
 } satisfies Record<string, Setting> & Record<`weight.${ClosureKind}` | `road.${RoadClass}` | `capacity.siteLanes.${RoadClass}`, Setting>;
 
 export type SettingKey = keyof typeof TABLE;
