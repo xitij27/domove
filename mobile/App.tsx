@@ -14,8 +14,12 @@ import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
 import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
+import { routesRepository } from './src/routes/api';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
-import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
+import { fetchObstacles } from './src/notifications/obstacles';
+import { constructionNotifications, notificationDriver, sendAlertSoon, startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
+import { DemoButton, DemoCaption } from './src/demo/Demo';
+import { ALERT_DELAY, ALERT_STEP, pickDemo, STEPS, type DemoRun, type Scene } from './src/demo/demo';
 import HowScoresWork from './src/ratings/HowScoresWork';
 import ImpactScore from './src/ratings/ImpactScore';
 import { highOnRoute } from './src/ratings/model';
@@ -115,7 +119,7 @@ export default function App() {
         <View style={styles.fill}>
           {/* the raised routes sheet covers the map, so screen readers skip it */}
           <View style={styles.fill} importantForAccessibility={mapCovered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={mapCovered}>
-            <RadarMap route={viewing} onCloseRoute={closeRoute} picking={picking} onEndPick={endPick} />
+            <RadarMap route={viewing} onShowRoute={setViewing} onCloseRoute={closeRoute} picking={picking} onEndPick={endPick} />
           </View>
           <RoutesManager onOpenChange={setRoutesOpen} onViewRoute={setViewing} onRouteUpdated={routeUpdated} onRouteDeleted={routeDeleted} onPickOnMap={setPicking} hidden={!!picking} />
         </View>
@@ -142,8 +146,10 @@ function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void 
 }
 
 // memo: opening the routes sheet re-renders App, which shouldn't redraw the map and its pins.
-const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPick }: {
+const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, picking, onEndPick }: {
   route: SavedRoute | null;
+  /** For the demo, which shows a saved route by itself. */
+  onShowRoute: (route: SavedRoute) => void;
   onCloseRoute: () => void;
   picking: PlacePick | null;
   onEndPick: () => void;
@@ -257,6 +263,52 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
     return () => subscription.remove();
   }, [quizShown]);
 
+  // The guided demo: each step sets the whole screen, so Back works as well as Next.
+  const [demo, setDemo] = useState<DemoRun | null>(null);
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [demoNote, setDemoNote] = useState<string | null>(null);
+  const applyScene = (run: DemoRun, scene: Scene) => {
+    if (scene.route) onShowRoute(run.route);
+    else onCloseRoute();
+    selectSite(scene.site ? run.site : null);
+    setForecastOpen(!!scene.forecast);
+    setQuizOpen(!!scene.quiz);
+    if (scene.navigate) start();
+    else setStarted(false);
+  };
+  const showStep = (run: DemoRun, step: number) => {
+    const { scene } = STEPS[step];
+    setDemo({ ...run, step });
+    setDemoNote(null);
+    applyScene(run, scene);
+    if (scene.action === 'alerts') alerts?.save({ preference: 'ONE_DAY_BEFORE', notificationTime: run.before.notificationTime });
+    if (scene.action === 'send') sendAlertSoon(run.obstacle, ALERT_DELAY).catch((e: unknown) => setDemoNote(e instanceof Error ? e.message : String(e)));
+  };
+  const startDemo = () => {
+    setDemoBusy(true);
+    // Asked now, so the phone's question doesn't interrupt the alert step.
+    Promise.all([fetchObstacles(), routesRepository.list(), notificationDriver.permission(true)])
+      .then(async ([obstacles, routes]) => {
+        const picked = pickDemo(obstacles, routes, sites);
+        if (!picked) {
+          Alert.alert('No route to show', 'None of the saved routes has a construction site on the map yet. Save a route past one, wait for the next check (every 15 minutes), then try again.');
+          return;
+        }
+        showStep({ ...picked, step: 0, before: await constructionNotifications.getSettings(picked.route.id) }, 0);
+      })
+      .catch((e: unknown) => Alert.alert('Could not start the demo', e instanceof Error ? e.message : String(e)))
+      .finally(() => setDemoBusy(false));
+  };
+  const endDemo = () => {
+    if (!demo) return;
+    // The demo's alert choice was only for show.
+    constructionNotifications.setSettings(demo.route.id, demo.before).catch(() => {});
+    setDemo(null);
+    applyScene(demo, {});
+  };
+  // The demo's card sits under the chips, however many lines they wrap onto.
+  const [legendHeight, setLegendHeight] = useState(0);
+
   // The map's middle while choosing a place, where the pin is; null while the map moves.
   const [center, setCenter] = useState<Coordinate | null>(null);
   useEffect(() => {
@@ -291,6 +343,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
     if (onRoute && !onRoute.siteIds?.has(site.id)) onCloseRoute();
     setShown((current) => ({ ...current, [site.status]: true }));
     selectSite(site);
+    // The demo's alert step ends with this tap.
+    setDemo((run) => (run?.step === ALERT_STEP ? { ...run, step: ALERT_STEP + 1 } : run));
   }, [tapped, sites, onRoute, onCloseRoute, selectSite]);
 
   const SitesMap = mapboxOn && MapboxSitesMap ? MapboxSitesMap : GoogleSitesMap;
@@ -314,7 +368,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
-        <View style={styles.legend}>
+        <View style={styles.legend} onLayout={(e) => setLegendHeight(e.nativeEvent.layout.height)}>
           {(Object.keys(LABELS) as Status[]).map((st) => (
             <FadeTo key={st} opacity={shown[st] ? 1 : CHIP_OFF}>
               <Pressable
@@ -353,7 +407,24 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         <Fade>{!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}</Fade>
         {/* last of the round controls, so it sits under the weather */}
         <Fade>{!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}</Fade>
+        <Fade>{!picking && <DemoButton running={!!demo} busy={demoBusy} theme={theme} onPress={demo ? endDemo : startDemo} />}</Fade>
       </View>
+
+      {/* under the chips, clear of the round controls on the right */}
+      <Fade style={[styles.demo, { top: insets.top + 8 + legendHeight + CARD_GAP }]}>
+        {demo && !picking && (
+          <View style={[styles.card, surface]}>
+            <DemoCaption
+              step={demo.step}
+              note={demoNote}
+              theme={theme}
+              onBack={() => showStep(demo, demo.step - 1)}
+              onNext={() => showStep(demo, demo.step + 1)}
+              onExit={endDemo}
+            />
+          </View>
+        )}
+      </Fade>
 
       <Fade style={StyleSheet.absoluteFill}>
         {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
@@ -568,6 +639,8 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, pointerEvents: 'box-none' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 6, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   switch: { marginLeft: 'auto' },
+  // as wide as the route padding leaves room for, left of the round controls
+  demo: { position: 'absolute', left: 12, right: 72 },
   chipSign: { width: 20, height: 20 },
   // map controls go top right, as in Google and Apple Maps
   toggle: { alignSelf: 'flex-end', padding: TOGGLE_PAD, borderRadius: TOGGLE_CELL / 2 + TOGGLE_PAD, borderWidth: StyleSheet.hairlineWidth, elevation: 2, shadowOpacity: 0.15, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
