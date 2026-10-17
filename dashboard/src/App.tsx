@@ -458,6 +458,7 @@ function Legend({ tab, date, impactView }: { tab: Tab; date: number; impactView:
       {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>Matches the number in the To do list</div>}
       {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Priority rank (1 = finish first)</div>}
       {tab === 'capacity' && <div className="legend-row"><i className="ramp" />Road load: 0 → 125% (top colour = full)</div>}
+      {(tab === 'capacity' || tab === 'transit') && <div className="legend-row"><i className="key-line selection" />Chosen district</div>}
       {tab === 'transit' && (
         <>
           <div className="legend-row"><i className="ramp" />Transit need per resident</div>

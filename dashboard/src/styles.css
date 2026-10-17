@@ -13,6 +13,7 @@
   --accent: #2a78d6;
   --accent-ink: #1c5cab;
   --critical: #d03b3b;
+  --selection: #f5c400;
   --good: #006300;
   --warn-bg: #fff4d6;
   --sev-high: #a8360f;
@@ -51,6 +52,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --accent: #3987e5;
     --accent-ink: #86b6ef;
+    --selection: #ffd84d;
     --good: #0ca30c;
     --warn-bg: #3a2f12;
     --sev-high: #f39a6b;
@@ -196,6 +198,7 @@ button, input, select { font: inherit; color: inherit; }
 .swatch.lost { background: color-mix(in srgb, var(--critical) 45%, transparent); }
 .key-line { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--ink); vertical-align: middle; flex: none; }
 .key-line.ink { border-top-color: var(--ink); }
+.key-line.selection { border-top: 3px solid var(--selection); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.6); }
 .key-line.bundle { border-top: 2.5px dashed var(--accent); }
 .key-line.normal { border-top: 4px solid var(--muted); }
 .key-line.aware { border-top: 3px solid var(--accent); }
