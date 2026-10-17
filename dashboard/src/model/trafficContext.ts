@@ -7,6 +7,7 @@ import type { Site } from './sites';
 
 export type TrafficContext = {
   road: string | null;
+  stopsKnown: boolean;
   stops: { name: string; detail: string; m: number }[];
   nearby: { id: string; metres: number; from: number; to: number }[];
   sources: string[];
@@ -39,6 +40,9 @@ export function trafficContext(
   if (stops !== null) sources.push('Stadt Dortmund · haltestellen (rail / Stadtbahn; not a complete bus-stop inventory)');
   else limitations.push('Public transport stop data unavailable.');
   if (!evidence.shape) limitations.push('Verified construction footprint unavailable; proximity distances are not calculated from a synthetic marker.');
+  const validStops = stops?.filter((stop) => stop.name.trim() !== '' && validLonLat(stop.at));
+  const stopsKnown = !!evidence.shape && stops !== null && validStops?.length === stops.length;
+  if (validStops && stops && validStops.length !== stops.length) limitations.push('Some stops have invalid coordinates or names; nearby-stop counts are incomplete.');
 
   const nearbyStops = !evidence.shape || stops === null ? [] : stops
     .filter((stop) => stop.name.trim() !== '' && validLonLat(stop.at))
@@ -51,5 +55,5 @@ export function trafficContext(
   const nearby = conflicts.filter((pair) => pair.a === site.id || pair.b === site.id)
     .map((pair) => ({ id: pair.a === site.id ? pair.b : pair.a, metres: pair.metres, from: pair.from, to: pair.to }))
     .sort((a, b) => a.metres - b.metres || a.id.localeCompare(b.id));
-  return { road, stops: nearbyStops, nearby, sources, limitations };
+  return { road, stopsKnown, stops: nearbyStops, nearby, sources, limitations };
 }

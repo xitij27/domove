@@ -24,6 +24,8 @@ describe('restriction severity: reported wording and mode scope', () => {
     ['Vollsperrung der Richtungsfahrbahn', 0.65], ['Einbahnstraße', 0.65],
     ['Fahrstreifenreduzierung', 0.45], ['Fahrbahneinengung', 0.45],
     ['Gehwegsperrung', 0.25], ['Vollsperrung Fußweg', 0.25], ['Vollsperrung des Radwegs', 0.25],
+    ['Musterstraße - Gehweg voll gesperrt', 0.25], ['Musterstraße - Radweg-Vollsperrung', 0.25],
+    ['Musterstraße - Fußweg ist voll gesperrt', 0.25], ['Musterstraße - Gehweg - Vollsperrung', 0.25],
     ['Emscherradweg - Vollsperrung', 0.25], ['Parkstreifen gesperrt', 0.25],
     ['Keine Einschränkungen', 0], ['Straße - keine Verkehrseinschränkungen', 0],
     ['Leitungsarbeiten', null], ['', null], ['Keine Vollsperrung', null],
@@ -31,6 +33,9 @@ describe('restriction severity: reported wording and mode scope', () => {
 
   it('preserves a separately reported road closure alongside a path closure', () => {
     expect(restrictionSeverity('Vollsperrung des Radwegs; Vollsperrung Straße').value).toBe(1);
+    expect(restrictionSeverity('Musterstraße - Gehweg voll gesperrt; Fahrbahn voll gesperrt').value).toBe(1);
+    expect(restrictionSeverity('Musterstraße - Radweg-Vollsperrung; Vollsperrung der Straße').value).toBe(1);
+    expect(restrictionSeverity('Musterstraße - Radweg-Vollsperrung; halbseitige Sperrung der Fahrbahn').value).toBe(0.65);
     expect(restrictionSeverity('Gehwegsperrung').reason).toContain('not evidence of a full motor-vehicle closure');
     expect(restrictionSeverity('Vollsperrung des Radwegs').reason).toContain('walking/cycling only');
   });

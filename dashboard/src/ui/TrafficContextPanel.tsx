@@ -3,19 +3,21 @@ import type { TrafficContext } from '../model/trafficContext';
 import type { Site } from '../model/sites';
 import { dayRange, metres } from './format';
 
-export function TrafficContextPanel({ context, evidence, byId, onSelect }: {
+export function TrafficContextPanel({ context, evidence, byId, onSelect, scenario = false }: {
   context: TrafficContext | null; evidence: ProjectEvidence | undefined;
   byId: Map<string, Site>; onSelect: (id: string) => void;
+  scenario?: boolean;
 }) {
   return (
     <section className="block project-analytics" aria-labelledby="traffic-context-title">
       <h3 id="traffic-context-title">Traffic Context</h3>
+      {scenario && <p className="note">Scenario context includes proposed dates or construction footprints.</p>}
       {!context ? <p className="muted">No separate verified assessment is available for this project representation.</p> : (
         <>
           <dl className="facts">
             <dt>Mapped road</dt><dd>{context.road ?? 'Unknown / unavailable'}</dd>
-            <dt>Stops within 500 m</dt><dd>{context.stops.length}</dd>
-            <dt>Concurrent projects</dt><dd>{context.nearby.length} potential conflicts within 250 m</dd>
+            <dt>Stops within 500 m</dt><dd>{context.stopsKnown ? context.stops.length : 'Unavailable / incomplete'}</dd>
+            <dt>Concurrent projects</dt><dd>{evidence?.shape && evidence.start !== null && evidence.end !== null ? `${context.nearby.length} known potential conflicts within 250 m` : 'Unavailable: dates or footprint missing'}</dd>
           </dl>
           <p className="muted small">Distances use the published construction footprint. Concurrent projects use full reported periods, independently of the selected outlook window. Missing footprints or dates may hide further relationships.</p>
           {!!context.stops.length && <ul className="plain analytics-list">{context.stops.map((s, i) => (

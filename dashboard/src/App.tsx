@@ -213,11 +213,13 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const links = useMemo((): MapLink[] => {
     const cluster = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     const list = selected ? selectedConflicts : cluster ? cluster.conflicts : tab === 'coordinate' ? bundles : [];
+    const displayedIds = new Set(mapSites.map((s) => s.id));
     return list.flatMap((c) => {
+      if (!displayedIds.has(c.a) || !displayedIds.has(c.b)) return [];
       const [a, b] = [byId.get(c.a), byId.get(c.b)];
       return a && b ? [{ from: a.center, to: b.center, type: c.type }] : [];
     });
-  }, [selected, selectedConflicts, tab, clusterId, clusters, bundles, byId]);
+  }, [selected, selectedConflicts, tab, clusterId, clusters, bundles, byId, mapSites]);
   const ranks = useMemo(() => {
     if (tab === 'priorities') return new Map(ranked.slice(0, 10).map((p, i) => [p.site.id, i + 1]));
     if (tab !== 'todo') return null;
@@ -347,6 +349,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         <section className="map-area">
           <MapView
             theme={theme} impactView={impactView} sites={mapSites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
+            outlookProjects={outlookPeriod ? outlookResult.active : undefined}
             districts={districtValues} districtMax={tab === 'capacity' ? LOAD_SCALE : undefined} selectedDistrict={tab === 'transit' || tab === 'capacity' ? district : null} pois={pois}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
@@ -381,7 +384,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 priority={(() => { const i = ranked.findIndex((p) => p.site.id === selected.id); return i >= 0 ? { rank: i + 1, of: ranked.length, p: ranked[i] } : null; })()}
                 onShift={(s) => setShift(selected.id, s)} onSelect={selectSite} onBack={() => setSelectedId(null)} onRemove={() => removeProject(selected.id)}
               />
-              <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} />
+              <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} scenario={!isEmpty(scenario)} />
               </>
             )}
             <div hidden={!!selected || tab !== 'todo'}>

@@ -36,8 +36,11 @@ export function restrictionSeverity(title: string): { value: number | null; reas
   if (/^(?:.* - )?(?:keine (?:relevanten? )?(?:verkehrs)?einschränkungen|keine verkehrsbehinderungen)[.!]?$/.test(text.trim())) {
     return { value: 0, reason: 'The source explicitly reports no relevant traffic restriction.' };
   }
-  // "Vollsperrung Radweg" does not establish a full road closure. Preserve any separately reported road closure.
-  const pathClosure = /(?:vollsperrung|voll\s*gesperrt)\s+(?:(?:des|der)\s+)?(?:radweg|fussweg|gehweg)\w*/g;
+  // Keep both word orders scoped: "Vollsperrung Radweg", "Gehweg voll gesperrt", "Radweg-Vollsperrung".
+  // Remove only the path phrase, so a separately reported motor-road closure remains classifiable.
+  const path = '(?:radweg|fussweg|gehweg)\\w*';
+  const closure = '(?:vollsperrung|voll\\s*gesperrt|sperrung|gesperrt)';
+  const pathClosure = new RegExp(`${closure}\\s+(?:(?:des|der)\\s+)?${path}|${path}(?:\\s*[-–:]\\s*|\\s+)(?:(?:ist|wird)\\s+)?${closure}|(?:radweg|fussweg|gehweg)sperrung`, 'g');
   const withoutNegatedClosure = text.replace(/keine?\s+(?:vollsperrung|sperrung|einengung)/g, ' ');
   const scopedPath = pathClosure.test(withoutNegatedClosure);
   const kinds = classifyClosures(withoutNegatedClosure.replace(pathClosure, ' ')).filter((k) => k !== 'unknown');
@@ -48,7 +51,7 @@ export function restrictionSeverity(title: string): { value: number | null; reas
   return {
     value,
     reason: value === null ? 'No supported restriction is reported; an unknown restriction is not zero.'
-      : `${labels.join('; ')}. Classified from published wording, not a verified traffic impact.${kinds.includes('sidewalk') ? ' The named path restriction is not evidence of a full motor-vehicle closure.' : ''}`,
+      : `${labels.join('; ')}. Classified from published wording, not a verified traffic impact.${scopedPath || kinds.includes('sidewalk') ? ' The named path restriction is not evidence of a full motor-vehicle closure.' : ''}`,
   };
 }
 

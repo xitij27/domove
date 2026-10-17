@@ -19,5 +19,6 @@ it('updates selected-project context and makes missing sources and unsupported a
   expect(second).not.toContain('Verified street');
   expect(second).toContain('Unknown / unavailable');
   expect(second).toContain('Public transport stop data unavailable');
+  expect(second).toContain('Unavailable / incomplete');
   expect(second).toContain('Alternative route analysis unavailable');
 });

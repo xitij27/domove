@@ -5,7 +5,10 @@ import type { ExpressionSpecification, GeoJSONSource, MapMouseEvent } from 'mapl
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { bandOf, isActive } from '../model/analysis';
+import { bandOf } from '../model/analysis';
+import { formatDay } from '../model/days';
+import type { ProjectEvidence } from '../model/outlook';
+import { siteState } from './mapState';
 import { KIND_LABEL } from '../model/closures';
 import type { LonLat } from '../model/geo';
 import { ROAD_LABEL } from '../model/sites';
@@ -46,6 +49,7 @@ type Props = {
   theme: Theme;
   impactView: ImpactView;
   sites: Site[];
+  outlookProjects?: ProjectEvidence[];
   date: number;
   selectedId: string | null;
   highlightIds: string[];
@@ -207,18 +211,13 @@ function applyImpactView(map: MlMap, p: Palette, view: ImpactView) {
   map.setLayoutProperty('site-heat', 'visibility', view === 'heat' ? 'visible' : 'none');
 }
 
-function siteState(s: Site, date: number): 'active' | 'upcoming' | 'other' | null {
-  if (isActive(s, date)) return 'active';
-  if (s.start > date && s.start <= date + 30) return 'upcoming';
-  return null;
-}
-
-function siteCollections(sites: Site[], date: number, selectedId: string | null, highlight: string[], ranks: Map<string, number> | null) {
+function siteCollections(sites: Site[], date: number, selectedId: string | null, highlight: string[], ranks: Map<string, number> | null, outlookProjects?: ProjectEvidence[]) {
   const hi = new Set(highlight);
+  const periodEvidence = new Map(outlookProjects?.map((p) => [p.id, p]));
   const polygons: Feature[] = [];
   const points: Feature[] = [];
   for (const s of sites) {
-    const state = siteState(s, date) ?? (s.hypothetical || hi.has(s.id) || ranks?.has(s.id) ? 'other' : null);
+    const state = siteState(s, date, periodEvidence.get(s.id)) ?? (s.hypothetical || hi.has(s.id) || ranks?.has(s.id) ? 'other' : null);
     if (!state) continue;
     const properties = {
       id: s.id, band: bandOf(s.severity), sev: s.severity, state, hyp: s.hypothetical ? 1 : 0,
@@ -280,7 +279,9 @@ export function MapView(props: Props) {
     const s = site && byId.get(String(site.properties.id));
     if (s) {
       const road = `${KIND_LABEL[s.kind]} · ${ROAD_LABEL[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`;
-      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, `${s.hypothetical ? 'Proposed' : s.owner} · ${dayRange(s.start, s.end)}`])).addTo(map);
+      const p = props.outlookProjects?.find((p) => p.id === s.id);
+      const dates = p ? `${p.start === null ? 'Unknown start' : formatDay(p.start)} – ${p.end === null ? 'unknown end (uncertain)' : formatDay(p.end)}` : dayRange(s.start, s.end);
+      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, `${s.hypothetical ? 'Proposed' : s.owner} · ${dates}`])).addTo(map);
     } else if (poi) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(String(poi.properties.name), [String(poi.properties.detail)].filter(Boolean))).addTo(map);
     } else popup.remove();
@@ -322,8 +323,8 @@ export function MapView(props: Props) {
   }, [props.impactView, props.theme, styleVersion]);
 
   const siteData = useMemo(
-    () => siteCollections(props.sites, props.date, props.selectedId, props.highlightIds, props.ranks),
-    [props.sites, props.date, props.selectedId, props.highlightIds, props.ranks],
+    () => siteCollections(props.sites, props.date, props.selectedId, props.highlightIds, props.ranks, props.outlookProjects),
+    [props.sites, props.date, props.selectedId, props.highlightIds, props.ranks, props.outlookProjects],
   );
   useEffect(() => {
     setData(mapRef.current, 'sites', siteData.polygons);

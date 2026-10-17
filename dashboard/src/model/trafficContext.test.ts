@@ -61,6 +61,7 @@ describe('trafficContext', () => {
   it('distinguishes unavailable data from a successful empty dataset', () => {
     const unavailable = trafficContext(a, { ...evidence(), shape: null }, null, false, []);
     expect(unavailable.stops).toEqual([]);
+    expect(unavailable.stopsKnown).toBe(false);
     expect(unavailable.limitations.join(' ')).toContain('Public transport stop data unavailable');
     expect(unavailable.limitations.join(' ')).toContain('synthetic marker');
     expect(unavailable.limitations.join(' ')).toContain('Alternative route analysis unavailable');
