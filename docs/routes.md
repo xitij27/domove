@@ -11,8 +11,11 @@
    5. `20261016154000_routes_leaving_time.sql`
    6. `20261016190000_routes_leaving_date.sql` (after the obstacles migrations)
    7. `20261016200000_update_saved_route.sql`
+   8. `20261017130000_restore_update_saved_route.sql`
 
-   The team database already runs all of them; see [Team database](#team-database).
+   Apply all of them in order; see [Team database](#team-database) for the
+   manually recorded deployment history. The eighth migration is the repair
+   for Issue #43 and must be present anywhere route editing is enabled.
    The second file was renamed from `20261016160000_create_delete_routes.sql`
    so it no longer shares a version with the obstacles branch; its content is
    unchanged. The third adds table constraints, so it fails if a route has a start
@@ -23,7 +26,9 @@
    to 48, so it fails if a route has more than 48 stops. The sixth adds the
    optional leaving date, puts weekdays into the RPC and the read view, and
    changes no data. The seventh adds `update_saved_route` for editing and
-   changes no data.
+   changes no data. The eighth repairs Issue #43 by reapplying that function at
+   the migration tip and fixing its route-label assignments; it is idempotent
+   for databases where the seventh migration was already applied.
 2. Copy `mobile/.env.example` to `mobile/.env` and set
    `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    Keep the existing map configuration described in the root README.
@@ -117,7 +122,7 @@ the screen.
 
 ## Team database
 
-The team project runs all six route migrations. The SQL editor keeps no
+The team project runs the route schema through the eighth migration. The SQL editor keeps no
 migration history, so this is the record:
 
 | Migration | Applied |
@@ -128,8 +133,18 @@ migration history, so this is the record:
 | `20261016153000_routes_require_coordinates.sql` | 2026-10-16, after PR #7's checks passed; deleted no routes (the only one had coordinates) |
 | `20261016154000_routes_leaving_time.sql` | 2026-10-16, after PR #7's checks passed; changed no data |
 | `20261016190000_routes_leaving_date.sql` | 2026-10-16, through `SUPABASE_DB_URL` in one transaction, after a rolled-back dry run; changed no data |
+| `20261016200000_update_saved_route.sql` | Missed on the team database; its absence caused Issue #43 |
+| `20261017130000_restore_update_saved_route.sql` | 2026-10-17, through `SUPABASE_DB_URL` in one transaction |
 
-Checked after the last one:
+Checked after the Issue #43 repair:
+
+- Through the REST API with the publishable key, `update_saved_route` is present
+  and a missing route reaches the function's HTTP 400 validation response rather
+  than the old HTTP 404 schema-cache error.
+- In a rolled-back production transaction, a throwaway car route was created,
+  updated to bike and returned with `mode: "bike"`; no test data was retained.
+
+Checked after `20261016190000_routes_leaving_date.sql`:
 
 - The new constraints, the list index and the five-argument
   `create_saved_route` are in place, the old four-argument version is gone, and
