@@ -164,7 +164,7 @@ export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
 }
 
 /** Every pair of sites within `radius` metres of each other, both ways round. */
-export function findNeighbours(sites: Site[], radius = NEIGHBOUR_RADIUS): Map<string, Neighbour[]> {
+export function findNeighbours(sites: Pick<Site, 'id' | 'shape'>[], radius = NEIGHBOUR_RADIUS): Map<string, Neighbour[]> {
   const out = new Map<string, Neighbour[]>(sites.map((s) => [s.id, []]));
   for (let i = 0; i < sites.length; i++) {
     for (let j = i + 1; j < sites.length; j++) {
