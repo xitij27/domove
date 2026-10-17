@@ -38,39 +38,37 @@
   --fast: 150ms;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --surface-2: #242422;
-    --ink: #f0efec;
-    --ink-2: #c3c2b7;
-    --muted: #9e9d97;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --accent: #3987e5;
-    --accent-ink: #86b6ef;
-    --selection: #ffd84d;
-    --good: #0ca30c;
-    --warn-bg: #3a2f12;
-    --sev-high: #f39a6b;
-    --sev-medium: #d95926;
-    --sev-low: #9a3c14;
-    --load: #d95926;
-    --load-wash: rgba(217, 89, 38, 0.14);
-    --seq-0: #104281;
-    --seq-1: #1c5cab;
-    --seq-2: #2a78d6;
-    --seq-3: #5598e7;
-    --seq-4: #86b6ef;
-    --seq-ink-0: #ffffff;
-    --seq-ink-1: #ffffff;
-    --seq-ink-2: #ffffff;
-    --seq-ink-3: #0b0b0b;
-    --seq-ink-4: #0b0b0b;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #242422;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #9e9d97;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #3987e5;
+  --accent-ink: #86b6ef;
+  --selection: #ffd84d;
+  --good: #0ca30c;
+  --warn-bg: #3a2f12;
+  --sev-high: #f39a6b;
+  --sev-medium: #d95926;
+  --sev-low: #9a3c14;
+  --load: #d95926;
+  --load-wash: rgba(217, 89, 38, 0.14);
+  --seq-0: #104281;
+  --seq-1: #1c5cab;
+  --seq-2: #2a78d6;
+  --seq-3: #5598e7;
+  --seq-4: #86b6ef;
+  --seq-ink-0: #ffffff;
+  --seq-ink-1: #ffffff;
+  --seq-ink-2: #ffffff;
+  --seq-ink-3: #0b0b0b;
+  --seq-ink-4: #0b0b0b;
 }
 
 * { box-sizing: border-box; }
@@ -116,24 +114,35 @@ button, input, select { font: inherit; color: inherit; }
 
 /* layout */
 .app { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr); height: 100vh; }
-/* the right padding keeps the wrapped rows clear of the settings gear in the corner */
-.topbar { position: relative; display: flex; align-items: center; gap: 12px 24px; padding: 8px 60px 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.topbar { display: grid; gap: 12px; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.header-main { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px 24px; }
+.header-context { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 .brand { display: flex; align-items: baseline; gap: 8px; font-weight: 650; }
 .brand img { height: 22px; width: auto; align-self: center; }
 .beta {
   align-self: center; padding: 1px 6px; border: 1px solid currentColor; border-radius: 4px; color: var(--accent-ink);
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.4; cursor: default;
 }
-/* always the page's top-right corner, however the header wraps */
-.settings-button { position: absolute; top: 8px; right: 16px; display: grid; place-items: center; color: var(--ink-2); }
-.settings-button[aria-pressed='true'] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.date-control { display: flex; align-items: center; gap: 10px; }
+.date-value { font-weight: 600; min-width: 150px; text-align: center; font-variant-numeric: tabular-nums; }
+.scenario { display: flex; align-items: center; gap: 10px 16px; margin-left: auto; flex-wrap: wrap; }
+.scenario-details, .scenario-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.theme-choice { display: flex; justify-self: end; flex-wrap: nowrap; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); }
+.theme-choice button { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.theme-choice button:hover { background: var(--surface-2); color: var(--ink); }
+.theme-choice button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent-ink); }
+/* the theme switch and the settings gear share the header's right-hand corner, the gear framed like the switch */
+.header-tools { display: flex; align-items: center; justify-self: end; gap: 8px; }
+.settings-button {
+  position: relative; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 1px solid var(--border);
+  border-radius: var(--radius); background: none; color: var(--muted); cursor: pointer;
+}
+.settings-button:hover { background: var(--surface-2); color: var(--ink); }
+.settings-button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent-ink); }
 .settings-count {
   position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   background: var(--accent); color: var(--surface); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
 }
-.date-control { display: flex; align-items: center; gap: 8px; }
-.date-value { font-weight: 600; min-width: 150px; text-align: center; font-variant-numeric: tabular-nums; }
-.scenario { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .banner { flex-basis: 100%; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); font-size: 13px; }
 
 .summary { display: flex; flex-wrap: wrap; gap: 4px 18px; list-style: none; margin: 0; padding: 0; color: var(--ink-2); }
@@ -224,9 +233,8 @@ button, input, select { font: inherit; color: inherit; }
 .maplibregl-ctrl-group button + button { border-top-color: var(--border); }
 .maplibregl-ctrl.maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--ink-2); }
 .maplibregl-ctrl-attrib a { color: var(--ink-2); }
-@media (prefers-color-scheme: dark) {
-  .maplibregl-ctrl-group button .maplibregl-ctrl-icon, .maplibregl-ctrl-attrib-button { filter: invert(1); }
-}
+:root[data-theme="dark"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon,
+:root[data-theme="dark"] .maplibregl-ctrl-attrib-button { filter: invert(1); }
 .map-popup strong { display: block; margin-bottom: 2px; }
 
 /* panel content */
@@ -379,10 +387,18 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
   .date-value { min-width: 0; }
 }
 
-/* on a phone the brand row is as wide as the screen; the city name gives way to the settings gear */
-@media (max-width: 480px) {
-  .brand .muted { display: none; }
+@media (max-width: 960px) {
+  .topbar { padding: 12px 16px; }
+  .header-main { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+  .brand { flex-wrap: wrap; gap: 4px 8px; }
+  .header-tools { grid-column: 2; grid-row: 1; }
+  .date-control { grid-column: 1 / -1; grid-row: 2; justify-self: center; flex-wrap: wrap; justify-content: center; }
+  .header-context { align-items: flex-start; }
+  .scenario { width: 100%; }
+  .summary { gap: 8px 18px; min-width: 0; max-width: 100%; }
+  .summary li { white-space: normal; }
 }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

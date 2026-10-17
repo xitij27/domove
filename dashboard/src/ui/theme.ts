@@ -33,11 +33,54 @@ export const PALETTES: Record<Theme, Palette> = {
 };
 
 const query = () => window.matchMedia('(prefers-color-scheme: dark)');
-const subscribe = (onChange: () => void) => {
-  const q = query();
-  q.addEventListener('change', onChange);
-  return () => q.removeEventListener('change', onChange);
+const STORAGE_KEY = 'domove-dashboard-theme';
+const CHANGE_EVENT = 'domove-dashboard-theme-change';
+let inMemoryPreference: Theme | null = null;
+
+export const readThemePreference = (value: string | null): Theme | null =>
+  value === 'light' || value === 'dark' ? value : null;
+
+export const resolveTheme = (value: string | null, systemDark: boolean): Theme =>
+  readThemePreference(value) ?? (systemDark ? 'dark' : 'light');
+
+const currentTheme = (): Theme => {
+  try {
+    return resolveTheme(window.localStorage.getItem(STORAGE_KEY) ?? inMemoryPreference, query().matches);
+  } catch {
+    return resolveTheme(inMemoryPreference, query().matches);
+  }
 };
 
-/** Follows the system setting, as the CSS does. */
-export const useTheme = (): Theme => useSyncExternalStore(subscribe, () => (query().matches ? 'dark' : 'light'));
+export const applyTheme = () => {
+  document.documentElement.dataset.theme = currentTheme();
+};
+
+export const setThemePreference = (theme: Theme) => {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, theme);
+    inMemoryPreference = null;
+  } catch {
+    inMemoryPreference = theme;
+  }
+  applyTheme();
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+};
+
+const subscribe = (onChange: () => void) => {
+  const q = query();
+  const update = () => { applyTheme(); onChange(); };
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) update();
+  };
+  q.addEventListener('change', update);
+  window.addEventListener(CHANGE_EVENT, update);
+  window.addEventListener('storage', onStorage);
+  return () => {
+    q.removeEventListener('change', update);
+    window.removeEventListener(CHANGE_EVENT, update);
+    window.removeEventListener('storage', onStorage);
+  };
+};
+
+/** Follows the system setting until a light or dark preference is saved. */
+export const useTheme = (): Theme => useSyncExternalStore(subscribe, currentTheme);

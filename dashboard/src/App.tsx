@@ -28,7 +28,7 @@ import { SettingsPanel } from './ui/SettingsPanel';
 import { SitePanel } from './ui/SitePanel';
 import { Summary } from './ui/Summary';
 import type { Stat } from './ui/Summary';
-import { useTheme } from './ui/theme';
+import { setThemePreference, useTheme } from './ui/theme';
 import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
@@ -316,47 +316,73 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     <SettingsContext value={cfg}>
     <div className="app">
       <header className="topbar">
-        <div className="brand"><img src="/domovelogo.png" alt="do.move" /><span>Planner</span><span className="beta" title="Early version: the weights behind the figures are judgement calls">Beta</span><span className="muted">Dortmund</span></div>
-        <div className="date-control" aria-label="Day shown">
-          <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
-          <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
-          <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
-          {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
+        <div className="header-main">
+          <div className="brand">
+            <img src="/domovelogo.png" alt="do.move" />
+            <span className="beta" title="Early version: the weights behind the figures are judgement calls">Beta</span>
+          </div>
+          <div className="date-control" aria-label="Day shown">
+            <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
+            <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
+            <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
+            {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
+          </div>
+          <div className="header-tools">
+            <div className="theme-choice" role="group" aria-label="Colour theme">
+              <button type="button" aria-label="Light mode" title="Light mode" aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                </svg>
+              </button>
+              <button type="button" aria-label="Dark mode" title="Dark mode" aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+                </svg>
+              </button>
+            </div>
+            <button
+              type="button" className="settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+              aria-label={settingsChanged ? `Settings, ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+              title={settingsChanged ? `Settings: ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
+            </button>
+          </div>
         </div>
-        <Summary items={stats} />
-        <div className="scenario">
-          {changes || settingsChanged ? (
-            <>
-              {changes > 0 && <strong>{plural(changes, 'change')}</strong>}
-              {publishedLoad && (
-                <span className="muted">
-                  <Derived how={[
-                    ['Published plans', `${plural(publishedClusters, 'clash', 'clashes')}; busiest day ${formatShort(busiest(publishedLoad).day)}, ${one(busiest(publishedLoad).total)} points`],
-                    ['Your scenario', `${plural(clusters.length, 'clash', 'clashes')}; busiest day ${formatShort(busiest(load).day)}, ${one(busiest(load).total)} points`],
-                    ['Busiest day', `of ${dayRange(today, to)}`],
-                  ]}>
-                    clashes {publishedClusters} → {clusters.length} · busiest day {Math.round(busiest(publishedLoad).total)} → {Math.round(busiest(load).total)} points
-                  </Derived>
-                </span>
-              )}
-              {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
-              <button className="button" onClick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
-              <button className="button" onClick={exportCsv}>Export CSV</button>
-              <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
-            </>
-          ) : <span className="muted">No changes yet</span>}
+        <div className="header-context">
+          <Summary items={stats} />
+          <div className="scenario">
+            {changes || settingsChanged ? (
+              <>
+                <div className="scenario-details">
+                  {changes > 0 && <strong>{plural(changes, 'change')}</strong>}
+                  {publishedLoad && (
+                    <span className="muted">
+                      <Derived how={[
+                        ['Published plans', `${plural(publishedClusters, 'clash', 'clashes')}; busiest day ${formatShort(busiest(publishedLoad).day)}, ${one(busiest(publishedLoad).total)} points`],
+                        ['Your scenario', `${plural(clusters.length, 'clash', 'clashes')}; busiest day ${formatShort(busiest(load).day)}, ${one(busiest(load).total)} points`],
+                        ['Busiest day', `of ${dayRange(today, to)}`],
+                      ]}>
+                        clashes {publishedClusters} → {clusters.length} · busiest day {Math.round(busiest(publishedLoad).total)} → {Math.round(busiest(load).total)} points
+                      </Derived>
+                    </span>
+                  )}
+                  {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
+                </div>
+                <div className="scenario-actions">
+                  <button className="button" onClick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
+                  <button className="button" onClick={exportCsv}>Export CSV</button>
+                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
+                </div>
+              </>
+            ) : <span className="muted">No changes yet</span>}
+          </div>
         </div>
-        <button
-          className="icon-button settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
-          aria-label={settingsChanged ? `Settings, ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
-          title={settingsChanged ? `Settings: ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
-        >
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
-        </button>
         {problems.length > 0 && <div className="banner" role="status">Some layers couldn't load ({problems.join('; ')}). Everything else works.</div>}
       </header>
       <div className="workspace">

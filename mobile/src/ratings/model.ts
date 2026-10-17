@@ -57,8 +57,8 @@ export type SiteRating = {
   reasons: Reason[];
 };
 
-/** How a route meets a site: along its street, across it, or only past it. */
-export type RouteUse = 'uses' | 'crosses' | 'passes' | 'unknown';
+/** How a route meets a site: along its street, across it, or only past it; or, on the app's own way around, not at all. */
+export type RouteUse = 'uses' | 'crosses' | 'passes' | 'avoids' | 'unknown';
 
 export type RouteSiteRating = SiteRating & {
   alongM: number | null;
@@ -270,6 +270,8 @@ export function routeUseText(r: RouteSiteRating): string {
         : `Your route only crosses it, so ${Math.round(r.weight * 100)} % counts: ${r.effectiveScore.toFixed(1)}`;
     case 'passes':
       return 'Your route only passes it, so it doesn\'t count';
+    case 'avoids':
+      return 'The way shown goes around it, so it doesn\'t count';
     default:
       return 'Not measured against your route yet, so all of it counts';
   }
