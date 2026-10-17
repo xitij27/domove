@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, Image, Linking, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Image, KeyboardAvoidingView, Linking, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
@@ -16,6 +16,7 @@ import { TRANSPORT_MODES, type Coordinate, type PlacePick, type SavedRoute } fro
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import RouteAlerts, { siteAlert, useRouteAlerts } from './src/notifications/RouteAlerts';
 import { startNotificationRuntime, useTappedSite } from './src/notifications/runtime';
+import { QuizButton, QuizQuestion, useQuiz } from './src/quiz/Quiz';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 
 const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
@@ -153,6 +154,8 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
   const [located, askLocation] = useLocationGranted();
   const gyroscope = useHasGyroscope();
   const [gyroWarned, setGyroWarned] = useState(false);
+  const quiz = useQuiz();
+  const [quizOpen, setQuizOpen] = useState(false);
 
   const changeTheme = (next: MapTheme) => {
     setTheme(next);
@@ -207,6 +210,14 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setStarted(false); return true; });
     return () => subscription.remove();
   }, [navigating]);
+
+  // The quiz keeps its place while it is closed, and steps aside while choosing a place or navigating.
+  const quizShown = quizOpen && !picking && !navigating;
+  useEffect(() => {
+    if (!quizShown) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setQuizOpen(false); return true; });
+    return () => subscription.remove();
+  }, [quizShown]);
 
   // The map's middle while choosing a place, where the pin is; null while the map moves.
   const [center, setCenter] = useState<Coordinate | null>(null);
@@ -297,11 +308,14 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
         <ThemeToggle theme={theme} onChange={changeTheme} />
         {/* while navigating, north stays up until the user re-centres */}
         <Compass heading={heading} theme={theme} onPress={() => { if (navigating) setFollowing(false); map.current?.pointNorth(); }} />
+        {/* last of the round controls, so it sits under the weather */}
+        {!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}
       </View>
 
       {picking && <PlacePicker pick={picking} center={center} theme={theme} onDone={endPick} />}
 
-      <View style={styles.bottom}>
+      {/* lifts the cards over the keyboard while a quiz answer is typed */}
+      <KeyboardAvoidingView behavior="padding" style={styles.bottom}>
         {navigating && !following && (
           <Pressable accessibilityRole="button" accessibilityHint="Follows you again, turning the map the way you go" onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
             <MaterialIcons name="navigation" size={18} color={LINE_COLORS[theme]} />
@@ -327,6 +341,12 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
                 <MaterialIcons name="close" size={22} color={palette.muted} />
               </Pressable>
             </View>
+          </View>
+        )}
+
+        {quizShown && (
+          <View style={[styles.card, surface]}>
+            <QuizQuestion quiz={quiz} theme={theme} onClose={() => setQuizOpen(false)} />
           </View>
         )}
 
@@ -400,7 +420,7 @@ const RadarMap = memo(function RadarMap({ route, onCloseRoute, picking, onEndPic
             {alerts && !navigating && <RouteAlerts alerts={alerts} theme={theme} />}
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
 
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
