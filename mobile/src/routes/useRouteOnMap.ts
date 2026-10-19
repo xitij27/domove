@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Plan } from '../detours/planner';
 import { planSiteIds } from '../detours/text';
 import { useDetours, type DetourState } from '../detours/useDetours';
+import { strings } from '../i18n';
 import { routePoints, type RouteOverlay } from '../maps/routeOverlay';
 import { routesRepository, type RoutesRepository } from './api';
 import type { Coordinate, SavedRoute } from './model';
@@ -51,7 +52,7 @@ export function useRouteOnMap(route: SavedRoute | null, repository: RoutesReposi
     repository.obstacleSiteIds(route.id).then(
       (ids) => { if (active) setSites({ routeId: route.id, ids: new Set(ids), error: null }); },
       (e: unknown) => {
-        if (active) setSites({ routeId: route.id, ids: null, error: e instanceof Error ? e.message : 'Could not load the construction sites on this route.' });
+        if (active) setSites({ routeId: route.id, ids: null, error: e instanceof Error ? e.message : strings().errors.routeSitesFailed });
       },
     );
     return () => { active = false; };

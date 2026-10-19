@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { MAX_WAYPOINTS, TRANSPORT_MODES, validateRoute, type Place, type PlaceDraft, type PlacePick, type RouteDraft, type RouteErrors, type RouteLocation, type SavedRoute } from './model';
 import LeavingAtInput, { type Leaving } from './LeavingAtInput';
 import PlaceInput from './PlaceInput';
+import { useStrings } from '../i18n';
 import { Appear, Reveal } from '../motion';
 
 const EMPTY: PlaceDraft = { label: '', coordinate: null };
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPickOnMap }: Props) {
+  const t = useStrings();
   const pickOnMap = onPickOnMap && ((title: string, kind: PlacePick['kind'], place: PlaceDraft, onPick: (place: Place) => void) =>
     () => onPickOnMap({ title, kind, initial: place.coordinate, onPick }));
   const [start, setStart] = useState(route ? placeDraft(route.start) : EMPTY);
@@ -47,7 +49,7 @@ export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPic
     try {
       await onSave(draft);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Could not save this route. Please try again.');
+      setSaveError(error instanceof Error ? error.message : t.form.saveFailed);
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -58,21 +60,21 @@ export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPic
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title} accessibilityRole="header">{route ? 'Edit Route' : 'Create Route'}</Text>
-        <Text style={styles.hint}>{route ? 'Change any part of this journey, then save it.' : 'Plan your next journey.'} Type an address or place name and pick it from the suggestions{pickOnMap ? ', or tap the pin to choose it on the map' : ''}.</Text>
-        <Text style={styles.label}>Starting location</Text>
-        <PlaceInput accessibilityLabel="Starting location" value={start} onChange={setStart} editable={!busy} placeholder="e.g. Dortmund Hauptbahnhof" inputStyle={[styles.input, !!errors.start && styles.invalid]} onPickOnMap={pickOnMap?.('Starting location', 'start', start, setStart)} />
+        <Text style={styles.title} accessibilityRole="header">{route ? t.form.editTitle : t.form.createTitle}</Text>
+        <Text style={styles.hint}>{t.form.hint(!!route, !!pickOnMap)}</Text>
+        <Text style={styles.label}>{t.routes.start}</Text>
+        <PlaceInput accessibilityLabel={t.routes.start} value={start} onChange={setStart} editable={!busy} placeholder={t.form.startExample} inputStyle={[styles.input, !!errors.start && styles.invalid]} onPickOnMap={pickOnMap?.(t.routes.start, 'start', start, setStart)} />
         {errors.start && <ErrorText message={errors.start} />}
 
-        <Text style={styles.label}>Intermediate stops (optional)</Text>
-        <Text style={styles.hint}>Stops are visited in the order shown. Empty stops are ignored.</Text>
+        <Text style={styles.label}>{t.form.stopsLabel}</Text>
+        <Text style={styles.hint}>{t.form.stopsHint}</Text>
         {stops.map((stop, index) => {
           const setStop = (place: PlaceDraft) => setStops((current) => current.map((item) => item.id === stop.id ? { ...item, place } : item));
           const row = (
             <View style={styles.stop}>
-              <PlaceInput accessibilityLabel={`Intermediate stop ${index + 1}`} value={stop.place} editable={!busy} placeholder={`Stop ${index + 1}`} style={styles.stopInput} inputStyle={styles.input} onChange={setStop} onPickOnMap={pickOnMap?.(`Stop ${index + 1}`, 'stop', stop.place, setStop)} />
-              <Pressable accessibilityRole="button" accessibilityLabel={`Remove stop ${index + 1}`} disabled={busy} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} style={styles.remove}>
-                <Text style={styles.removeText}>Remove</Text>
+              <PlaceInput accessibilityLabel={t.form.stopNumber(index + 1)} value={stop.place} editable={!busy} placeholder={t.form.stopShort(index + 1)} style={styles.stopInput} inputStyle={styles.input} onChange={setStop} onPickOnMap={pickOnMap?.(t.form.stopShort(index + 1), 'stop', stop.place, setStop)} />
+              <Pressable accessibilityRole="button" accessibilityLabel={t.form.removeStop(index + 1)} disabled={busy} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} style={styles.remove}>
+                <Text style={styles.removeText}>{t.form.remove}</Text>
               </Pressable>
             </View>
           );
@@ -81,33 +83,33 @@ export default function RouteForm({ route, onSave, onCancel, onBusyChange, onPic
         })}
         {errors.waypoints && <ErrorText message={errors.waypoints} />}
         <Pressable accessibilityRole="button" disabled={busy || stops.length >= MAX_WAYPOINTS} accessibilityState={{ disabled: busy || stops.length >= MAX_WAYPOINTS }} style={styles.secondary} onPress={() => setStops((current) => [...current, { id: nextId.current++, place: EMPTY }])}>
-          <Text style={styles.secondaryText}>{stops.length >= MAX_WAYPOINTS ? `${MAX_WAYPOINTS} stops maximum` : '+ Add stop'}</Text>
+          <Text style={styles.secondaryText}>{stops.length >= MAX_WAYPOINTS ? t.form.maxStops(MAX_WAYPOINTS) : t.form.addStop}</Text>
         </Pressable>
 
-        <Text style={styles.label}>Final destination</Text>
-        <PlaceInput accessibilityLabel="Final destination" value={destination} onChange={setDestination} editable={!busy} placeholder="e.g. Westfalenpark, Dortmund" inputStyle={[styles.input, !!errors.destination && styles.invalid]} onPickOnMap={pickOnMap?.('Final destination', 'destination', destination, setDestination)} />
+        <Text style={styles.label}>{t.routes.destination}</Text>
+        <PlaceInput accessibilityLabel={t.routes.destination} value={destination} onChange={setDestination} editable={!busy} placeholder={t.form.destinationExample} inputStyle={[styles.input, !!errors.destination && styles.invalid]} onPickOnMap={pickOnMap?.(t.routes.destination, 'destination', destination, setDestination)} />
         {errors.destination && <ErrorText message={errors.destination} />}
 
-        <Text style={styles.label}>Transportation mode</Text>
+        <Text style={styles.label}>{t.form.mode}</Text>
         <View style={styles.modes} accessibilityRole="radiogroup">
-          {(Object.keys(TRANSPORT_MODES) as (keyof typeof TRANSPORT_MODES)[]).map((value) => (
-            <Pressable key={value} accessibilityRole="radio" accessibilityLabel={TRANSPORT_MODES[value]} accessibilityState={{ checked: mode === value, disabled: busy }} disabled={busy} onPress={() => setMode(value)} style={[styles.mode, mode === value && styles.modeSelected]}>
-              <Text style={[styles.modeText, mode === value && styles.modeSelectedText]}>{TRANSPORT_MODES[value]}</Text>
+          {TRANSPORT_MODES.map((value) => (
+            <Pressable key={value} accessibilityRole="radio" accessibilityLabel={t.modes[value]} accessibilityState={{ checked: mode === value, disabled: busy }} disabled={busy} onPress={() => setMode(value)} style={[styles.mode, mode === value && styles.modeSelected]}>
+              <Text style={[styles.modeText, mode === value && styles.modeSelectedText]}>{t.modes[value]}</Text>
             </Pressable>
           ))}
         </View>
         {errors.mode && <ErrorText message={errors.mode} />}
 
-        <Text style={styles.label}>Leaving at (optional)</Text>
-        <Text style={styles.hint}>Some construction sites close the road only during the day. Set when you leave, and pick days if you make this trip regularly.</Text>
+        <Text style={styles.label}>{t.form.leavingLabel}</Text>
+        <Text style={styles.hint}>{t.form.leavingHint}</Text>
         <LeavingAtInput value={leaving} onChange={setLeaving} editable={!busy} invalid={!!errors.startTime} />
         {errors.startTime && <ErrorText message={errors.startTime} />}
         {saveError && <ErrorText message={saveError} />}
-        <Pressable accessibilityRole="button" accessibilityLabel={route ? 'Save changes' : 'Ready'} accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
-          <Text style={styles.primaryText}>{busy ? 'Saving…' : route ? 'Save changes' : 'Ready'}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={route ? t.form.saveChanges : t.form.ready} accessibilityState={{ disabled: busy, busy }} disabled={busy} onPress={save} style={[styles.primary, busy && styles.disabled]}>
+          <Text style={styles.primaryText}>{busy ? t.form.saving : route ? t.form.saveChanges : t.form.ready}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={busy} onPress={onCancel} style={styles.secondary}>
-          <Text style={styles.secondaryText}>Cancel</Text>
+          <Text style={styles.secondaryText}>{t.common.cancel}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

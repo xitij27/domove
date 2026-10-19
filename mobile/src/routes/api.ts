@@ -1,4 +1,5 @@
 import { uuid } from 'expo';
+import { strings } from '../i18n';
 import { normalizeRoute, type RouteDraft, type SavedRoute, type SiteCount } from './model';
 
 export type RoutesRepository = {
@@ -46,9 +47,7 @@ export function createRoutesRepository(
       });
       text = await response.text();
     } catch {
-      throw new Error(controller.signal.aborted
-        ? 'The server took too long to respond. Check your connection and try again.'
-        : 'Could not reach the server. Check your connection and try again.');
+      throw new Error(controller.signal.aborted ? strings().errors.serverSlow : strings().errors.serverUnreachable);
     } finally {
       clearTimeout(timer);
     }
@@ -64,7 +63,7 @@ export function createRoutesRepository(
       let after = '';
       for (;;) {
         const rows = await request(`saved_routes?select=route&order=created_at.desc,id.desc&limit=${PAGE_SIZE}${after}`);
-        if (!Array.isArray(rows) || rows.some((row) => !row?.route?.id)) throw new Error('The server returned an invalid route list.');
+        if (!Array.isArray(rows) || rows.some((row) => !row?.route?.id)) throw new Error(strings().errors.invalidRouteList);
         routes.push(...rows.map((row: { route: SavedRoute }) => row.route));
         if (rows.length < PAGE_SIZE) return routes;
         const { createdAt, id } = routes[routes.length - 1];
@@ -77,14 +76,14 @@ export function createRoutesRepository(
       if (pendingSave?.draft !== fingerprint) pendingSave = { draft: fingerprint, id: newId() };
       const { id } = pendingSave;
       const route = await request('rpc/create_saved_route', { method: 'POST', body: routeParams(id, clean) }) as SavedRoute | null;
-      if (route?.id !== id) throw new Error('Could not confirm the saved route. Refresh the list before trying again.');
+      if (route?.id !== id) throw new Error(strings().errors.unconfirmedSave);
       pendingSave = null;
       return route;
     },
     async update(id, draft) {
       checkId(id);
       const route = await request('rpc/update_saved_route', { method: 'POST', body: routeParams(id, normalizeRoute(draft)) }) as SavedRoute | null;
-      if (route?.id !== id) throw new Error('Could not confirm the changes. Refresh the list before trying again.');
+      if (route?.id !== id) throw new Error(strings().errors.unconfirmedChanges);
       return route;
     },
     async delete(id) {
@@ -94,7 +93,7 @@ export function createRoutesRepository(
     async obstacleSiteIds(routeId) {
       checkId(routeId);
       const rows = await request(`obstacles?route_id=eq.${encodeURIComponent(routeId)}&select=construction_site_id`);
-      if (!Array.isArray(rows)) throw new Error('The server returned an invalid list of construction sites.');
+      if (!Array.isArray(rows)) throw new Error(strings().errors.invalidSiteList);
       return rows.flatMap((row) => (typeof row?.construction_site_id === 'string' ? [row.construction_site_id] : []));
     },
     async siteCounts() {
@@ -103,7 +102,7 @@ export function createRoutesRepository(
       let after = '';
       for (;;) {
         const rows = await request(`obstacles?select=id,route_id,construction_sites(status)&order=id&limit=${PAGE_SIZE}${after}`);
-        if (!Array.isArray(rows)) throw new Error('The server returned an invalid list of construction sites.');
+        if (!Array.isArray(rows)) throw new Error(strings().errors.invalidSiteList);
         for (const row of rows) {
           if (typeof row?.route_id !== 'string') continue;
           const count = counts.get(row.route_id) ?? { total: 0, planned: 0 };
@@ -113,7 +112,7 @@ export function createRoutesRepository(
         }
         if (rows.length < PAGE_SIZE) return counts;
         const last = rows[rows.length - 1]?.id;
-        if (typeof last !== 'string') throw new Error('The server returned an invalid list of construction sites.');
+        if (typeof last !== 'string') throw new Error(strings().errors.invalidSiteList);
         after = `&id=gt.${encodeURIComponent(last)}`;
       }
     },
@@ -135,7 +134,7 @@ function routeParams(id: string, clean: ReturnType<typeof normalizeRoute>) {
 
 function checkId(id: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    throw new Error('This route has an invalid ID. Refresh the list and try again.');
+    throw new Error(strings().errors.invalidRouteId);
   }
 }
 
@@ -151,8 +150,8 @@ function failureMessage(status: number, body: unknown): string {
   // The create RPC raises its validation messages with SQLSTATE 22023.
   const error = body as { code?: unknown; message?: unknown } | null | undefined;
   if (error?.code === '22023' && typeof error.message === 'string') return error.message;
-  if (status === 404) return 'Saved routes are not available right now. Please try again later.';
-  return `Could not complete the request (HTTP ${status}). Please try again.`;
+  if (status === 404) return strings().errors.routesUnavailable;
+  return strings().errors.requestFailed(status);
 }
 
 export const routesRepository = createRoutesRepository();

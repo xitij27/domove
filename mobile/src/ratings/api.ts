@@ -1,3 +1,4 @@
+import { strings } from '../i18n';
 import type { TransportMode } from '../routes/model';
 import { parseRouteRatings, parseSiteRatings, type RouteSiteRating, type SiteRating } from './model';
 
@@ -31,14 +32,12 @@ export function createRatingsApi(
         signal: controller.signal,
       });
     } catch {
-      throw new Error(controller.signal.aborted
-        ? 'The server took too long to work out the impact score.'
-        : 'Could not reach the server for the impact score.');
+      throw new Error(controller.signal.aborted ? strings().errors.scoreSlow : strings().errors.scoreUnreachable);
     } finally {
       clearTimeout(timer);
     }
     // 404: the database doesn't have the ratings migration yet
-    if (!response.ok) throw new Error(`Impact scores are not available right now (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(strings().errors.scoresUnavailable(response.status));
     return response.json();
   }
 
@@ -52,7 +51,7 @@ export function createRatingsApi(
     },
     async weights() {
       const rows = await request('rating_weights?select=key,value');
-      if (!Array.isArray(rows)) throw new Error('The server returned invalid scoring values.');
+      if (!Array.isArray(rows)) throw new Error(strings().errors.invalidWeights);
       return Object.fromEntries(rows.flatMap((r) => (typeof r?.key === 'string' && typeof r?.value === 'number' ? [[r.key, r.value]] : [])));
     },
   };

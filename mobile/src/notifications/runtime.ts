@@ -9,6 +9,7 @@ import { fetchObstacles } from './obstacles';
 import type { RouteObstacle } from './model';
 import { createNotificationService, type NotificationDriver } from './service';
 import { planTrip } from '../detours/trip';
+import { strings, subscribeLanguage } from '../i18n';
 import { routesRepository } from '../routes/api';
 import { googleMapsDirectionsUrl } from '../routes/googleMaps';
 import type { SavedRoute } from '../routes/model';
@@ -18,8 +19,9 @@ const CHANNEL_ID = 'construction-reminders';
 export const notificationDriver: NotificationDriver = {
   async permission(request) {
     if (Platform.OS === 'android') {
+      // set each time, so the channel's name in the phone's settings follows the app's language
       await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Construction reminders',
+        name: strings().alerts.channel,
         importance: AndroidImportance.HIGH,
         lockscreenVisibility: AndroidNotificationVisibility.PRIVATE,
       });
@@ -87,14 +89,23 @@ async function syncObstacles() {
   }
 }
 
-/** Checks the saved routes for construction now and whenever the app comes back to the foreground. */
+/**
+ * Checks the saved routes for construction now and whenever the app comes back to the foreground, and words the
+ * scheduled reminders again when the language changes.
+ */
 export function startNotificationRuntime(): () => void {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
   });
   void syncObstacles();
   const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void syncObstacles(); });
-  return () => subscription.remove();
+  const unsubscribe = subscribeLanguage(() => {
+    constructionNotifications.reword().catch((error: unknown) => console.warn('Could not reword the reminders', error));
+  });
+  return () => {
+    subscription.remove();
+    unsubscribe();
+  };
 }
 
 /** The construction site of the alert the user tapped last; a new object for every tap, even on the same site. */
@@ -124,7 +135,7 @@ async function openNotificationRoute(response: NotificationResponse | null): Pro
   try {
     await Linking.openURL(link);
   } catch {
-    Alert.alert('Could not open Google Maps', 'Open the saved route to view the calculated way.');
+    Alert.alert(strings().app.googleMapsFailed, strings().alerts.openFailed);
   }
 }
 
@@ -134,15 +145,15 @@ function tappedSite(response: NotificationResponse | null) {
 }
 
 export async function sendDevelopmentTestAlert(routeId: string): Promise<void> {
-  if (!__DEV__) throw new Error('Test alerts are available in development builds only.');
+  if (!__DEV__) throw new Error(strings().alerts.devOnly);
   const [obstacle] = await constructionNotifications.obstaclesOn(routeId);
-  if (!obstacle) throw new Error('No construction is known on this route yet. Reopen the app after the next obstacle check.');
-  await sendAlertSoon(obstacle, 2, '[TEST] Construction on your route');
+  if (!obstacle) throw new Error(strings().alerts.noneKnown);
+  await sendAlertSoon(obstacle, 2, strings().alerts.testTitle);
 }
 
 /** An obstacle's alert in a few seconds, worded as its reminder; for the test button and the demo. */
 export async function sendAlertSoon(obstacle: RouteObstacle, seconds: number, title?: string): Promise<void> {
-  if (!await notificationDriver.permission(true)) throw new Error('Allow notifications in your phone settings to see the alert.');
+  if (!await notificationDriver.permission(true)) throw new Error(strings().alerts.allow);
   const content = notificationContent(obstacle);
   const googleMapsUrl = await notificationGoogleMapsUrl(obstacle.routeId);
   await Notifications.scheduleNotificationAsync({

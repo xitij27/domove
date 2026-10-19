@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import MapView, { Marker, Polyline, type MapViewProps } from 'react-native-maps';
+import { useStrings } from '../i18n';
 import type { Coordinate } from '../routes/model';
 import type { Site } from '../sites';
 import type { MapTheme } from '../theme';
@@ -54,6 +55,7 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
   onUserMove?: () => void;
   ref?: Ref<MapHandle>;
 }) {
+  const t = useStrings();
   const map = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
   const { height } = useWindowDimensions();
@@ -159,11 +161,11 @@ export default function GoogleSitesMap({ sites, onSelect, theme, onHeadingChange
         />
       ))}
       {showUser && Platform.OS === 'android' && <UserMarker />}
-      {route && <Marker coordinate={route.start.coordinate} pinColor={STOP_COLORS.start} title="Start" description={route.start.label ?? undefined} />}
+      {route && <Marker coordinate={route.start.coordinate} pinColor={STOP_COLORS.start} title={t.map.start} description={route.start.label ?? undefined} />}
       {route?.stops.map((stop, index) => (
-        <Marker key={index} coordinate={stop.coordinate} pinColor={STOP_COLORS.stop} title={`Stop ${index + 1}`} description={stop.label ?? undefined} />
+        <Marker key={index} coordinate={stop.coordinate} pinColor={STOP_COLORS.stop} title={t.map.stop(index + 1)} description={stop.label ?? undefined} />
       ))}
-      {route && <Marker coordinate={route.destination.coordinate} pinColor={STOP_COLORS.destination} title="Destination" description={route.destination.label ?? undefined} />}
+      {route && <Marker coordinate={route.destination.coordinate} pinColor={STOP_COLORS.destination} title={t.map.destination} description={route.destination.label ?? undefined} />}
     </MapView>
   );
 }
@@ -177,6 +179,7 @@ const USER_BLUE = '#1a73e8';
 
 // Google's own location dot doesn't follow the compass. Its own component, so a turn of the phone redraws only this marker.
 function UserMarker() {
+  const t = useStrings();
   const user = useUserPosition();
   if (!user) return null;
   return (
@@ -186,7 +189,7 @@ function UserMarker() {
       flat // lies on the map and turns with it, so its rotation counts from north
       rotation={user.heading ?? 0}
       zIndex={3}
-      title="You are here"
+      title={t.map.you}
     >
       <View style={styles.user}>
         {user.heading !== null && <View style={styles.userArrow} />}

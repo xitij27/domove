@@ -1,3 +1,4 @@
+import { setLanguage } from '../i18n';
 import { notificationContent, reminderDate } from './core';
 import type { RouteNotificationSettings, RouteObstacle } from './model';
 
@@ -35,7 +36,19 @@ test('local wall-clock time survives daylight-saving changes', () => {
 
 test('the message says when future work starts and that tapping opens Google Maps', () => {
   expect(notificationContent(obstacle, now).body).toBe(
-    `There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from ${new Date(2026, 9, 30).toLocaleDateString()}. Tap to open the route in Google Maps.`);
+    'There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from 30/10/2026. Tap to open the route in Google Maps.');
   expect(notificationContent({ ...obstacle, startsOn: '2026-10-01', destination: null }, now).body).toBe(
     'There is a Construction Site at Hohe Straße on your Route. Tap to open the route in Google Maps.');
+});
+
+test('the message is in the app\'s language', () => {
+  setLanguage('de', false);
+  try {
+    expect(notificationContent(obstacle, now)).toEqual({
+      title: 'Baustelle auf deiner Route',
+      body: 'Ab 30.10.2026 gibt es auf deiner Route nach TU Dortmund eine Baustelle: Hohe Straße. Tippe, um die Route in Google Maps zu öffnen.',
+    });
+  } finally {
+    setLanguage('en', false);
+  }
 });

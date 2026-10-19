@@ -1,3 +1,4 @@
+import { strings } from '../i18n';
 import type { TransportMode } from '../routes/model';
 import type { LonLat } from './geo';
 
@@ -80,7 +81,7 @@ async function ask(fetchImpl: typeof fetch, body: string, signal?: AbortSignal):
     answer = (await response.json().catch(() => null)) as Answer | null;
   } catch {
     throw routerError(signal?.aborted ? 'Stopped.'
-      : controller.signal.aborted ? 'The routing server took too long to answer.' : 'Could not reach the routing server.');
+      : controller.signal.aborted ? strings().errors.routerSlow : strings().errors.noRouter);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', stop);
@@ -88,7 +89,7 @@ async function ask(fetchImpl: typeof fetch, body: string, signal?: AbortSignal):
   if (!response.ok) {
     const message = answer?.error;
     const code = answer?.error_code;
-    throw routerError(typeof message === 'string' ? `Routing server: ${message}` : `Routing server: HTTP ${response.status}`,
+    throw routerError(strings().errors.router(typeof message === 'string' ? message : `HTTP ${response.status}`),
       typeof code === 'number' ? code : null);
   }
   return readTrip(answer);
@@ -99,15 +100,15 @@ function readTrip(answer: Answer | null): Leg {
   const legs = answer?.trip?.legs;
   const { time, length } = answer?.trip?.summary ?? {};
   if (!Array.isArray(legs) || !legs.length || typeof time !== 'number' || typeof length !== 'number') {
-    throw routerError('Unexpected answer from the routing server.');
+    throw routerError(strings().errors.routerUnexpected);
   }
   let line: LonLat[] = [];
   for (const leg of legs) {
-    if (typeof leg?.shape !== 'string') throw routerError('Unexpected answer from the routing server.');
+    if (typeof leg?.shape !== 'string') throw routerError(strings().errors.routerUnexpected);
     const points = decodePolyline(leg.shape);
     line = line.concat(line.length ? points.slice(1) : points);
   }
-  if (line.length < 2) throw routerError('Unexpected answer from the routing server.');
+  if (line.length < 2) throw routerError(strings().errors.routerUnexpected);
   return { line, seconds: time, meters: length * 1000 };
 }
 

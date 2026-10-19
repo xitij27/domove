@@ -1,5 +1,6 @@
 // Dortmund's weather, from Open-Meteo: free and without a key, and over Germany it forecasts with the DWD's ICON
 // models. Its data is CC BY 4.0, so the forecast card credits it.
+import { strings } from '../i18n';
 
 export const CITY = 'Dortmund';
 
@@ -32,26 +33,19 @@ export type Forecast = {
   daily: { time: string[]; weather_code: Series<number>; temperature_2m_max: Series<number>; temperature_2m_min: Series<number>; precipitation_probability_max: Series<number> };
 };
 
-const NAMES: Record<number, string> = {
-  0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Freezing fog',
-  51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle', 56: 'Freezing drizzle', 57: 'Heavy freezing drizzle',
-  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Heavy freezing rain',
-  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains',
-  80: 'Light showers', 81: 'Showers', 82: 'Heavy showers', 85: 'Snow showers', 86: 'Heavy snow showers',
-  95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with heavy hail',
-};
 const FREEZING = new Set([48, 56, 57, 66, 67]);
 const WET = new Set<Sky>(['drizzle', 'rain', 'showers', 'snow', 'thunder']);
 /** An hour this likely to rain counts as wet, whatever its code says. */
 const LIKELY = 60;
 /** Gusts from here on are worth a mention; the DWD warns of strong gusts from 50 km/h. */
 const WINDY = 50;
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/** The WMO code in words, in the app's language. */
 export function describe(code: number, day: boolean) {
-  if (day && code === 0) return 'Sunny';
-  if (day && code === 1) return 'Mostly sunny';
-  return NAMES[code] ?? 'Cloudy';
+  const t = strings().weather;
+  if (day && code === 0) return t.sunny;
+  if (day && code === 1) return t.mostlySunny;
+  return t.names[code] ?? t.cloudy;
 }
 
 export function skyOf(code: number): Sky {
@@ -79,9 +73,10 @@ export const clockTime = (time: string) => time.slice(11, 16);
 export function dayName(date: string, today: string) {
   const noon = (d: string) => new Date(`${d}T12:00:00Z`).getTime();
   const ahead = Math.round((noon(date) - noon(today)) / 86_400_000);
-  if (ahead === 0) return 'Today';
-  if (ahead === 1) return 'Tomorrow';
-  return WEEKDAYS[new Date(noon(date)).getUTCDay()];
+  const t = strings().weather;
+  if (ahead === 0) return t.today;
+  if (ahead === 1) return t.tomorrow;
+  return t.days[new Date(noon(date)).getUTCDay()];
 }
 
 export function toWeather(forecast: Forecast): Weather {
@@ -126,6 +121,7 @@ export async function fetchWeather(): Promise<Weather> {
  * out for on the way, e.g. "Light rain until about 16:00, then overcast. Today light rain, 9° to 14°."
  */
 export function outlook(weather: Weather): string {
+  const t = strings().weather;
   const { hours } = weather;
   const wet = (h: Hour) => isWet(h.code) || (h.rainChance ?? 0) >= LIKELY;
   const sentences: string[] = [];
@@ -135,25 +131,25 @@ export function outlook(weather: Weather): string {
     if (isWet(weather.code)) {
       const dry = hours.findIndex((h) => !wet(h));
       const again = dry < 0 ? undefined : hours.slice(dry).find(wet);
-      if (dry < 0) sentences.push(`${now} for the next ${hours.length} hours.`);
-      else if (again) sentences.push(`${now} until about ${clockTime(hours[dry].time)}, and again from about ${clockTime(again.time)}.`);
-      else sentences.push(`${now} until about ${clockTime(hours[dry].time)}, then ${describe(hours[dry].code, hours[dry].day).toLowerCase()}.`);
+      if (dry < 0) sentences.push(t.wetAll(now, hours.length));
+      else if (again) sentences.push(t.wetAgain(now, clockTime(hours[dry].time), clockTime(again.time)));
+      else sentences.push(t.wetThen(now, clockTime(hours[dry].time), describe(hours[dry].code, hours[dry].day)));
     } else {
       const next = hours.find(wet);
       // an hour can be likely to rain while its own code, the single likeliest outcome, stays dry
-      if (next) sentences.push(`${isWet(next.code) ? describe(next.code, next.day) : 'Rain likely'} from about ${clockTime(next.time)}.`);
-      else sentences.push(`Dry for the next ${hours.length} hours.`);
+      if (next) sentences.push(t.wetFrom(isWet(next.code) ? describe(next.code, next.day) : null, clockTime(next.time)));
+      else sentences.push(t.dry(hours.length));
     }
   }
 
   // in the evening, tomorrow matters more than what is left of today
   const evening = Number(weather.time.slice(11, 13)) >= 18;
   const day = weather.days[evening ? 1 : 0];
-  if (day) sentences.push(`${evening ? 'Tomorrow' : 'Today'} ${describe(day.code, true).toLowerCase()}, ${degrees(day.low)} to ${degrees(day.high)}.`);
+  if (day) sentences.push(t.day(evening, describe(day.code, true), degrees(day.low), degrees(day.high)));
 
-  if (weather.gusts >= WINDY) sentences.push(`Gusts up to ${Math.round(weather.gusts)} km/h.`);
+  if (weather.gusts >= WINDY) sentences.push(t.gusts(Math.round(weather.gusts)));
   const icy = (code: number, temperature: number) => FREEZING.has(code) || skyOf(code) === 'snow' || (isWet(code) && temperature <= 1);
-  if (icy(weather.code, weather.temperature) || hours.some((h) => icy(h.code, h.temperature))) sentences.push('Roads and paths may be slippery.');
+  if (icy(weather.code, weather.temperature) || hours.some((h) => icy(h.code, h.temperature))) sentences.push(t.slippery);
 
   return sentences.join(' ');
 }

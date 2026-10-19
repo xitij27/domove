@@ -8,11 +8,11 @@ import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
 import { useFollowUser, useHasGyroscope, useLocationGranted } from './src/maps/location';
 import { CASING_COLORS, LINE_COLORS } from './src/maps/routeOverlay';
-import { CLOSURE_LABELS, signOf, SIGNS } from './src/maps/signs';
+import { signOf, SIGNS } from './src/maps/signs';
 import { fetchSites, type Site, type Status } from './src/sites';
 import RoutesManager, { SHEET_RADIUS } from './src/routes/RoutesManager';
 import PlacePicker from './src/routes/PlacePicker';
-import { TRANSPORT_MODES, sitesOnWay, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
+import { sitesOnWay, type Coordinate, type PlacePick, type SavedRoute, type TransportMode } from './src/routes/model';
 import { useRouteOnMap } from './src/routes/useRouteOnMap';
 import { routesRepository } from './src/routes/api';
 import { googleMapsDirectionsUrl } from './src/routes/googleMaps';
@@ -31,12 +31,14 @@ import { QuizButton, QuizQuestion, useQuiz } from './src/quiz/Quiz';
 import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 import { DURATION, Fade, FadeTo, Reveal, useTween } from './src/motion';
 import { useWeather, WeatherButton, WeatherForecast } from './src/weather/Weather';
+import { strings, useStrings } from './src/i18n';
+import LanguageToggle from './src/i18n/LanguageToggle';
 
-const LABELS: Record<Status, string> = { current: 'Current', planned: 'Planned' };
+const STATUSES: Status[] = ['current', 'planned'];
 
-const THEMES: { theme: MapTheme; icon: 'light-mode' | 'dark-mode'; label: string }[] = [
-  { theme: 'day', icon: 'light-mode', label: 'Day map' },
-  { theme: 'night', icon: 'dark-mode', label: 'Night map' },
+const THEMES: { theme: MapTheme; icon: 'light-mode' | 'dark-mode'; label: 'dayMap' | 'nightMap' }[] = [
+  { theme: 'day', icon: 'light-mode', label: 'dayMap' },
+  { theme: 'night', icon: 'dark-mode', label: 'nightMap' },
 ];
 const TOGGLE_CELL = 42;
 const TOGGLE_PAD = 3;
@@ -133,15 +135,16 @@ export default function App() {
 
 function CrashReport({ text, onDismiss }: { text: string; onDismiss: () => void }) {
   const insets = useSafeAreaInsets();
+  const t = useStrings();
   return (
     <View style={[styles.fill, styles.crash, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
-      <Text style={styles.crashTitle}>The app crashed last time</Text>
-      <Text style={styles.crashHint}>Screenshot this (or long-press to copy) and send it to the team.</Text>
+      <Text style={styles.crashTitle}>{t.app.crashTitle}</Text>
+      <Text style={styles.crashHint}>{t.app.crashHint}</Text>
       <ScrollView style={styles.fill}>
         <Text selectable style={styles.crashText}>{text}</Text>
       </ScrollView>
       <Pressable accessibilityRole="button" onPress={onDismiss} style={styles.crashButton}>
-        <Text style={styles.crashButtonText}>Clear and open the map</Text>
+        <Text style={styles.crashButtonText}>{t.app.crashClear}</Text>
       </Pressable>
       <StatusBar style="light" />
     </View>
@@ -158,6 +161,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   onEndPick: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // memo above keeps out its parent's renders, not this: a new language words the whole map screen again
+  const t = useStrings();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -236,7 +241,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   }, [route, planned, way]);
   const openInGoogleMaps = useCallback(() => {
     if (!googleMapsUrl) return;
-    Linking.openURL(googleMapsUrl).catch(() => Alert.alert('Could not open Google Maps', 'Try again from the saved route.'));
+    Linking.openURL(googleMapsUrl).catch(() => Alert.alert(strings().app.googleMapsFailed, strings().app.googleMapsRetry));
   }, [googleMapsUrl]);
   const selectedOnWay = planned && onRoute && selected ? planned.scores.get(selected.id) : undefined;
   const wayScore = planned && onRoute && selectedOnWay ? wayRating(planned.plan, onRoute.chosen, selectedOnWay) : null;
@@ -264,9 +269,9 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
     askLocation().then((p) => {
       if (p.granted) go();
       else if (!p.canAskAgain) {
-        Alert.alert('Location is off', 'To follow you along the route, allow this app to use your location in Settings.', [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => { Linking.openSettings(); } },
+        Alert.alert(t.app.locationOff, t.app.locationOffBody, [
+          { text: t.app.notNow, style: 'cancel' },
+          { text: t.app.openSettings, onPress: () => { Linking.openSettings(); } },
         ]);
       }
     }, () => {});
@@ -315,12 +320,12 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
       .then(async ([obstacles, routes]) => {
         const picked = pickDemo(obstacles, routes, sites);
         if (!picked) {
-          Alert.alert('No route to show', 'None of the saved routes has a construction site on the map yet. Save a route past one, wait for the next check (every 15 minutes), then try again.');
+          Alert.alert(t.app.noDemoRoute, t.app.noDemoRouteBody);
           return;
         }
         showStep({ ...picked, step: 0, before: await constructionNotifications.getSettings(picked.route.id) }, 0);
       })
-      .catch((e: unknown) => Alert.alert('Could not start the demo', e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => Alert.alert(t.app.demoFailed, e instanceof Error ? e.message : String(e)))
       .finally(() => setDemoBusy(false));
   };
   const endDemo = () => {
@@ -400,7 +405,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
         <View style={styles.legend} onLayout={(e) => setLegendHeight(e.nativeEvent.layout.height)}>
-          {(Object.keys(LABELS) as Status[]).map((st) => (
+          {STATUSES.map((st) => (
             <FadeTo key={st} opacity={shown[st] ? 1 : CHIP_OFF}>
               <Pressable
                 accessibilityRole="switch"
@@ -410,7 +415,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
               >
                 {/* the roadworks sign as current and planned sites show it */}
                 <Image source={SIGNS.other[st]} style={styles.chipSign} />
-                <Text style={{ color: palette.text }}>{LABELS[st]} ({nearby.filter((s) => s.status === st).length})</Text>
+                <Text style={{ color: palette.text }}>{t.status[st]} ({nearby.filter((s) => s.status === st).length})</Text>
               </Pressable>
             </FadeTo>
           ))}
@@ -420,7 +425,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
             {MapboxSitesMap && GOOGLE_OK && !picking && !navigating && (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Map provider: ${mapboxOn ? 'Mapbox' : 'Google'}. Tap to switch.`}
+                accessibilityLabel={t.app.mapProvider(mapboxOn ? 'Mapbox' : 'Google')}
                 // the other map opens pointing north
                 onPress={() => { setSelected(null); setMapboxOn(!mapboxOn); heading.setValue(0); }}
                 style={[styles.chip, surface]}
@@ -429,6 +434,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
               </Pressable>
             )}
           </Fade>
+          {/* at the row's end, after the map switch; out of the way while a place is chosen or the user navigates */}
+          <Fade>{!picking && !navigating && <LanguageToggle theme={theme} />}</Fade>
         </View>
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
@@ -465,9 +472,9 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
       <KeyboardAvoidingView behavior="padding" style={styles.bottom}>
         <Reveal space={CARD_GAP}>
           {navigating && !following && (
-            <Pressable accessibilityRole="button" accessibilityHint="Follows you again, turning the map the way you go" onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
+            <Pressable accessibilityRole="button" accessibilityHint={t.app.recentreHint} onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
               <MaterialIcons name="navigation" size={18} color={LINE_COLORS[theme]} />
-              <Text style={{ color: palette.text }}>Re-centre</Text>
+              <Text style={{ color: palette.text }}>{t.app.recentre}</Text>
             </Pressable>
           )}
         </Reveal>
@@ -475,8 +482,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
         <Reveal space={CARD_GAP}>
           {error && !picking && (
             <Pressable style={[styles.card, surface]} onPress={load} accessibilityRole="button">
-              <Text style={[styles.title, { color: palette.text }]}>Could not load construction sites</Text>
-              <Text style={{ color: palette.muted }}>{error} — tap to retry</Text>
+              <Text style={[styles.title, { color: palette.text }]}>{t.app.sitesFailed}</Text>
+              <Text style={{ color: palette.muted }}>{t.common.tapToRetry(error)}</Text>
             </Pressable>
           )}
         </Reveal>
@@ -486,10 +493,10 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
             <View style={[styles.card, surface]}>
               <View style={styles.routeHead}>
                 <View style={styles.routeText}>
-                  <Text style={[styles.title, { color: palette.text }]}>No gyroscope in this phone</Text>
-                  <Text style={{ color: palette.muted }}>The arrow showing which way you face may be off or jumpy.</Text>
+                  <Text style={[styles.title, { color: palette.text }]}>{t.app.noGyroscope}</Text>
+                  <Text style={{ color: palette.muted }}>{t.app.noGyroscopeBody}</Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Dismiss the gyroscope warning" hitSlop={8} onPress={() => setGyroWarned(true)} style={styles.routeClose}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t.app.dismissGyroscope} hitSlop={8} onPress={() => setGyroWarned(true)} style={styles.routeClose}>
                   <MaterialIcons name="close" size={22} color={palette.muted} />
                 </Pressable>
               </View>
@@ -518,9 +525,9 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
             <View style={[styles.card, surface]}>
               <View style={styles.siteKind}>
                 <Image source={signOf(selected)} style={styles.siteSign} />
-                <Text style={{ color: palette.status[selected.status] }}>{LABELS[selected.status]}</Text>
-                <Text style={[styles.siteClosure, { color: palette.muted }]}>· {CLOSURE_LABELS[selected.closure]}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Close the construction site" hitSlop={8} onPress={() => setSelected(null)} style={styles.routeClose}>
+                <Text style={{ color: palette.status[selected.status] }}>{t.status[selected.status]}</Text>
+                <Text style={[styles.siteClosure, { color: palette.muted }]}>· {t.closures[selected.closure]}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={t.app.closeSite} hitSlop={8} onPress={() => setSelected(null)} style={styles.routeClose}>
                   <MaterialIcons name="close" size={22} color={palette.muted} />
                 </Pressable>
               </View>
@@ -566,41 +573,41 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
                 {onRoute.error ? (
                   <Pressable accessibilityRole="button" onPress={onRoute.retry} style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
-                    <Text style={{ color: palette.status.current }}>{onRoute.error} — tap to retry</Text>
+                    <Text style={{ color: palette.status.current }}>{t.common.tapToRetry(onRoute.error)}</Text>
                   </Pressable>
                 ) : (
                   <View style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
                     <Text style={{ color: palette.muted }}>
-                      {TRANSPORT_MODES[route.mode]} · {sitesOnWay(original ? original.sites.length : onRoute.siteIds && !loading && !error ? nearby.length : null)}
-                      {highCount > 0 ? ` · ${highCount} with high impact` : ''}
+                      {t.modes[route.mode]} · {sitesOnWay(original ? original.sites.length : onRoute.siteIds && !loading && !error ? nearby.length : null)}
+                      {highCount > 0 ? ` · ${t.app.highImpact(highCount)}` : ''}
                     </Text>
                   </View>
                 )}
                 {navigating ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityHint="Stops following you and shows the whole route"
+                    accessibilityHint={t.app.exitHint}
                     onPress={() => setStarted(false)}
                     style={[styles.navButton, { backgroundColor: palette.status.current }]}
                   >
-                    <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Exit</Text>
+                    <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.exit}</Text>
                   </Pressable>
                 ) : (
                   <>
                     {/* white or near-black on the route's blue, as the line's casing is */}
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityHint="Follows you along the route, turning the map the way you go"
+                      accessibilityHint={t.app.startHint}
                       onPress={start}
                       style={[styles.navButton, { backgroundColor: LINE_COLORS[theme] }]}
                     >
                       <MaterialIcons name="navigation" size={18} color={CASING_COLORS[theme]} />
-                      <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>Start</Text>
+                      <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.start}</Text>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Close the route and show every construction site"
+                      accessibilityLabel={t.app.closeRoute}
                       hitSlop={8}
                       onPress={onCloseRoute}
                       style={styles.routeClose}
@@ -640,6 +647,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
 // Both options stay visible, so the current mode is never a guess; the highlight slides to the one picked.
 function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: MapTheme) => void }) {
   const palette = PALETTES[theme];
+  const words = useStrings().app;
   const index = THEMES.findIndex((t) => t.theme === theme);
   const slide = useTween(index, DURATION.long);
   const offset = useMemo(() => Animated.multiply(slide, TOGGLE_CELL), [slide]);
@@ -647,7 +655,7 @@ function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: M
   return (
     <View
       accessibilityRole="radiogroup"
-      accessibilityLabel="Map appearance"
+      accessibilityLabel={words.mapAppearance}
       style={[styles.toggle, { backgroundColor: palette.surface, borderColor: palette.border }]}
     >
       <Animated.View
@@ -660,7 +668,7 @@ function ThemeToggle({ theme, onChange }: { theme: MapTheme; onChange: (theme: M
         <Pressable
           key={t.theme}
           accessibilityRole="radio"
-          accessibilityLabel={t.label}
+          accessibilityLabel={words[t.label]}
           accessibilityState={{ checked: t.theme === theme }}
           onPress={() => onChange(t.theme)}
           android_ripple={{ color: palette.border, borderless: true, radius: TOGGLE_CELL / 2 }}

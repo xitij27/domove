@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useStrings } from '../i18n';
 import { Reveal } from '../motion';
 import { repeatSummary, WEEKDAYS, type RouteDraft, type Weekday } from './model';
 
@@ -23,6 +24,7 @@ function pickerValue(time: string) {
 
 /** Set like an alarm: a time from the system clock, and optionally the days it repeats on. */
 export default function LeavingAtInput({ value, onChange, editable, invalid }: Props) {
+  const t = useStrings();
   // iOS has no clock dialog, so its clock opens below the days instead
   const [open, setOpen] = useState(false);
   const chosen = !!value.startTime || value.weekdays.length > 0;
@@ -58,30 +60,31 @@ export default function LeavingAtInput({ value, onChange, editable, invalid }: P
         <View style={styles.timeRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Leaving time"
-            accessibilityValue={{ text: value.startTime || 'Not set' }}
+            accessibilityLabel={t.form.leavingTime}
+            accessibilityValue={{ text: value.startTime || t.form.notSet }}
             accessibilityState={{ expanded: Platform.OS === 'android' ? undefined : open, disabled: !editable }}
             disabled={!editable}
             onPress={() => (open ? setOpen(false) : showClock(value))}
             style={styles.time}
           >
             <Text style={[styles.clock, !value.startTime && styles.placeholder]}>{value.startTime || '--:--'}</Text>
-            {!value.startTime && <Text style={styles.prompt}>Set time</Text>}
+            {!value.startTime && <Text style={styles.prompt}>{t.form.setTime}</Text>}
           </Pressable>
           {chosen && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Clear leaving time" disabled={!editable} onPress={clear} style={styles.clear}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t.form.clearTime} disabled={!editable} onPress={clear} style={styles.clear}>
               <MaterialIcons name="close" size={22} color="#526173" />
             </Pressable>
           )}
         </View>
 
         <View style={styles.repeatRow}>
-          <Text style={styles.repeatLabel}>Repeat</Text>
-          <Text style={styles.summary}>{repeatSummary(value.weekdays) ?? "Doesn't repeat"}</Text>
+          <Text style={styles.repeatLabel}>{t.form.repeat}</Text>
+          <Text style={styles.summary}>{repeatSummary(value.weekdays) ?? t.form.noRepeat}</Text>
         </View>
         <View style={styles.days}>
-          {WEEKDAYS.map(({ day, name, letter }) => {
+          {WEEKDAYS.map((day) => {
             const on = value.weekdays.includes(day);
+            const { name, letter } = t.weekdays[day];
             return (
               <Pressable
                 key={day}

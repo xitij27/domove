@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { strings, useStrings } from '../i18n';
 import type { Coordinate } from '../routes/model';
 import { PALETTES, type MapTheme } from '../theme';
 import type { FollowView } from './navigation';
@@ -24,7 +25,7 @@ const LETTER = 12; // height of the "N"
 export function compassLabel(heading: number) {
   const degrees = Math.round(((heading % 360) + 360) % 360);
   const off = degrees > 180 ? 360 - degrees : degrees;
-  return off === 0 ? 'Compass: map points north' : `Compass: map turned ${off}° from north`;
+  return off === 0 ? strings().map.compassNorth : strings().map.compassTurned(off);
 }
 
 // `heading` is set on every frame of a gesture; the needle follows it without a render, and the label only
@@ -35,12 +36,15 @@ export default function Compass({ heading, theme, onPress }: {
   onPress: () => void;
 }) {
   const palette = PALETTES[theme];
-  const [label, setLabel] = useState(() => compassLabel(0));
+  const t = useStrings();
+  // whole degrees, so a turn renders only when the label could change
+  const [degrees, setDegrees] = useState(0);
+  const label = compassLabel(degrees);
   // A map turned clockwise by its heading puts north that far counter-clockwise on screen.
   const rotate = useMemo(() => heading.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '-360deg'] }), [heading]);
 
   useEffect(() => {
-    const id = heading.addListener(({ value }) => setLabel(compassLabel(value)));
+    const id = heading.addListener(({ value }) => setDegrees(Math.round(value)));
     return () => heading.removeListener(id);
   }, [heading]);
 
@@ -48,7 +52,7 @@ export default function Compass({ heading, theme, onPress }: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityHint="Turns the map back to north"
+      accessibilityHint={t.map.compassHint}
       onPress={onPress}
       android_ripple={{ color: palette.border, borderless: true, radius: SIZE / 2 }}
       style={[styles.compass, { backgroundColor: palette.surface, borderColor: palette.border }]}

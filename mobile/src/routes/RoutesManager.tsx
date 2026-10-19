@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, Image, PanResponder, Platform, Pressable, StyleSheet, Text, View, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { strings, useStrings } from '../i18n';
 import { Appear, motionReduced } from '../motion';
 import { constructionNotifications } from '../notifications/runtime';
 import RouteForm from './RouteForm';
@@ -132,6 +133,7 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
   hidden?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const t = useStrings();
   // What the raised sheet shows; null while it is lowered to the two buttons.
   const [open, setOpen] = useState<Open>(null);
   // The panel in the sheet: it starts over each time the sheet goes up, and stays while the sheet takes it down.
@@ -192,7 +194,7 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
         <View {...sheet.panHandlers}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={open ? 'Lower the routes panel' : 'Raise the routes panel'}
+            accessibilityLabel={open ? t.routes.lowerPanel : t.routes.raisePanel}
             accessibilityState={{ expanded: open !== null }}
             hitSlop={{ top: 12 }}
             onPress={() => (open ? sheet.lower() : sheet.raise())}
@@ -233,10 +235,10 @@ export default function RoutesManager({ repository, onOpenChange, onViewRoute, o
           ]}
         >
           <Pressable accessibilityRole="button" onPress={() => sheet.raise()} style={styles.secondary}>
-            <Text style={styles.secondaryText}>Saved routes</Text>
+            <Text style={styles.secondaryText}>{t.routes.saved}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => sheet.raise(true)} style={styles.primary}>
-            <Text style={styles.primaryText}>Create Route</Text>
+            <Text style={styles.primaryText}>{t.routes.create}</Text>
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -255,6 +257,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
   repository?: RoutesRepository;
 }) {
   const insets = useSafeAreaInsets();
+  const t = useStrings();
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   // The form is open while set: empty to create a route, or with the route being edited.
   const [form, setForm] = useState<{ route?: SavedRoute } | null>(initiallyCreating ? {} : null);
@@ -356,7 +359,7 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
       <View style={styles.topbar}>
         <Image accessible accessibilityRole="image" accessibilityLabel="do.move" source={require('../../assets/domovelogo.png')} resizeMode="contain" style={styles.brand} />
         <Pressable accessibilityRole="button" disabled={saving || !!deleting} onPress={onClose} style={styles.close}>
-          <Text style={styles.secondaryText}>Close</Text>
+          <Text style={styles.secondaryText}>{t.common.close}</Text>
         </Pressable>
       </View>
       {/* forward into the form from the right, back to the list from the left */}
@@ -376,38 +379,38 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
             contentContainerStyle={styles.list}
             ListHeaderComponent={
               <View style={styles.header}>
-                <Text accessibilityRole="header" style={styles.title}>Your routes</Text>
-                <Text style={styles.hint}>Your next journey starts here.</Text>
+                <Text accessibilityRole="header" style={styles.title}>{t.routes.title}</Text>
+                <Text style={styles.hint}>{t.routes.hint}</Text>
                 <Pressable accessibilityRole="button" disabled={!!deleting} onPress={() => showForm({})} style={styles.primary}>
-                  <Text style={styles.primaryText}>Create Route</Text>
+                  <Text style={styles.primaryText}>{t.routes.create}</Text>
                 </Pressable>
                 {error && <Appear from={{ y: -4 }}><Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text></Appear>}
                 <Pressable accessibilityRole="button" disabled={loading || !!deleting} onPress={refresh} style={styles.secondary}>
-                  <Text style={styles.secondaryText}>{error ? 'Retry loading routes' : 'Refresh routes'}</Text>
+                  <Text style={styles.secondaryText}>{error ? t.routes.retry : t.routes.refresh}</Text>
                 </Pressable>
-                {loading && <ActivityIndicator accessibilityLabel="Loading saved routes" color="#a8520e" />}
+                {loading && <ActivityIndicator accessibilityLabel={t.routes.loading} color="#a8520e" />}
               </View>
             }
-            ListEmptyComponent={!loading && !error ? <Appear from={loadIn} style={styles.empty}><Text style={styles.cardTitle}>No saved routes yet</Text><Text style={styles.hint}>Tap Create Route to plan your first journey.</Text></Appear> : undefined}
+            ListEmptyComponent={!loading && !error ? <Appear from={loadIn} style={styles.empty}><Text style={styles.cardTitle}>{t.routes.empty}</Text><Text style={styles.hint}>{t.routes.emptyHint}</Text></Appear> : undefined}
             renderItem={({ item, index }) => (
               <Appear from={loadIn} delay={Math.min(index, 6) * 40} style={styles.card}>
                 <TransportModeIcon mode={item.mode} />
-                <Text style={styles.cardTitle}>{place(item.start, 'Starting location')} → {place(item.destination, 'Final destination')}</Text>
-                {item.waypoints.length > 0 && <Text style={styles.hint}>Via {item.waypoints.map((stop) => place(stop, 'Intermediate stop')).join(' → ')}</Text>}
+                <Text style={styles.cardTitle}>{start(item)} → {destination(item)}</Text>
+                {item.waypoints.length > 0 && <Text style={styles.hint}>{t.routes.via(item.waypoints.map((stop) => place(stop, t.routes.stop)).join(' → '))}</Text>}
                 {item.startTime && <Text style={styles.hint}>{formatLeaving(item)}</Text>}
                 <SitesOnWay route={item} counts={siteCounts} />
                 <View style={styles.actions}>
                   {/* The route's construction sites and their alerts are all on the map. */}
                   {onView && (
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Show the route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')} and its alerts on the map`} disabled={!!deleting} onPress={() => onView(item)} style={styles.show}>
-                      <Text style={styles.secondaryText}>Map & alerts</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t.routes.show(start(item), destination(item))} disabled={!!deleting} onPress={() => onView(item)} style={styles.show}>
+                      <Text style={styles.secondaryText}>{t.routes.mapAndAlerts}</Text>
                     </Pressable>
                   )}
                   <View style={styles.iconActions}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Edit route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} disabled={loading || !!deleting} onPress={() => showForm({ route: item })} style={styles.edit} hitSlop={8}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t.routes.edit(start(item), destination(item))} disabled={loading || !!deleting} onPress={() => showForm({ route: item })} style={styles.edit} hitSlop={8}>
                       <MaterialIcons name="edit" size={22} color="#1f63c6" />
                     </Pressable>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Delete route from ${place(item.start, 'Starting location')} to ${place(item.destination, 'Final destination')}`} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => confirmDelete(item, () => remove(item.id))} style={styles.delete} hitSlop={8}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={t.routes.delete(start(item), destination(item))} accessibilityState={{ disabled: loading || !!deleting, busy: deleting === item.id }} disabled={loading || !!deleting} onPress={() => confirmDelete(item, () => remove(item.id))} style={styles.delete} hitSlop={8}>
                       {deleting === item.id ? <ActivityIndicator size="small" color="#a52621" /> : <MaterialIcons name="delete-outline" size={24} color="#a52621" />}
                     </Pressable>
                   </View>
@@ -423,8 +426,9 @@ export function RoutesPanel({ initiallyCreating = false, onClose, onBusyChange, 
 
 /** The construction sites the obstacles job found on a route's way, the same ones Map & alerts shows. */
 function SitesOnWay({ route, counts }: { route: SavedRoute; counts: SiteCounts }) {
+  const t = useStrings();
   const count = counts && counts !== 'failed' ? counts.get(route.id) : undefined;
-  const text = counts === null ? sitesOnWay(null) : counts === 'failed' ? 'Could not check for construction sites' : sitesSummary(route, count);
+  const text = counts === null ? sitesOnWay(null) : counts === 'failed' ? t.routes.sitesFailed : sitesSummary(route, count);
   const found = !!count?.total;
   return (
     // Read out as its text alone, without the icon.
@@ -436,16 +440,17 @@ function SitesOnWay({ route, counts }: { route: SavedRoute; counts: SiteCounts }
 }
 
 function confirmDelete(route: SavedRoute, onConfirm: () => void) {
-  const title = 'Delete this route?';
-  const body = `${place(route.start, 'Starting location')} → ${place(route.destination, 'Final destination')} and its alerts will be removed.`;
+  const t = strings();
+  const title = t.routes.deleteTitle;
+  const body = t.routes.deleteBody(start(route), destination(route));
   // react-native-web's Alert.alert does nothing.
   if (Platform.OS === 'web') {
     if (window.confirm(`${title}\n\n${body}`)) onConfirm();
     return;
   }
   Alert.alert(title, body, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: onConfirm },
+    { text: t.common.cancel, style: 'cancel' },
+    { text: t.routes.deleteConfirm, style: 'destructive', onPress: onConfirm },
   ]);
 }
 
@@ -454,8 +459,11 @@ function place(location: RouteLocation, fallback: string) {
   return location.label ?? fallback;
 }
 
+const start = (route: SavedRoute) => place(route.start, strings().routes.start);
+const destination = (route: SavedRoute) => place(route.destination, strings().routes.destination);
+
 function message(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  return error instanceof Error ? error.message : strings().routes.somethingWrong;
 }
 
 const styles = StyleSheet.create({

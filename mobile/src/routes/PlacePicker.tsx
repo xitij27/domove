@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { strings, useStrings } from '../i18n';
 import { STOP_COLORS } from '../maps/routeOverlay';
 import { Appear, DURATION, useTween } from '../motion';
 import { PALETTES, type MapTheme } from '../theme';
@@ -17,7 +18,7 @@ const LOGO_ROOM = 40;
 
 /** What a place chosen where Photon knows no name is called. */
 export function pinLabel({ latitude, longitude }: Coordinate) {
-  return `Pin at ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+  return strings().picker.pinAt(latitude.toFixed(5), longitude.toFixed(5));
 }
 
 /**
@@ -32,6 +33,7 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
   onDone: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const t = useStrings();
   const palette = PALETTES[theme];
   const color = STOP_COLORS[pick.kind];
   // A null label: Photon knows no name there, or could not be asked.
@@ -81,17 +83,17 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
         <View style={styles.head}>
           <MaterialIcons name="place" size={20} color={color} />
           <Text accessibilityRole="header" style={[styles.title, { color: palette.text }]}>{pick.title}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Stop choosing on the map" hitSlop={8} onPress={onDone} style={styles.close}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.picker.stop} hitSlop={8} onPress={onDone} style={styles.close}>
             <MaterialIcons name="close" size={22} color={palette.muted} />
           </Pressable>
         </View>
         <View accessibilityLiveRegion="polite" style={styles.placeRow}>
           <Text numberOfLines={2} style={[styles.place, { color: place ? palette.text : palette.muted }]}>
-            {place ? place.label : 'Moving the pin…'}
+            {place ? place.label : t.picker.moving}
           </Text>
-          {place && label === undefined && <ActivityIndicator accessibilityLabel="Looking up the address" size="small" color={palette.muted} />}
+          {place && label === undefined && <ActivityIndicator accessibilityLabel={t.picker.lookingUp} size="small" color={palette.muted} />}
         </View>
-        <Text style={{ color: palette.muted }}>Drag the map to put the pin on the place, or tap the spot.</Text>
+        <Text style={{ color: palette.muted }}>{t.picker.hint}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: !place }}
@@ -99,7 +101,7 @@ export default function PlacePicker({ pick, center, theme, onDone }: {
           onPress={() => { if (place) { pick.onPick(place); onDone(); } }}
           style={[styles.use, !place && styles.disabled]}
         >
-          <Text style={styles.useText}>Use this location</Text>
+          <Text style={styles.useText}>{t.picker.use}</Text>
         </Pressable>
       </Appear>
     </>

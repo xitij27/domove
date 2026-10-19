@@ -3,3 +3,6 @@
 const { AccessibilityInfo } = require('react-native');
 
 AccessibilityInfo.isReduceMotionEnabled.mockResolvedValue(true);
+
+// The app starts in the phone's language; the tests read English whatever the machine running them is set to.
+require('./src/i18n').setLanguage('en', false);

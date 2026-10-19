@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useLanguage, useStrings } from '../i18n';
 import { PALETTES, type MapTheme } from '../theme';
-import { QUESTIONS } from './questions';
+import { QUESTIONS, questionIn } from './questions';
 import { answerQuestion, isRight, nextQuestion, solution, startQuiz, type Given, type Question } from './quiz';
 
 const SIZE = 48; // as wide as the compass and the weather above it
@@ -12,7 +13,7 @@ const RIGHT: Record<MapTheme, string> = { day: '#1b7f3b', night: '#7ee2a0' };
 /** The quiz's progress, kept while its card is closed. */
 export function useQuiz(questions: readonly Question[] = QUESTIONS) {
   const [state, setState] = useState(() => startQuiz(questions));
-  const answer = useCallback((given: Given) => setState((s) => answerQuestion(s, given)), []);
+  const answer = useCallback((given: Given, asked?: Question) => setState((s) => answerQuestion(s, given, asked)), []);
   const next = useCallback(() => setState((s) => nextQuestion(s)), []);
   return { state, answer, next };
 }
@@ -22,11 +23,12 @@ export type Quiz = ReturnType<typeof useQuiz>;
 /** A round button under the weather; opens and closes the quiz. */
 export function QuizButton({ open, theme, onPress }: { open: boolean; theme: MapTheme; onPress: () => void }) {
   const palette = PALETTES[theme];
+  const t = useStrings().quiz;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Dortmund quiz"
-      accessibilityHint={open ? 'Hides the quiz' : 'Asks a question about Dortmund'}
+      accessibilityLabel={t.title}
+      accessibilityHint={open ? t.hide : t.ask}
       accessibilityState={{ expanded: open }}
       onPress={onPress}
       android_ripple={{ color: palette.border, borderless: true, radius: SIZE / 2 }}
@@ -40,16 +42,19 @@ export function QuizButton({ open, theme, onPress }: { open: boolean; theme: Map
 /** What goes in the quiz card: the question on show, then whether the answer was right and a fact to go with it. */
 export function QuizQuestion({ quiz, theme, onClose }: { quiz: Quiz; theme: MapTheme; onClose: () => void }) {
   const palette = PALETTES[theme];
+  const t = useStrings().quiz;
+  const language = useLanguage();
   const { deck, index, given, right, asked } = quiz.state;
-  const question = deck[index];
+  const question = questionIn(deck[index], language);
   const correct = given !== null && isRight(question, given);
+  const answer = (value: Given) => quiz.answer(value, question);
 
   return (
     <View style={styles.quiz}>
       <View style={styles.head}>
-        <Text style={[styles.title, { color: palette.text }]}>Dortmund quiz</Text>
-        {asked > 0 && <Text style={{ color: palette.muted }}>{right} of {asked} right</Text>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Close the quiz" hitSlop={8} onPress={onClose} style={styles.close}>
+        <Text style={[styles.title, { color: palette.text }]}>{t.title}</Text>
+        {asked > 0 && <Text style={{ color: palette.muted }}>{t.score(right, asked)}</Text>}
+        <Pressable accessibilityRole="button" accessibilityLabel={t.close} hitSlop={8} onPress={onClose} style={styles.close}>
           <MaterialIcons name="close" size={22} color={palette.muted} />
         </Pressable>
       </View>
@@ -57,21 +62,21 @@ export function QuizQuestion({ quiz, theme, onClose }: { quiz: Quiz; theme: MapT
       <Text style={[styles.prompt, { color: palette.text }]}>{question.prompt}</Text>
 
       {question.kind === 'choice' ? (
-        <Options question={question} given={given} theme={theme} onPick={quiz.answer} />
+        <Options question={question} given={given} theme={theme} onPick={answer} />
       ) : (
         // keyed by the count asked, so every blank starts empty, even the same one asked again
-        <Blank key={`${question.id}-${asked}`} given={given} theme={theme} onCheck={quiz.answer} />
+        <Blank key={`${question.id}-${asked}`} given={given} theme={theme} onCheck={answer} />
       )}
 
       {given !== null && (
         <>
           <View accessibilityLiveRegion="polite" style={styles.result}>
             <MaterialIcons name={correct ? 'check-circle' : 'cancel'} size={20} color={correct ? RIGHT[theme] : palette.status.current} />
-            <Text style={[styles.resultText, { color: palette.text }]}>{correct ? 'Right!' : `The answer is “${solution(question)}”.`}</Text>
+            <Text style={[styles.resultText, { color: palette.text }]}>{correct ? t.right : t.answer(solution(question))}</Text>
           </View>
           <Text style={[styles.fact, { color: palette.muted }]}>{question.fact}</Text>
           <Pressable accessibilityRole="button" onPress={quiz.next} style={[styles.action, { backgroundColor: palette.text }]}>
-            <Text style={[styles.actionText, { color: palette.surface }]}>Next question</Text>
+            <Text style={[styles.actionText, { color: palette.surface }]}>{t.next}</Text>
           </Pressable>
         </>
       )}
@@ -115,6 +120,7 @@ function Options({ question, given, theme, onPick }: {
 
 function Blank({ given, theme, onCheck }: { given: Given | null; theme: MapTheme; onCheck: (typed: string) => void }) {
   const palette = PALETTES[theme];
+  const t = useStrings().quiz;
   const [typed, setTyped] = useState('');
   const answered = given !== null;
   const empty = typed.trim() === '';
@@ -128,11 +134,11 @@ function Blank({ given, theme, onCheck }: { given: Given | null; theme: MapTheme
   return (
     <View style={styles.blank}>
       <TextInput
-        accessibilityLabel="Your answer"
+        accessibilityLabel={t.yourAnswer}
         value={answered ? String(given) : typed}
         onChangeText={setTyped}
         editable={!answered}
-        placeholder="Your answer"
+        placeholder={t.yourAnswer}
         placeholderTextColor={palette.muted}
         autoCorrect={false}
         returnKeyType="done"
@@ -147,7 +153,7 @@ function Blank({ given, theme, onCheck }: { given: Given | null; theme: MapTheme
           onPress={check}
           style={[styles.action, { backgroundColor: palette.text }, empty && styles.disabled]}
         >
-          <Text style={[styles.actionText, { color: palette.surface }]}>Check</Text>
+          <Text style={[styles.actionText, { color: palette.surface }]}>{t.check}</Text>
         </Pressable>
       )}
     </View>

@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { shortDate, strings, useStrings } from '../i18n';
 import { Reveal, useTween } from '../motion';
 import { PALETTES, type MapTheme } from '../theme';
 import type { NotificationPreference, RouteNotificationSettings } from './model';
@@ -11,11 +12,7 @@ import type { SiteReminder } from './service';
 // Between the rows of the open choices.
 const BODY_GAP = 10;
 
-const CHOICES: Record<NotificationPreference, string> = {
-  ONE_WEEK_BEFORE: '1 week before',
-  ONE_DAY_BEFORE: '1 day before',
-  DISABLED: 'Off',
-};
+const CHOICES: NotificationPreference[] = ['ONE_WEEK_BEFORE', 'ONE_DAY_BEFORE', 'DISABLED'];
 
 export type RouteAlertsState = {
   /** null until the phone's stored choice has loaded. */
@@ -42,7 +39,7 @@ export function useRouteAlerts(routeId: string | null): RouteAlertsState | null 
     let active = true;
     Promise.all([constructionNotifications.getSettings(routeId), constructionNotifications.remindersOn(routeId)]).then(
       ([settings, reminders]) => { if (active) setLoaded({ routeId, settings, reminders }); },
-      (e: unknown) => { if (active) setStatus({ routeId, saving: false, message: null, error: describe(e, 'Could not load the alerts.') }); },
+      (e: unknown) => { if (active) setStatus({ routeId, saving: false, message: null, error: describe(e, strings().alerts.loadFailed) }); },
     );
     return () => { active = false; };
   }, [routeId, version]);
@@ -54,15 +51,15 @@ export function useRouteAlerts(routeId: string | null): RouteAlertsState | null 
     setStatus({ routeId, saving: true, message: null, error: null });
     constructionNotifications.setSettings(routeId, settings).then(
       (warning) => setStatus({ routeId, saving: false, message: warning, error: null }),
-      (e: unknown) => setStatus({ routeId, saving: false, message: null, error: describe(e, 'Could not save the alerts.') }),
+      (e: unknown) => setStatus({ routeId, saving: false, message: null, error: describe(e, strings().alerts.saveFailed) }),
     ).finally(() => setVersion((count) => count + 1));
   }, [routeId]);
 
   const sendTest = useCallback(() => {
     if (!routeId) return;
     sendDevelopmentTestAlert(routeId).then(
-      () => setStatus({ routeId, saving: false, message: 'A test alert will appear shortly. Tap it to open the route in Google Maps.', error: null }),
-      (e: unknown) => setStatus({ routeId, saving: false, message: null, error: describe(e, 'Could not send the test alert.') }),
+      () => setStatus({ routeId, saving: false, message: strings().alerts.testSent, error: null }),
+      (e: unknown) => setStatus({ routeId, saving: false, message: null, error: describe(e, strings().alerts.testFailed) }),
     );
   }, [routeId]);
 
@@ -82,15 +79,17 @@ export function useRouteAlerts(routeId: string | null): RouteAlertsState | null 
 
 /** What a site's card on the route says about its alert; null while that is unknown. */
 export function siteAlert(alerts: RouteAlertsState, siteId: string): string | null {
+  const t = strings().alerts;
   if (!alerts.settings) return null;
   const reminder = alerts.reminders.find((r) => r.siteId === siteId);
-  if (reminder) return `${reminder.sent ? 'Alerted' : 'Alert'} ${when(reminder.at)}`;
-  return alerts.settings.preference === 'DISABLED' ? 'Alerts are off for this route' : 'No alert scheduled';
+  if (reminder) return reminder.sent ? t.alerted(when(reminder.at)) : t.alert(when(reminder.at));
+  return alerts.settings.preference === 'DISABLED' ? t.offForRoute : t.noneScheduled;
 }
 
 /** The alerts row of the route card on the map; it opens to change when they come. */
 export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsState; theme: MapTheme }) {
   const palette = PALETTES[theme];
+  const t = useStrings().alerts;
   const [open, setOpen] = useState(false);
   // iOS has no clock dialog, so its clock opens in the card instead
   const [clockOpen, setClockOpen] = useState(false);
@@ -100,11 +99,7 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
   const { settings, saving } = alerts;
   const on = !!settings && settings.preference !== 'DISABLED';
   const next = alerts.reminders.filter((r) => !r.sent).sort((a, b) => a.at - b.at)[0];
-  const summary = !settings
-    ? 'Loading alerts…'
-    : on
-      ? `Alerts ${CHOICES[settings.preference]} at ${settings.notificationTime}`
-      : 'Alerts off';
+  const summary = !settings ? t.loading : on ? t.summary(t.choices[settings.preference], settings.notificationTime) : t.off;
 
   function pickTime() {
     if (!settings) return;
@@ -119,8 +114,8 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
     <View style={[styles.alerts, { borderTopColor: palette.border }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={next ? `${summary}. Next alert ${when(next.at)}` : summary}
-        accessibilityHint="Changes when the alerts for this route come"
+        accessibilityLabel={next ? t.summaryNext(summary, when(next.at)) : summary}
+        accessibilityHint={t.hint}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
         style={styles.head}
@@ -128,7 +123,7 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
         <MaterialIcons name={on ? 'notifications-active' : 'notifications-off'} size={20} color={on ? palette.accent : palette.muted} />
         <View style={styles.headText}>
           <Text style={{ color: palette.text }}>{summary}</Text>
-          {next && <Text style={{ color: palette.muted }}>Next {when(next.at)}</Text>}
+          {next && <Text style={{ color: palette.muted }}>{t.next(when(next.at))}</Text>}
         </View>
         {saving ? (
           <ActivityIndicator size="small" color={palette.muted} />
@@ -143,8 +138,8 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
       <Reveal space={8} clip>
         {open && settings && (
           <View>
-            <View accessibilityRole="radiogroup" accessibilityLabel="When to alert" style={styles.choices}>
-              {(Object.keys(CHOICES) as NotificationPreference[]).map((preference) => {
+            <View accessibilityRole="radiogroup" accessibilityLabel={t.whenLabel} style={styles.choices}>
+              {CHOICES.map((preference) => {
                 const chosen = settings.preference === preference;
                 return (
                   <Pressable
@@ -155,7 +150,7 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
                     onPress={() => alerts.save({ ...settings, preference })}
                     style={[styles.choice, { borderColor: palette.border }, chosen && { backgroundColor: palette.thumb }]}
                   >
-                    <Text style={{ color: chosen ? palette.text : palette.muted, fontWeight: chosen ? '600' : '400' }}>{CHOICES[preference]}</Text>
+                    <Text style={{ color: chosen ? palette.text : palette.muted, fontWeight: chosen ? '600' : '400' }}>{t.choices[preference]}</Text>
                   </Pressable>
                 );
               })}
@@ -164,14 +159,14 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
               {on && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Alert time"
+                  accessibilityLabel={t.time}
                   accessibilityValue={{ text: settings.notificationTime }}
                   accessibilityState={{ expanded: Platform.OS === 'android' ? undefined : clockOpen, disabled: saving }}
                   disabled={saving}
                   onPress={pickTime}
                   style={styles.timeRow}
                 >
-                  <Text style={{ color: palette.muted }}>At</Text>
+                  <Text style={{ color: palette.muted }}>{t.at}</Text>
                   <Text style={[styles.time, { color: palette.text }]}>{settings.notificationTime}</Text>
                 </Pressable>
               )}
@@ -188,10 +183,10 @@ export default function RouteAlerts({ alerts, theme }: { alerts: RouteAlertsStat
                 />
               )}
             </Reveal>
-            <Text style={[styles.spaced, { color: palette.muted }]}>The phone reminds you about each construction site on this route at that time.</Text>
+            <Text style={[styles.spaced, { color: palette.muted }]}>{t.explain}</Text>
             {__DEV__ && (
               <Pressable accessibilityRole="button" onPress={alerts.sendTest} style={[styles.choice, styles.spaced, styles.test, { borderColor: palette.border }]}>
-                <Text style={{ color: palette.text }}>Send test alert</Text>
+                <Text style={{ color: palette.text }}>{t.sendTest}</Text>
               </Pressable>
             )}
           </View>
@@ -213,10 +208,10 @@ function clockValue(time: string) {
   return value;
 }
 
-/** "Thu 23 Oct, 09:00" in the phone's language. */
+/** "Thu 23 Oct, 09:00" in the app's language. */
 function when(at: number) {
   const date = new Date(at);
-  return `${date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}, ${toTime(date)}`;
+  return `${shortDate(date)}, ${toTime(date)}`;
 }
 
 function describe(error: unknown, fallback: string) {

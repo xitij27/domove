@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useStrings } from '../i18n';
 import { PALETTES, type MapTheme } from '../theme';
 import { describeWay, formatDuration, wayLabel } from './text';
 import type { DetourState } from './useDetours';
@@ -21,12 +22,13 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOp
   theme: MapTheme;
 }) {
   const palette = PALETTES[theme];
+  const t = useStrings();
 
   if (detours.status === 'planning') {
     return (
       <View style={styles.row}>
         <ActivityIndicator size="small" color={palette.muted} />
-        <Text style={{ color: palette.muted }}>Looking for a way around construction…</Text>
+        <Text style={{ color: palette.muted }}>{t.detours.planning}</Text>
       </View>
     );
   }
@@ -34,7 +36,7 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOp
     return (
       <View style={styles.box}>
         <Pressable accessibilityRole="button" onPress={onRetry}>
-          <Text style={{ color: palette.status.current }}>Couldn’t look for a way around construction: {detours.error} — tap to retry</Text>
+          <Text style={{ color: palette.status.current }}>{t.detours.failed(detours.error)}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="link"
@@ -44,9 +46,9 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOp
           style={[styles.google, { borderColor: palette.border, opacity: onOpenInGoogleMaps ? 1 : 0.55 }]}
         >
           <MaterialIcons name="open-in-new" size={17} color={onOpenInGoogleMaps ? palette.accent : palette.muted} />
-          <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>Open in Google Maps</Text>
+          <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>{t.detours.openInGoogleMaps}</Text>
         </Pressable>
-        {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>Google Maps cannot preserve more than three saved stops on mobile.</Text>}
+        {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
       </View>
     );
   }
@@ -66,7 +68,7 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOp
         </View>
       )}
       {plan.options.length > 1 && (
-        <View accessibilityRole="radiogroup" accessibilityLabel="Ways" style={styles.ways}>
+        <View accessibilityRole="radiogroup" accessibilityLabel={t.detours.ways} style={styles.ways}>
           {plan.options.map((option, index) => (
             <Pressable
               key={index}
@@ -89,11 +91,11 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOp
         style={[styles.google, { borderColor: palette.border, opacity: onOpenInGoogleMaps ? 1 : 0.55 }]}
       >
         <MaterialIcons name="open-in-new" size={17} color={onOpenInGoogleMaps ? palette.accent : palette.muted} />
-        <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>Open in Google Maps</Text>
+        <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>{t.detours.openInGoogleMaps}</Text>
       </Pressable>
-      {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>Google Maps cannot preserve more than three saved stops on mobile.</Text>}
+      {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
       {/* the ways come from OpenStreetMap's data, which asks for this next to anything made from it */}
-      <Text style={[styles.attribution, { color: palette.muted }]}>Ways: FOSSGIS Valhalla · © OpenStreetMap contributors</Text>
+      <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.credit}</Text>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { strings, useStrings } from '../i18n';
 import { PALETTES, type MapTheme } from '../theme';
 import WeatherSymbol from './WeatherSymbol';
 import { CITY, clockTime, dayName, degrees, describe, fetchWeather, outlook, type Day, type Hour, type Weather } from './weather';
@@ -55,10 +56,9 @@ export function WeatherButton({ weather, failed, open, theme, onPress }: {
   onPress: () => void;
 }) {
   const palette = PALETTES[theme];
-  const label = weather
-    ? `Weather in ${CITY}: ${describe(weather.code, weather.day)}, ${degrees(weather.temperature)}`
-    : failed ? 'Weather unavailable' : 'Loading the weather';
-  const hint = weather ? (open ? 'Hides the forecast' : 'Shows the forecast') : failed ? 'Tries again' : undefined;
+  const t = useStrings().weather;
+  const label = weather ? t.button(CITY, describe(weather.code, weather.day), degrees(weather.temperature)) : failed ? t.unavailable : t.loading;
+  const hint = weather ? (open ? t.hide : t.show) : failed ? t.retry : undefined;
 
   return (
     <Pressable
@@ -87,6 +87,7 @@ export function WeatherButton({ weather, failed, open, theme, onPress }: {
 /** What goes in the forecast card: the weather now, what it does next said in words, then the hours and days ahead. */
 export function WeatherForecast({ weather, theme, onClose }: { weather: Weather; theme: MapTheme; onClose: () => void }) {
   const palette = PALETTES[theme];
+  const t = useStrings().weather;
   const today = weather.time.slice(0, 10);
   // every day's bar on one scale, so the warm days stand out
   const coldest = Math.min(...weather.days.map((d) => d.low));
@@ -99,9 +100,9 @@ export function WeatherForecast({ weather, theme, onClose }: { weather: Weather;
         <Text style={[styles.temperature, { color: palette.text }]}>{degrees(weather.temperature)}</Text>
         <View style={styles.nowText}>
           <Text style={[styles.title, { color: palette.text }]}>{describe(weather.code, weather.day)}</Text>
-          <Text style={{ color: palette.muted }}>{CITY} · feels like {degrees(weather.feelsLike)}</Text>
+          <Text style={{ color: palette.muted }}>{t.feelsLike(CITY, degrees(weather.feelsLike))}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close the forecast" hitSlop={8} onPress={onClose} style={styles.close}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.close} hitSlop={8} onPress={onClose} style={styles.close}>
           <MaterialIcons name="close" size={22} color={palette.muted} />
         </Pressable>
       </View>
@@ -119,7 +120,7 @@ export function WeatherForecast({ weather, theme, onClose }: { weather: Weather;
       </View>
 
       <Text style={[styles.credit, { color: palette.muted }]}>
-        Updated {clockTime(weather.time)} · Weather data by{' '}
+        {t.updated(clockTime(weather.time))}
         <Text accessibilityRole="link" onPress={() => { Linking.openURL('https://open-meteo.com/'); }} style={styles.link}>Open-Meteo.com</Text>
       </Text>
     </View>
@@ -127,7 +128,7 @@ export function WeatherForecast({ weather, theme, onClose }: { weather: Weather;
 }
 
 const chance = (rainChance: number | null) => (rainChance !== null && rainChance >= SHOWN_CHANCE ? `${rainChance}%` : '');
-const spoken = (rainChance: number | null) => (chance(rainChance) ? `, ${rainChance}% chance of rain` : '');
+const spoken = (rainChance: number | null) => (rainChance !== null && chance(rainChance) ? strings().weather.rainChance(rainChance) : '');
 
 function HourCell({ hour, theme }: { hour: Hour; theme: MapTheme }) {
   const palette = PALETTES[theme];
@@ -144,10 +145,11 @@ function HourCell({ hour, theme }: { hour: Hour; theme: MapTheme }) {
 
 function DayRow({ day, name, theme, coldest, warmest }: { day: Day; name: string; theme: MapTheme; coldest: number; warmest: number }) {
   const palette = PALETTES[theme];
+  const t = useStrings().weather;
   return (
     <View
       accessible
-      accessibilityLabel={`${name}: ${describe(day.code, true)}, ${degrees(day.low)} to ${degrees(day.high)}${spoken(day.rainChance)}`}
+      accessibilityLabel={`${name}: ${describe(day.code, true)}, ${t.range(degrees(day.low), degrees(day.high))}${spoken(day.rainChance)}`}
       style={styles.day}
     >
       <Text style={[styles.dayName, { color: palette.text }]}>{name}</Text>
