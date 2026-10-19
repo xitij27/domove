@@ -24,7 +24,7 @@ The features are grouped by who uses them. The roles run across the header. Each
   - S-Bahn and regional trains as a dark line with light dashes, the usual map sign for railways
   - buses per street, wider where more lines share it, so the main bus corridors stand out; hover a street for its lines
 
-  A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. S-Bahn and regional trains and bike share start switched off.
+  A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. S-Bahn and regional trains, bike share and P+R start switched off.
 - **To do → Transit.** A "Transit help" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
 
