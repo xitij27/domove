@@ -1,0 +1,14 @@
+-- The monthly places sync gets 10 minutes instead of the platform's 2
+-- (docs/dortmund-data-check.md). Paste after 20261017120000_site_ratings.sql.
+--
+-- Supabase ends every statement after 2 minutes (statement_timeout in
+-- platform-defaults.conf), cron jobs included. private.sync_places() is one
+-- statement and waits up to 3 minutes for each download, and a busy Overpass
+-- can keep a request queued that long. The timeout then cancels the whole
+-- sync: its "when others" handlers don't catch a cancel, so the city data it
+-- had already loaded is rolled back as well.
+--
+-- In a command with several statements, Postgres times each one separately,
+-- so the SET gives the sync itself the 10 minutes. Scheduling an existing name
+-- replaces it.
+select cron.schedule('sync-places', '30 3 1 * *', $$set statement_timeout = '10min'; select private.sync_places()$$);

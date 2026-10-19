@@ -230,7 +230,7 @@ All of it lives in Postgres, as #12 decided for the construction-site logic, so 
 | `classify_closures(title)`, `is_daytime_only(title)` | what a site closes, read from its title with the dashboard's patterns |
 | `rating_weights` | every number in section 1, radii and hours included, each with a description. Change a value with an `update`; no release needed |
 | `places`, `roads`, `school_free_days` | schools, kindergartens, care homes, hospitals, fire stations and Stadtbahn stops (city); crossings and bus stops (OSM); main and through roads (street register); school and public holidays (OpenHolidays) |
-| `private.sync_places()` | loads all of the above; pg_cron runs it at 03:30 UTC on the 1st of each month. Each source replaces its rows only when it returned some, so an outage keeps the last good data |
+| `private.sync_places()` | loads all of the above; pg_cron runs it at 03:30 UTC on the 1st of each month, with 10 minutes instead of Supabase's 2 ([`20261019150000_sync_places_timeout.sql`](../backend/supabase/migrations/20261019150000_sync_places_timeout.sql)). Each source replaces its rows only when it returned some, so an outage keeps the last good data |
 | `site_context` | one row per site: closures, road class and name, the nearest school, primary school, kindergarten, care home, hospital, fire station, bus and Stadtbahn stop with their distances, the crossings and school-route crossings, other serious works close by |
 | `private.refresh_site_context()` | fills `site_context`; pg_cron runs it at :02, after the hourly site sync |
 | `site_ratings(mode, at, site_ids)` | the rating, band, impact, whether the site runs then, the two parts, and `reasons`: every factor with its points and details, and why it doesn't count at that time when it doesn't |
@@ -239,7 +239,7 @@ All of it lives in Postgres, as #12 decided for the construction-site logic, so 
 
 Everything in the table can be read with the publishable key, so anyone can check a score against its inputs. Only the jobs write.
 
-To set it up on a database, paste the migration into the SQL editor, then run `select private.sync_places();` and `select private.refresh_site_context();` once, or wait for the jobs. The sync takes about a minute.
+To set it up on a database, paste the migration and `20261019150000_sync_places_timeout.sql` into the SQL editor, then run `set statement_timeout = '10min'; select private.sync_places();` and `select private.refresh_site_context();` once, or wait for the jobs. The sync usually takes about a minute, but Overpass can keep it waiting longer, and Supabase stops a statement after 2 minutes, rolling back everything the sync loaded.
 
 ## 4. Being transparent about the scores
 

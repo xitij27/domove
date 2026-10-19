@@ -16,7 +16,7 @@ Research and task list for a second city · checked 19 Oct 2026
    Done when: running it returns about 30 rows, each with a `geom`, and `pg_cron` lists the job.
 3. [ ] Add the Hessen roadworks feeds (current and planned) to the same function. Keep points inside the Darmstadt box, merge rows with the same `name` into one site, read `dd.mm.yyyy` dates, and use id `hessen:<name>`. `sperrungsart = 'Vollsperrung'` means a full closure.
    Done when: the A67 and B42 works appear, the planned B26 work appears as `planned`, and a second run adds no duplicates.
-4. [ ] Load Darmstadt places from OpenStreetMap and its school holidays from OpenHolidays with `DE-HE`. Make the Overpass area and the holidays region in `private.sync_places()` depend on the city, and send a real `User-Agent` header. File: `20261017120000_site_ratings.sql` logic, in a new migration.
+4. [ ] Load Darmstadt places from OpenStreetMap and its school holidays from OpenHolidays with `DE-HE`. Make the Overpass area and the holidays region in `private.sync_places()` depend on the city. File: `20261017120000_site_ratings.sql` logic, in a new migration.
    Done when: `select private.sync_places()` reports roughly the counts in Notes for Darmstadt, and Dortmund's counts are unchanged.
 5. [ ] Classify Darmstadt road importance from OSM `highway` (primary/secondary: main road, tertiary: through road) in place of `fb62-strassenabschnitte`. Files: `store_roads` and `private.sync_places()`.
    Done when: a Darmstadt site on the Rheinstraße or the Heinrichstraße rates as on a main road.
@@ -79,4 +79,4 @@ Darmstadt box used for filtering: longitude 8.56–8.76, latitude 49.80–49.96.
 
 ### Overpass
 
-On 19 Oct, overpass-api.de rejected curl's default `User-Agent` and ones starting with `PostgreSQL`, and accepted a descriptive one. Dortmund has the same problem; see [dortmund-data-check.md](dortmund-data-check.md).
+overpass-api.de refuses requests with no `User-Agent`, curl's default or a browser's (406). `private.fetch_json()` already sends a descriptive one. From 14:20 UTC on 19 Oct the server was full and answered 502 whatever the User-Agent, and its mirrors failed too; see [dortmund-data-check.md](dortmund-data-check.md).
