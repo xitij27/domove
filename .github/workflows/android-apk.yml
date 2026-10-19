@@ -54,7 +54,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: construction-site-radar-arm64-apk
+          name: domove-arm64-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -67,7 +67,7 @@ jobs:
           last=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/||' | sort -V | tail -1)
           IFS=. read -r major minor patch <<< "${last:-v0.0.0}"
           tag="${major}.${minor}.$((patch + 1))"
-          apk="construction-site-radar-${tag}-arm64.apk"
+          apk="domove-${tag}-arm64.apk"
           cp app-release.apk "$apk"
-          gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Construction Site Radar $tag" \
+          gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Do.Move $tag" \
             --notes "64-bit Android only. Signed with the standard debug key, for sideloading only." --generate-notes
