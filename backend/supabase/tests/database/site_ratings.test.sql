@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(60);
+select plan(61);
 
 -- A rectangular site area.
 create function pg_temp.box(w double precision, s double precision, e double precision, n double precision)
@@ -228,6 +228,11 @@ select is(public.route_departure(null, '{}', null, '2026-10-28 12:00+01'), '2026
 update public.rating_weights set value = 0.5 where key = 'road_other';
 select results_eq($$select rating, score from pg_temp.rate('quiet', 'car', '2026-11-02 08:00+01')$$,
   $$values (4, 4.0)$$, 'changing a weight changes the ratings without a release');
+
+-- The jobs
+select is((select command from cron.job where jobname = 'sync-places'),
+  $$set statement_timeout = '10min'; select private.sync_places()$$,
+  'the monthly sync runs with more than the platform''s 2-minute statement timeout');
 
 select * from finish();
 rollback;
