@@ -2,12 +2,12 @@
 // Every weight and radius comes from the planner's settings (settings.ts), documented in docs/planner-dashboard.md.
 import { PERIODS } from '../data/sources';
 import type { PeriodKey, Poi, ProgrammeProject } from '../data/sources';
-import { KIND_LABEL } from './closures';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
 import { overlapDays } from './days';
 import { pointShapeDist, toXY } from './geo';
 import { DEFAULT_SETTINGS } from './settings';
 import type { Settings } from './settings';
-import { ROAD_LABEL } from './sites';
 import type { Neighbour, Site } from './sites';
 
 /** A priority's time factor is days left over this many: a month of works counts 1. */
@@ -270,8 +270,8 @@ export type Priority = {
   factors: { time: number; overlap: number; emergency: number; rail: number };
 };
 
-/** Running works ranked by how much finishing them sooner would help. */
-export function priorities(sites: Site[], neighbours: Map<string, Neighbour[]>, day: number, cfg: Settings = DEFAULT_SETTINGS): Priority[] {
+/** Running works ranked by how much finishing them sooner would help, with the reasons in `t`'s language. */
+export function priorities(sites: Site[], neighbours: Map<string, Neighbour[]>, day: number, cfg: Settings = DEFAULT_SETTINGS, t: Strings = strings()): Priority[] {
   const earlier = cfg['priority.sooner'];
   const byId = new Map(sites.map((s) => [s.id, s]));
   return sites
@@ -300,14 +300,15 @@ export function priorities(sites: Site[], neighbours: Map<string, Neighbour[]>, 
         rail: noRail ? cfg['priority.noRail'] : 1,
       };
       const score = s.severity * factors.time * factors.overlap * factors.emergency * factors.rail;
+      const p = t.priorities;
       const reasons = [
-        `${KIND_LABEL[s.kind]} on a ${ROAD_LABEL[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`,
-        overlapping ? `${overlapping} overlapping ${overlapping === 1 ? 'site' : 'sites'} within ${cfg['clash.radius'] / 1000} km` : '',
-        nearFire ? `${Math.round(s.fire.m)} m from ${s.fire.name}` : '',
-        nearHospital ? `${Math.round(s.hospital.m)} m from ${s.hospital.name}` : '',
-        noRail ? `No Stadtbahn within ${cfg['reach.rail']} m` : '',
-        s.openEnded ? 'No end date in the feed' : '',
-        s.start < day - 365 ? `Running since ${new Date(s.start * 86_400_000).getUTCFullYear()}` : '',
+        p.onRoad(t.kinds[s.kind], t.roads[s.road], s.roadName),
+        overlapping ? p.overlapping(overlapping, cfg['clash.radius'] / 1000) : '',
+        nearFire ? p.from(Math.round(s.fire.m), s.fire.name) : '',
+        nearHospital ? p.from(Math.round(s.hospital.m), s.hospital.name) : '',
+        noRail ? p.noRail(cfg['reach.rail']) : '',
+        s.openEnded ? p.noEnd : '',
+        s.start < day - 365 ? p.since(new Date(s.start * 86_400_000).getUTCFullYear()) : '',
       ].filter(Boolean);
       return { site: s, score, remaining, overlapping, overlapDays: sharedDays, freedOverlapDays, reasons, factors };
     })

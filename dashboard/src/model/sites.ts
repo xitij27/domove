@@ -11,7 +11,6 @@ import { bandOf, DEFAULT_SETTINGS, SETTINGS } from './settings';
 import type { Band, Settings } from './settings';
 
 export type RoadClass = 'main' | 'secondary' | 'local';
-export const ROAD_LABEL: Record<RoadClass, string> = { main: 'main road', secondary: 'through road', local: 'local street' };
 export const MAIN_CLASSES = new Set(['Hauptverkehrstraße', 'Verbindungsstrasse zu BAB,B,L,K']);
 
 /** Neighbours are found once out to the furthest clash distance the settings allow; the views keep those within the chosen one. */

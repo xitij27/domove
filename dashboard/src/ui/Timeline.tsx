@@ -1,6 +1,7 @@
 // Citywide disruption load per day: the scenario as a single-series area, the published plans as a grey line.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
+import { useStrings } from '../i18n';
 import type { LoadPoint } from '../model/analysis';
 import { formatDay, formatMonth, formatShort, monthStart, nextMonth } from '../model/days';
 import { one } from './format';
@@ -27,6 +28,8 @@ function niceMax(v: number): number {
 }
 
 export function Timeline({ load, published, holidays, today, date, horizon, onDate, outlookPeriod }: Props) {
+  const words = useStrings();
+  const t = words.timeline;
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
@@ -88,15 +91,15 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
   const tipLeft = hover === null ? 0 : Math.min(Math.max(x(hover) - 90, 0), width - 190);
 
   return (
-    <section className="timeline" aria-label="Disruption over time">
+    <section className="timeline" aria-label={t.label}>
       <div className="timeline-head">
-        <h2>Disruption points per day</h2>
-        <span className="hint">1 point = a full closure on a main road · drag to pick a day</span>
+        <h2>{t.title}</h2>
+        <span className="hint">{t.hint}</span>
         <span className="keys">
-          {outlookPeriod && <span className="key"><i className="key-band outlook-key" />Outlook window</span>}
-          <span className="key"><i className="key-line load" />{published ? 'With your changes' : 'Points'}</span>
-          {published && <span className="key"><i className="key-line published" />Published plans</span>}
-          <span className="key"><i className="key-band" />School holidays</span>
+          {outlookPeriod && <span className="key"><i className="key-band outlook-key" />{t.outlookWindow}</span>}
+          <span className="key"><i className="key-line load" />{published ? t.withChanges : t.points}</span>
+          {published && <span className="key"><i className="key-line published" />{t.published}</span>}
+          <span className="key"><i className="key-band" />{t.holidays}</span>
         </span>
       </div>
       <div className="timeline-plot" ref={wrap}>
@@ -106,11 +109,11 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
           height={H}
           role="slider"
           tabIndex={0}
-          aria-label="Day shown on the map"
+          aria-label={t.slider}
           aria-valuemin={from}
           aria-valuemax={to}
           aria-valuenow={date}
-          aria-valuetext={`${formatDay(date)}, ${one(at(date).total)} disruption points`}
+          aria-valuetext={t.valueText(formatDay(date), one(at(date).total))}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={() => (dragging.current = false)}
@@ -146,7 +149,7 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
           {horizon !== null && horizon >= from && horizon <= to && (
             <g>
               <line className="horizon" x1={x(horizon)} x2={x(horizon)} y1={PAD.top - 4} y2={y(0)} />
-              <text className="marker-label" x={x(horizon) + 4} y={PAD.top - 6}>Published plans end {formatShort(horizon)}</text>
+              <text className="marker-label" x={x(horizon) + 4} y={PAD.top - 6}>{t.plansEnd(formatShort(horizon))}</text>
             </g>
           )}
           <path className="load-area" d={`${path(load)}L${x(to)},${y(0)}L${x(from)},${y(0)}Z`} />
@@ -159,21 +162,21 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
         </svg>
         {hovered && (
           <div className="tooltip" style={{ left: tipLeft }} role="presentation">
-            <div className="tooltip-title">{formatDay(hovered.day)}{hovered.day === today ? ' · today' : ''}</div>
-            <div className="tooltip-row"><i className="key-line load" /><strong>{one(hovered.total)}</strong> points{published ? ' with your changes' : ''}</div>
-            {hoveredPublished && <div className="tooltip-row"><i className="key-line published" /><strong>{one(hoveredPublished.total)}</strong> points published</div>}
-            <div className="tooltip-sub">High {one(hovered.high)} · medium {one(hovered.medium)} · low {one(hovered.low)}</div>
+            <div className="tooltip-title">{formatDay(hovered.day)}{hovered.day === today ? words.app.todaySuffix : ''}</div>
+            <div className="tooltip-row"><i className="key-line load" />{t.pointsLine(<strong>{one(hovered.total)}</strong>, !!published)}</div>
+            {hoveredPublished && <div className="tooltip-row"><i className="key-line published" />{t.publishedLine(<strong>{one(hoveredPublished.total)}</strong>)}</div>}
+            <div className="tooltip-sub">{t.bands(one(hovered.high), one(hovered.medium), one(hovered.low))}</div>
             {hoveredHoliday && <div className="tooltip-sub">{hoveredHoliday.name}</div>}
           </div>
         )}
       </div>
       <details className="table-view">
-        <summary>Monthly table</summary>
+        <summary>{t.table}</summary>
         <table>
-          <thead><tr><th>Month</th><th>Average points</th><th>Busiest day</th></tr></thead>
+          <thead><tr><th>{t.month}</th><th>{t.average}</th><th>{t.busiest}</th></tr></thead>
           <tbody>
             {monthly.map((r) => (
-              <tr key={r.m}><td>{formatMonth(r.m)} {new Date(r.m * 86_400_000).getUTCFullYear()}</td><td>{one(r.average)}</td><td>{one(r.peak.total)} on {formatShort(r.peak.day)}</td></tr>
+              <tr key={r.m}><td>{formatMonth(r.m)} {new Date(r.m * 86_400_000).getUTCFullYear()}</td><td>{one(r.average)}</td><td>{t.peak(one(r.peak.total), formatShort(r.peak.day))}</td></tr>
             ))}
           </tbody>
         </table>

@@ -1,3 +1,4 @@
+import { useStrings } from '../i18n';
 import { Derived } from './Derived';
 import type { Working } from './Derived';
 
@@ -5,8 +6,9 @@ export type Stat = { value: string; label: string; how: Working; note?: { text: 
 
 /** The day's key figures as one line in the header; hover a figure for how it's counted. */
 export function Summary({ items }: { items: Stat[] }) {
+  const t = useStrings();
   return (
-    <ul className="summary" aria-label="Key figures for the chosen day">
+    <ul className="summary" aria-label={t.app.keyFigures}>
       {items.map((s) => (
         <li key={s.label}>
           <Derived how={s.how}>

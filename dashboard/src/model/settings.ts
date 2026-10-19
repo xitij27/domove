@@ -3,97 +3,105 @@
 import type { ClosureKind } from './closures';
 import type { RoadClass } from './sites';
 
+export type SettingGroup = 'severity' | 'clashes' | 'dates' | 'access' | 'priorities' | 'transit' | 'programme' | 'capacity' | 'impact';
+export type SettingUnit =
+  | 'lanes' | 'outOf100' | 'm' | 'km' | 'days' | 'sites' | 'projects' | 'points'
+  | 'times' | 'timesSeverity' | 'timesOverlap' | 'timesExtra' | 'timesMiddle' | 'timesAll' | 'timesRoad';
+
+/**
+ * A weight or threshold and the limits that keep its formula meaningful. Its name, its unit and, where a formula sets
+ * the limits, why they are there, are in the i18n strings under its key.
+ */
 export type Setting = {
-  group: string;
-  label: string;
+  group: SettingGroup;
   value: number;
   min: number;
   max: number;
   step: number;
-  unit?: string;
-  /** Why the range stops where it does, when a formula depends on it. */
-  why?: string;
+  unit?: SettingUnit;
 };
 
 // at most 1: no restriction or road weighs more than a full closure on a main road, which is 1 point
-const weight = (label: string, value: number): Setting => ({ group: 'Severity', label, value, min: 0, max: 1, step: 0.05 });
-const lanes = (group: string, label: string, value: number, max: number): Setting => ({ group, label, value, min: 1, max, step: 1, unit: 'lanes' });
-const share = (label: string, value: number): Setting => ({ group: 'Impact score', label, value, min: 0, max: 100, step: 5, unit: 'of 100', why: 'the four shares are scaled to add up to 100' });
-const metres = (group: string, label: string, value: number, min: number, max: number, why?: string): Setting => ({ group, label, value, min, max, step: 10, unit: 'm', why });
+const weight = (value: number): Setting => ({ group: 'severity', value, min: 0, max: 1, step: 0.05 });
+const lanes = (value: number, max: number): Setting => ({ group: 'capacity', value, min: 1, max, step: 1, unit: 'lanes' });
+// the four shares are scaled to add up to 100
+const share = (value: number): Setting => ({ group: 'impact', value, min: 0, max: 100, step: 5, unit: 'outOf100' });
+const metres = (group: SettingGroup, value: number, min: number, max: number): Setting => ({ group, value, min, max, step: 10, unit: 'm' });
 
 const TABLE = {
-  'weight.full': { ...weight('Full closure', 1), min: 1, max: 1, why: 'fixed: it defines 1 disruption point' },
-  'weight.carriageway': weight('One carriageway closed', 0.7),
-  'weight.one_way': weight('One-way rule', 0.6),
-  'weight.half': weight('Half closure', 0.5),
-  'weight.narrowing': weight('Lane narrowing', 0.3),
-  'weight.signal': weight('Temporary lights', 0.3),
-  'weight.moving': weight('Moving works', 0.25),
-  'weight.sidewalk': weight('Sidewalk closed', 0.2),
-  'weight.unknown': weight('No restriction named', 0.1),
-  'weight.parking': weight('Parking lane closed', 0.05),
-  'road.main': { ...weight('Main road', 1), min: 1, max: 1, why: 'fixed: it defines 1 disruption point' },
-  'road.secondary': weight('Through road', 0.6),
-  'road.local': weight('Local street', 0.3),
-  'band.high': { group: 'Severity', label: 'High disruption from', value: 0.6, min: 0.5, max: 1, step: 0.05, why: 'stays above where medium can start' },
-  'band.medium': { group: 'Severity', label: 'Medium disruption from', value: 0.3, min: 0.05, max: 0.45, step: 0.05, why: 'stays below where high can start' },
+  // fixed: they define 1 disruption point
+  'weight.full': { ...weight(1), min: 1, max: 1 },
+  'weight.carriageway': weight(0.7),
+  'weight.one_way': weight(0.6),
+  'weight.half': weight(0.5),
+  'weight.narrowing': weight(0.3),
+  'weight.signal': weight(0.3),
+  'weight.moving': weight(0.25),
+  'weight.sidewalk': weight(0.2),
+  'weight.unknown': weight(0.1),
+  'weight.parking': weight(0.05),
+  'road.main': { ...weight(1), min: 1, max: 1 },
+  'road.secondary': weight(0.6),
+  'road.local': weight(0.3),
+  'band.high': { group: 'severity', value: 0.6, min: 0.5, max: 1, step: 0.05 },
+  'band.medium': { group: 'severity', value: 0.3, min: 0.05, max: 0.45, step: 0.05 },
 
-  'clash.radius': metres('Clashes', 'Works clash within', 1000, 500, 2000, 'stays well above "same stretch", so the two never mix'),
-  'clash.minSeverity': { group: 'Clashes', label: 'Works clash from severity', value: 0.15, min: 0, max: 0.5, step: 0.05 },
+  'clash.radius': metres('clashes', 1000, 500, 2000),
+  'clash.minSeverity': { group: 'clashes', value: 0.15, min: 0, max: 0.5, step: 0.05 },
   // Clash groups link only serious works close together: with every 1 km link the city centre chains into one group of 40+
   // sites that nobody can act on.
-  'cluster.radius': metres('Clashes', 'Clash groups link works within', 400, 100, 500, 'at most the clash distance'),
-  'cluster.minSeverity': { group: 'Clashes', label: 'Clash groups link works from severity', value: 0.3, min: 0.1, max: 1, step: 0.05 },
-  'together.radius': metres('Clashes', 'Same stretch within', 50, 10, 150, 'stays well below the clash distance'),
-  'together.maxGap': { group: 'Clashes', label: 'Do together when at most this far apart', value: 180, min: 7, max: 365, step: 1, unit: 'days' },
+  'cluster.radius': metres('clashes', 400, 100, 500),
+  'cluster.minSeverity': { group: 'clashes', value: 0.3, min: 0.1, max: 1, step: 0.05 },
+  'together.radius': metres('clashes', 50, 10, 150),
+  'together.maxGap': { group: 'clashes', value: 180, min: 7, max: 365, step: 1, unit: 'days' },
 
-  'window.shiftCost': { group: 'Best dates', label: 'Cost per day moved', value: 0.03, min: 0, max: 0.2, step: 0.01, unit: '× severity' },
-  'window.holidayBonus': { group: 'Best dates', label: 'Credit per school-holiday day', value: 0.1, min: 0, max: 0.5, step: 0.01, unit: '× severity' },
-  'window.togetherCredit': { group: 'Best dates', label: 'Credit for days shared on the same stretch', value: 0.5, min: 0, max: 1, step: 0.05, unit: '× overlap', why: 'at most the overlap itself' },
+  'window.shiftCost': { group: 'dates', value: 0.03, min: 0, max: 0.2, step: 0.01, unit: 'timesSeverity' },
+  'window.holidayBonus': { group: 'dates', value: 0.1, min: 0, max: 0.5, step: 0.01, unit: 'timesSeverity' },
+  'window.togetherCredit': { group: 'dates', value: 0.5, min: 0, max: 1, step: 0.05, unit: 'timesOverlap' },
 
-  'reach.rail': metres('Access', 'Stadtbahn in walking distance', 600, 200, 1500),
-  'reach.fire': metres('Access', 'Near a fire and rescue station', 500, 100, 2000),
-  'reach.hospital': metres('Access', 'Near a hospital', 300, 100, 2000),
+  'reach.rail': metres('access', 600, 200, 1500),
+  'reach.fire': metres('access', 500, 100, 2000),
+  'reach.hospital': metres('access', 300, 100, 2000),
 
-  'priority.horizon': { group: 'Priorities', label: 'Days left count up to', value: 180, min: 30, max: 365, step: 5, unit: 'days' },
-  'priority.perOverlap': { group: 'Priorities', label: 'Per overlapping site', value: 0.5, min: 0, max: 2, step: 0.1, unit: '× extra' },
-  'priority.maxOverlaps': { group: 'Priorities', label: 'Overlapping sites count up to', value: 6, min: 1, max: 20, step: 1, unit: 'sites' },
-  'priority.emergency': { group: 'Priorities', label: 'Near a fire station or hospital', value: 1.5, min: 1, max: 3, step: 0.1, unit: '×', why: 'from 1, so being near never lowers a rank' },
-  'priority.noRail': { group: 'Priorities', label: 'No Stadtbahn in walking distance', value: 1.5, min: 1, max: 3, step: 0.1, unit: '×', why: 'from 1, so having no rail never lowers a rank' },
-  'priority.sooner': { group: 'Priorities', label: 'Overlap saved by finishing sooner by', value: 14, min: 1, max: 60, step: 1, unit: 'days' },
+  'priority.horizon': { group: 'priorities', value: 180, min: 30, max: 365, step: 5, unit: 'days' },
+  'priority.perOverlap': { group: 'priorities', value: 0.5, min: 0, max: 2, step: 0.1, unit: 'timesExtra' },
+  'priority.maxOverlaps': { group: 'priorities', value: 6, min: 1, max: 20, step: 1, unit: 'sites' },
+  'priority.emergency': { group: 'priorities', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'times' },
+  'priority.noRail': { group: 'priorities', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'times' },
+  'priority.sooner': { group: 'priorities', value: 14, min: 1, max: 60, step: 1, unit: 'days' },
 
-  'transit.days': { group: 'Transit', label: 'Look ahead', value: 30, min: 7, max: 90, step: 1, unit: 'days' },
-  'transit.mainRoadShare': { group: 'Transit', label: 'Main-road closures count', value: 0.5, min: 0, max: 1, step: 0.05, unit: '×' },
-  'stop.minSeverity': { group: 'Transit', label: 'Stop under pressure: closures from severity', value: 0.5, min: 0.1, max: 1, step: 0.05 },
-  'stop.radius': metres('Transit', 'Stop under pressure: closures within', 500, 100, 1500),
+  'transit.days': { group: 'transit', value: 30, min: 7, max: 90, step: 1, unit: 'days' },
+  'transit.mainRoadShare': { group: 'transit', value: 0.5, min: 0, max: 1, step: 0.05, unit: 'times' },
+  'stop.minSeverity': { group: 'transit', value: 0.5, min: 0.1, max: 1, step: 0.05 },
+  'stop.radius': metres('transit', 500, 100, 1500),
 
-  'overload.min': { group: 'Works programme', label: 'Overloaded from', value: 3, min: 1, max: 10, step: 1, unit: 'projects' },
-  'overload.factor': { group: 'Works programme', label: 'and from', value: 1.5, min: 1, max: 3, step: 0.1, unit: '× the middle district', why: 'from 1, so the middle district itself is never overloaded' },
+  'overload.min': { group: 'programme', value: 3, min: 1, max: 10, step: 1, unit: 'projects' },
+  'overload.factor': { group: 'programme', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'timesMiddle' },
 
-  'capacity.through': { group: 'Road capacity', label: 'Through traffic', value: 0.4, min: 0, max: 0.9, step: 0.05, unit: '× of all', why: 'below 1, so where people live always counts' },
-  'capacity.roadLanes.main': lanes('Road capacity', 'Lanes on a main road', 4, 8),
-  'capacity.roadLanes.other': lanes('Road capacity', 'Lanes on another through street', 2, 6),
-  'capacity.siteKm': { group: 'Road capacity', label: 'A work zone is this long', value: 0.3, min: 0.05, max: 2, step: 0.05, unit: 'km' },
-  'capacity.siteLanes.main': lanes('Road capacity', 'Lanes works take on a main road', 4, 8),
-  'capacity.siteLanes.secondary': lanes('Road capacity', 'Lanes works take on a through road', 2, 6),
-  'capacity.siteLanes.local': lanes('Road capacity', 'Lanes works take on a local street', 1, 4),
-  'capacity.maxLoss': { group: 'Road capacity', label: 'Works take at most', value: 0.9, min: 0.5, max: 0.95, step: 0.05, unit: '× of a district\'s road', why: 'below 1: a district with no road left would divide by zero' },
+  'capacity.through': { group: 'capacity', value: 0.4, min: 0, max: 0.9, step: 0.05, unit: 'timesAll' },
+  'capacity.roadLanes.main': lanes(4, 8),
+  'capacity.roadLanes.other': lanes(2, 6),
+  'capacity.siteKm': { group: 'capacity', value: 0.3, min: 0.05, max: 2, step: 0.05, unit: 'km' },
+  'capacity.siteLanes.main': lanes(4, 8),
+  'capacity.siteLanes.secondary': lanes(2, 6),
+  'capacity.siteLanes.local': lanes(1, 4),
+  'capacity.maxLoss': { group: 'capacity', value: 0.9, min: 0.5, max: 0.95, step: 0.05, unit: 'timesRoad' },
 
   // The Construction Impact Score: four shares scaled to add up to 100, and the steps each factor's 0–1 value moves at.
-  'impact.S': share('Share for the restriction', 35),
-  'impact.E': share('Share for schools, kindergartens and stops nearby', 30),
-  'impact.C': share('Share for works at the same time nearby', 20),
-  'impact.D': share('Share for how long the works run', 15),
-  'impact.radius': metres('Impact score', 'Works conflict within', 250, 100, 500),
-  'impact.near': metres('Impact score', 'A place counts fully within', 100, 50, 150, 'stays below the middle distance'),
-  'impact.mid': metres('Impact score', 'A place counts 0.75 within', 250, 160, 300, 'between the near and far distance'),
-  'impact.far': metres('Impact score', 'A place counts 0.4 within', 500, 310, 1000, 'stays above the middle distance'),
-  'impact.short': { group: 'Impact score', label: 'Works count 0.25 up to', value: 2, min: 1, max: 7, step: 1, unit: 'days', why: 'stays below the middle duration' },
-  'impact.medium': { group: 'Impact score', label: 'Works count 0.5 up to', value: 14, min: 8, max: 21, step: 1, unit: 'days', why: 'between the short and long duration' },
-  'impact.long': { group: 'Impact score', label: 'Works count 0.75 up to, and 1 beyond', value: 30, min: 22, max: 90, step: 1, unit: 'days', why: 'stays above the middle duration' },
-  'impact.band.medium': { group: 'Impact score', label: 'Medium review priority above', value: 30, min: 10, max: 45, step: 5, unit: 'points', why: 'stays below where high starts' },
-  'impact.band.high': { group: 'Impact score', label: 'High review priority above', value: 60, min: 50, max: 75, step: 5, unit: 'points', why: 'between medium and very high' },
-  'impact.band.veryHigh': { group: 'Impact score', label: 'Very high review priority above', value: 80, min: 80, max: 95, step: 5, unit: 'points', why: 'stays above where high starts' },
+  'impact.S': share(35),
+  'impact.E': share(30),
+  'impact.C': share(20),
+  'impact.D': share(15),
+  'impact.radius': metres('impact', 250, 100, 500),
+  'impact.near': metres('impact', 100, 50, 150),
+  'impact.mid': metres('impact', 250, 160, 300),
+  'impact.far': metres('impact', 500, 310, 1000),
+  'impact.short': { group: 'impact', value: 2, min: 1, max: 7, step: 1, unit: 'days' },
+  'impact.medium': { group: 'impact', value: 14, min: 8, max: 21, step: 1, unit: 'days' },
+  'impact.long': { group: 'impact', value: 30, min: 22, max: 90, step: 1, unit: 'days' },
+  'impact.band.medium': { group: 'impact', value: 30, min: 10, max: 45, step: 5, unit: 'points' },
+  'impact.band.high': { group: 'impact', value: 60, min: 50, max: 75, step: 5, unit: 'points' },
+  'impact.band.veryHigh': { group: 'impact', value: 80, min: 80, max: 95, step: 5, unit: 'points' },
 } satisfies Record<string, Setting> & Record<`weight.${ClosureKind}` | `road.${RoadClass}` | `capacity.siteLanes.${RoadClass}`, Setting>;
 
 export type SettingKey = keyof typeof TABLE;

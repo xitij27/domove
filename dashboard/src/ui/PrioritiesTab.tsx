@@ -1,8 +1,9 @@
+import { useStrings } from '../i18n';
 import { PER_DAYS } from '../model/analysis';
 import type { Priority } from '../model/analysis';
 import { formatDay } from '../model/days';
 import { Derived } from './Derived';
-import { metres, num, plural } from './format';
+import { metres, num } from './format';
 import { Info } from './Info';
 import { useSettings } from './useSettings';
 import { freedWorking, priorityWorking } from './working';
@@ -11,18 +12,15 @@ type Props = { priorities: Priority[]; date: number; onSelectSite: (id: string) 
 
 export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
   const cfg = useSettings();
+  const words = useStrings();
+  const t = words.priorities;
   return (
     <div className="tab-body">
       <section className="block">
-        <h3>Finish these first <span className="count">{priorities.length} running</span></h3>
+        <h3>{t.title} <span className="count">{t.running(priorities.length)}</span></h3>
         <Info>
-          Running works ranked by how much finishing them sooner would help on {formatDay(date)}: how disruptive they are, how
-          long they still run, what else overlaps, and whether people have another way to go. The top ten are numbered on the map; hover a rank for its score.
-          Score = severity × remaining days ÷ {PER_DAYS} (at most {cfg['priority.horizon']} days) × (1 + {num(cfg['priority.perOverlap'])} for each
-          overlapping site within {metres(cfg['clash.radius'])}, at most {cfg['priority.maxOverlaps']}) × {num(cfg['priority.emergency'])} within
-          {' '}{metres(cfg['reach.fire'])} of a fire and rescue station or {metres(cfg['reach.hospital'])} of a hospital × {num(cfg['priority.noRail'])} with
-          no Stadtbahn stop within {metres(cfg['reach.rail'])}. Severity = restriction weight × road weight, so a full closure on a main road is 1.
-          All of these are in Settings.
+          {t.info(formatDay(date), PER_DAYS, cfg['priority.horizon'], num(cfg['priority.perOverlap']), metres(cfg['clash.radius']), cfg['priority.maxOverlaps'],
+            num(cfg['priority.emergency']), metres(cfg['reach.fire']), metres(cfg['reach.hospital']), num(cfg['priority.noRail']), metres(cfg['reach.rail']))}
         </Info>
         <ol className="ranked">
           {priorities.map((p, i) => (
@@ -31,10 +29,12 @@ export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
               <div>
                 <button className="link-button" onClick={() => onSelectSite(p.site.id)}>{p.site.title}</button>
                 <div className="muted">
-                  {p.site.district} · {p.site.openEnded ? 'no end date' : `until ${formatDay(p.site.end)}`}{p.site.owner ? ` · ${p.site.owner}` : ''}
+                  {p.site.district} · {p.site.openEnded ? t.noEndDate : t.until(formatDay(p.site.end))}{p.site.owner ? ` · ${p.site.owner}` : ''}
                 </div>
                 <div className="chips">{p.reasons.map((r) => <span className="chip" key={r}>{r}</span>)}</div>
-                {p.freedOverlapDays > 0 && <div className="muted small">{cfg['priority.sooner']} days sooner: <Derived how={freedWorking(p, cfg)}>{plural(p.freedOverlapDays, 'day')}</Derived> less overlap with works nearby</div>}
+                {p.freedOverlapDays > 0 && (
+                  <div className="muted small">{t.sooner(cfg['priority.sooner'], <Derived how={freedWorking(p, cfg)}>{words.n.day(p.freedOverlapDays)}</Derived>)}</div>
+                )}
               </div>
             </li>
           ))}

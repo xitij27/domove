@@ -28,11 +28,6 @@ export const IMPACTS: Record<ClosureKind, Record<Mode, Impact>> = {
   unknown: { car: none, bike: none, walk: none },
 };
 
-export const KIND_LABEL: Record<ClosureKind, string> = {
-  full: 'Full closure', carriageway: 'Carriageway closed', half: 'Half closure', narrowing: 'Lane narrowing',
-  signal: 'Temporary lights', one_way: 'One-way rule', sidewalk: 'Sidewalk closed', moving: 'Moving works',
-  parking: 'Parking lane closed', unknown: 'No restriction named',
-};
 
 // Matched on the lower-cased title with ß written as ss. A site keeps every kind its title names.
 const PATTERNS: [ClosureKind, RegExp][] = [

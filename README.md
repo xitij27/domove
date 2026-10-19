@@ -35,6 +35,7 @@ This project turns the city's list into answers to those questions.
 - **Weather.** Dortmund's weather now, with the next 12 hours and 5 days, to help plan the trip.
 - **A quiz about the city**, for a minute's distraction while you wait.
 - **A guided demo.** The play button walks through all of the above, step by step.
+- **English or German.** The app starts in the phone's language; the **EN | DE** switch at the end of the chips on the map changes it, and the app remembers the choice.
 
 ## What the planner dashboard does
 
@@ -45,7 +46,7 @@ The dashboard answers the city's question rather than one person's: across Dortm
 - **Transit:** which districts lose roads without a tram or light-rail (Stadtbahn) stop in walking distance, so they need public-transport help.
 - **Routes:** how commuters, delivery traffic, emergency services, cyclists and pedestrians get around on a chosen day, and how far a fire station can reach with the day's closures.
 
-Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). It is in English or German: the **EN | DE** buttons next to the light/dark switch change it, and the browser remembers the choice. More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
 
 ## How it works, in plain words
 
@@ -117,6 +118,18 @@ Everything else it reads (city open data, school holidays, the FOSSGIS router an
 Checks: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`. `LIVE=1 npx vitest run src/live.test.ts` runs the whole analysis against today's real data.
 
 Deploy: a Vercel project (free Hobby plan) with **Root Directory** `dashboard` and the two `VITE_SUPABASE_*` variables; Vercel detects Vite. From the folder, `npx vercel@latest deploy --prod` uploads the local code.
+
+## Languages (English and German)
+
+Both apps keep every word they show in `src/i18n/`: `en.ts` is the source, and `de.ts` is typed as it, so a missing or misshapen German entry fails `tsc`. There is no i18n library; each `index.ts` is a small store.
+
+- **Starting language:** the one picked last (the app's `language.txt`, the dashboard's `localStorage`), else German when the phone or browser is set to German, else English.
+- **In components,** `const t = useStrings()`; the component renders again when the language changes. Code outside components (validation, notifications, the dashboard's model and CSV export) calls `strings()`. Dashboard memos that word things take `t` as an argument, so a switch works them out again.
+- **To change a text,** edit it in `en.ts` and `de.ts`. To add one, add the key to both. Sentences with a number or name in them are functions, so each language can put the parts in its own order and plural; on the dashboard, a sentence with a tooltip or bold name in it takes those as nodes and joins them with `rich()`.
+- **Dates and numbers** follow the language (en-GB or de-DE, with a decimal comma in German).
+- **The quiz** has its German questions in `mobile/src/quiz/questions.de.ts`, by question id; options keep the English order, since a choice's answer is its index.
+- **Not translated:** data from the city's feeds (site titles, owners, districts), place names, and developer-only setup errors.
+- **Tests** run in English whatever the machine's language; `src/i18n/i18n.test.ts` in each app checks German has every key.
 
 ## Backend (`backend/supabase/`)
 

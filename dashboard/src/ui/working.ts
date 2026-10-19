@@ -1,138 +1,169 @@
-// The working behind each figure the dashboard derives, from the numbers and the settings the model used for it.
+// The working behind each figure the dashboard derives, from the numbers and the settings the model used for it,
+// in the dashboard's language.
+import { decimal, strings, whole } from '../i18n';
 import { PER_DAYS, PER_RESIDENTS } from '../model/analysis';
 import type { DistrictGap, Priority, WindowOption } from '../model/analysis';
 import type { ImpactAssessment } from '../model/impact';
 import type { CapacityResult, DistrictLoad, Params } from '../model/capacity';
-import { KIND_LABEL } from '../model/closures';
 import { formatDay, formatShort } from '../model/days';
 import type { Settings } from '../model/settings';
-import { ROAD_LABEL } from '../model/sites';
 import type { Site } from '../model/sites';
 import type { Working } from './Derived';
-import { dayRange, metres, num, pct, plural, shortTitle, signed } from './format';
+import { dayRange, metres, num, pct, shortTitle, signed } from './format';
 
-const pct1 = (x: number) => `${(x * 100).toFixed(1)}%`;
-const whole = (x: number) => Math.round(x).toLocaleString('en-GB');
+const pct1 = (x: number) => `${decimal(x * 100, 1)}%`;
 const km = (cfg: Settings) => metres(cfg['clash.radius']);
 
 /** "1 × 0.6 = 0.6": restriction weight × road weight. */
 export const severityText = (s: Site, cfg: Settings): string => `${num(cfg[`weight.${s.kind}`])} × ${num(cfg[`road.${s.road}`])} = ${num(s.severity)}`;
 
-export const severityWorking = (s: Site, cfg: Settings): Working => [
-  ['Restriction', `${KIND_LABEL[s.kind]}: ${num(cfg[`weight.${s.kind}`])}${s.kinds.length > 1 ? `, the heaviest of ${s.kinds.length} named` : ''} (full closure = 1)`],
-  ['Road', `× ${num(cfg[`road.${s.road}`])} on a ${ROAD_LABEL[s.road]} (main road = 1)`],
-  ['Severity', `${num(s.severity)}: high from ${num(cfg['band.high'])}, medium from ${num(cfg['band.medium'])}`],
-];
+export const severityWorking = (s: Site, cfg: Settings): Working => {
+  const t = strings();
+  return [
+    [t.working.restriction, t.working.restrictionHow(t.kinds[s.kind], num(cfg[`weight.${s.kind}`]), s.kinds.length)],
+    [t.working.road, t.working.roadHow(num(cfg[`road.${s.road}`]), t.roads[s.road])],
+    [t.working.severity, t.working.severityHow(num(s.severity), num(cfg['band.high']), num(cfg['band.medium']))],
+  ];
+};
 
-const worksRow = (d: DistrictLoad, cfg: Settings): [string, string] =>
-  ['Works', `${plural(d.sites.length, 'site')} close ${num(d.lost, 1)} lane-km: severity × ${num(cfg['capacity.siteKm'])} km × ${cfg['capacity.siteLanes.main']}, ${cfg['capacity.siteLanes.secondary']} or ${cfg['capacity.siteLanes.local']} lanes by road`];
+const worksRow = (d: DistrictLoad, cfg: Settings): [string, string] => {
+  const w = strings().working;
+  return [w.works, w.worksHow(d.sites.length, num(d.lost, 1), num(cfg['capacity.siteKm']), cfg['capacity.siteLanes.main'], cfg['capacity.siteLanes.secondary'], cfg['capacity.siteLanes.local'])];
+};
 
 /** A district's road load: its share of the traffic over its share of the open road. */
 export function loadWorking(d: DistrictLoad, r: CapacityResult, p: Params, cfg: Settings): Working {
+  const w = strings().working;
   const residents = d.residents / r.totalResidents;
   const roads = d.capacity / r.totalCapacity;
   const open = (d.capacity - d.lost) / r.totalCapacity;
   const through = cfg['capacity.through'];
   const rows: Working = [
-    ['Residents', `${whole(d.residents)} of ${whole(r.totalResidents)}: ${pct1(residents)}`],
-    ['Main roads', `${whole(d.capacity)} of ${whole(r.totalCapacity)} lane-km: ${pct1(roads)}`],
-    ['Traffic share', `${pct(1 - through)} × ${pct1(residents)} + ${pct(through)} through traffic × ${pct1(roads)} = ${pct1(d.demand)}`],
+    [w.residents, w.residentsHow(whole(d.residents), whole(r.totalResidents), pct1(residents))],
+    [w.mainRoads, w.mainRoadsHow(whole(d.capacity), whole(r.totalCapacity), pct1(roads))],
+    [w.trafficShare, w.trafficShareHow(pct(1 - through), pct1(residents), pct(through), pct1(roads), pct1(d.demand))],
   ];
-  if (d.lost > 0) rows.push(worksRow(d, cfg), ['Open road', `${num(d.capacity - d.lost, 1)} lane-km: ${pct1(open)} of the city's`]);
-  rows.push(['Load', `${pct(p.useToday)} road use today × ${pct1(d.demand)} ÷ ${pct1(open)} = ${pct((p.useToday * d.demand) / open)}`]);
-  if (p.population * p.carUse !== 1) rows.push(['Growth', `× ${num(p.population)} residents × ${num(p.carUse)} car trips = ${pct(d.load!)}`]);
-  if (d.lost > 0) rows.push(['From works', `+${Math.round((d.load! - d.loadWithoutWorks!) * 100)}: ${pct(d.loadWithoutWorks!)} without them`]);
+  if (d.lost > 0) rows.push(worksRow(d, cfg), [w.openRoad, w.openRoadHow(num(d.capacity - d.lost, 1), pct1(open))]);
+  rows.push([w.load, w.loadHow(pct(p.useToday), pct1(d.demand), pct1(open), pct((p.useToday * d.demand) / open))]);
+  if (p.population * p.carUse !== 1) rows.push([w.growth, w.growthHow(num(p.population), num(p.carUse), pct(d.load!))]);
+  if (d.lost > 0) rows.push([w.fromWorks, w.fromWorksHow(Math.round((d.load! - d.loadWithoutWorks!) * 100), pct(d.loadWithoutWorks!))]);
   return rows;
 }
 
-export const worksShareWorking = (d: DistrictLoad, cfg: Settings): Working => [
-  worksRow(d, cfg),
-  ['Share', `${num(d.lost, 1)} ÷ ${whole(d.capacity)} lane-km = ${pct(d.lost / d.capacity)}`],
-];
+export const worksShareWorking = (d: DistrictLoad, cfg: Settings): Working => {
+  const w = strings().working;
+  return [worksRow(d, cfg), [w.share, w.shareHow(num(d.lost, 1), whole(d.capacity), pct(d.lost / d.capacity))]];
+};
 
 /** Room before a district is full, counted from today's levels whatever the sliders say. */
 export function roomWorking(d: DistrictLoad, p: Params): Working {
+  const w = strings().working;
   const growth = p.population * p.carUse;
   const today = d.load! / growth;
   return [
-    ['Load at today\'s levels', `${pct(today)}${growth !== 1 ? ` (${pct(d.load!)} with your changes)` : ''}`],
-    ['Room', `100% ÷ ${pct(today)} − 1 = ${signed(d.headroom!)}`],
+    [w.todayLoad, w.todayLoadHow(pct(today), growth !== 1 ? pct(d.load!) : null)],
+    [w.room, w.roomHow(pct(today), signed(d.headroom!))],
   ];
 }
 
 export function citywideWorking(r: CapacityResult, p: Params): Working {
+  const w = strings().working;
   const growth = p.population * p.carUse;
   return [
-    ['Road use today', `${pct(p.useToday)} with no works: your assumption`],
-    ['Open road', `${whole(r.openCapacity)} of ${whole(r.totalCapacity)} lane-km; works close ${num(r.totalCapacity - r.openCapacity, 1)} lane-km`],
-    ['Network', `${pct(p.useToday)}${growth !== 1 ? ` × ${num(growth)} growth` : ''} × ${whole(r.totalCapacity)} ÷ ${whole(r.openCapacity)} = ${pct(r.citywide)}`],
+    [w.useToday, w.useTodayHow(pct(p.useToday))],
+    [w.openRoad, w.cityRoadHow(whole(r.openCapacity), whole(r.totalCapacity), num(r.totalCapacity - r.openCapacity, 1))],
+    [w.network, w.networkHow(pct(p.useToday), growth !== 1 ? num(growth) : null, whole(r.totalCapacity), whole(r.openCapacity), pct(r.citywide))],
   ];
 }
 
-export const transitWorking = (g: DistrictGap, cfg: Settings): Working => [
-  ['Each closure', `counts its severity × the share of the ${cfg['transit.days']} days it runs`],
-  ['Far from rail', `${plural(g.uncoveredSites.length, 'closure')} of severity ${num(cfg['clash.minSeverity'])}+ over ${metres(cfg['reach.rail'])} from a Stadtbahn stop: ${num(g.uncovered)}`],
-  ['Main roads', `${plural(g.mainRoadSites.length, 'full, half or one-way closure')} where buses run: ${num(g.mainRoad)}, counted × ${num(cfg['transit.mainRoadShare'])}`],
-  ['Need', `(${num(g.uncovered)} + ${num(cfg['transit.mainRoadShare'])} × ${num(g.mainRoad)}) ÷ ${num(g.residents / PER_RESIDENTS, 1)} (per ${whole(PER_RESIDENTS)} of ${whole(g.residents)} residents) = ${num(g.score)}`],
-];
+export const transitWorking = (g: DistrictGap, cfg: Settings): Working => {
+  const w = strings().working;
+  return [
+    [w.eachClosure, w.eachClosureHow(cfg['transit.days'])],
+    [w.farFromRail, w.farFromRailHow(g.uncoveredSites.length, num(cfg['clash.minSeverity']), metres(cfg['reach.rail']), num(g.uncovered))],
+    [w.mainRoads, w.busRoadsHow(g.mainRoadSites.length, num(g.mainRoad), num(cfg['transit.mainRoadShare']))],
+    [w.need, w.needHow(num(g.uncovered), num(cfg['transit.mainRoadShare']), num(g.mainRoad), num(g.residents / PER_RESIDENTS, 1), whole(PER_RESIDENTS), whole(g.residents), num(g.score))],
+  ];
+};
 
 export function priorityWorking(p: Priority, rank: number, of: number, cfg: Settings): Working {
+  const t = strings();
+  const w = t.working;
   const { site: s, factors: f } = p;
   return [
-    ['Severity', `${KIND_LABEL[s.kind]} on a ${ROAD_LABEL[s.road]}: ${severityText(s, cfg)}`],
-    ['Time left', `× ${num(f.time)}: ${plural(p.remaining, 'day')} left, today included and counted up to ${cfg['priority.horizon']} days ahead, ÷ ${PER_DAYS}`],
-    ['Overlaps', `× ${num(f.overlap)}: 1 + ${num(cfg['priority.perOverlap'])} per site within ${km(cfg)} running too (${p.overlapping}), up to ${cfg['priority.maxOverlaps']} count`],
-    ['Fire, hospital', `× ${num(f.emergency)}: ${f.emergency > 1 ? 'within' : 'none within'} ${metres(cfg['reach.fire'])} of a station or ${metres(cfg['reach.hospital'])} of a hospital`],
-    ['Stadtbahn', `× ${num(f.rail)}: ${s.rail.m > cfg['reach.rail'] ? `no stop within ${metres(cfg['reach.rail'])}` : `${s.rail.name}, ${metres(s.rail.m)}`}`],
-    ['Score', `${num(p.score, 1)}: #${rank} of ${of} running`],
+    [w.severity, w.severityOn(t.kinds[s.kind], t.roads[s.road], severityText(s, cfg))],
+    [w.timeLeft, w.timeLeftHow(num(f.time), p.remaining, cfg['priority.horizon'], PER_DAYS)],
+    [w.overlaps, w.overlapsHow(num(f.overlap), num(cfg['priority.perOverlap']), km(cfg), p.overlapping, cfg['priority.maxOverlaps'])],
+    [w.fireHospital, w.fireHospitalHow(num(f.emergency), f.emergency > 1, metres(cfg['reach.fire']), metres(cfg['reach.hospital']))],
+    [w.stadtbahn, s.rail.m > cfg['reach.rail'] ? w.noStop(num(f.rail), metres(cfg['reach.rail'])) : w.stop(num(f.rail), s.rail.name, metres(s.rail.m))],
+    [w.score, w.scoreHow(num(p.score, 1), rank, of)],
   ];
 }
 
-export const freedWorking = (p: Priority, cfg: Settings): Working => [
-  ['Overlap now', `${plural(p.overlapDays, 'day')}, added up over ${plural(p.overlapping, 'site')} within ${km(cfg)}`],
-  [`Ending ${cfg['priority.sooner']} days sooner`, `${plural(p.overlapDays - p.freedOverlapDays, 'day')}: ${p.freedOverlapDays} fewer`],
-];
+export const freedWorking = (p: Priority, cfg: Settings): Working => {
+  const w = strings().working;
+  return [
+    [w.overlapNow, w.overlapNowHow(p.overlapDays, p.overlapping, km(cfg))],
+    [w.ending(cfg['priority.sooner']), w.endingHow(p.overlapDays - p.freedOverlapDays, p.freedOverlapDays)],
+  ];
+};
 
-const clashList = (o: WindowOption): string =>
-  o.clashing.length
-    ? `${o.clashing.map((c) => `${shortTitle(c.site.title)} ${plural(c.to - c.from + 1, 'day')}`).join(' · ')}; ${plural(o.clashDays, 'day')} with any`
-    : 'none';
-const countedRow = (cfg: Settings): [string, string] =>
-  ['Counted', `works of severity ${num(cfg['clash.minSeverity'])}+ ${metres(cfg['together.radius'])} – ${km(cfg)} away, on the same days`];
+const clashList = (o: WindowOption): string => {
+  const w = strings().working;
+  return o.clashing.length
+    ? w.clashTotal(o.clashing.map((c) => w.clashItem(shortTitle(c.site.title), c.to - c.from + 1)).join(' · '), o.clashDays)
+    : w.none;
+};
+const countedRow = (cfg: Settings): [string, string] => {
+  const w = strings().working;
+  return [w.counted, w.countedHow(num(cfg['clash.minSeverity']), metres(cfg['together.radius']), km(cfg))];
+};
 
 /** "Clashes 3 sites on 40 days": which works, and for how many days each. */
-export const clashWorking = (o: WindowOption, cfg: Settings): Working => [countedRow(cfg), ['Clashes', clashList(o)]];
+export const clashWorking = (o: WindowOption, cfg: Settings): Working => [countedRow(cfg), [strings().working.clashes, clashList(o)]];
 
 const cost = (o: WindowOption, severity: number, cfg: Settings) =>
   `${num(o.overlap)}${o.together ? ` − ${num(cfg['window.togetherCredit'])} × ${num(o.together)}` : ''} + ${num(severity)} × (${num(cfg['window.shiftCost'])} × ${Math.abs(o.shift)} − ${num(cfg['window.holidayBonus'])} × ${o.holidayDays}) = ${num(o.cost)}`;
 
 /** A suggested move: the clashes and the cost the dates are chosen by, now and moved. */
-export const moveWorking = (site: Site, now: WindowOption, moved: WindowOption, cfg: Settings): Working => [
-  countedRow(cfg),
-  ['Clashes now', clashList(now)],
-  ['Moved', clashList(moved)],
-  ['Overlap', `severity × severity × days × (1 − distance ÷ ${km(cfg)}), added up over the clashes`],
-  ['Cost', `overlap − ${num(cfg['window.togetherCredit'])} × overlap with works on the same stretch + severity × (${num(cfg['window.shiftCost'])} × days moved − ${num(cfg['window.holidayBonus'])} × school-holiday days); lowest wins`],
-  ['Cost now', cost(now, site.severity, cfg)],
-  ['Cost moved', cost(moved, site.severity, cfg)],
-];
+export const moveWorking = (site: Site, now: WindowOption, moved: WindowOption, cfg: Settings): Working => {
+  const w = strings().working;
+  return [
+    countedRow(cfg),
+    [w.clashesNow, clashList(now)],
+    [w.moved, clashList(moved)],
+    [w.overlap, w.overlapHow(km(cfg))],
+    [w.cost, w.costHow(num(cfg['window.togetherCredit']), num(cfg['window.shiftCost']), num(cfg['window.holidayBonus']))],
+    [w.costNow, cost(now, site.severity, cfg)],
+    [w.costMoved, cost(moved, site.severity, cfg)],
+  ];
+};
 
-export const alignWorking = (first: Site, second: Site, start: number, cfg: Settings): Working => [
-  ['First', `${shortTitle(first.title)}, ${dayRange(first.start, first.end)}`],
-  ['Second', `${shortTitle(second.title)}, ${dayRange(second.start, second.end)}`],
-  ['Same stretch', `within ${metres(cfg['together.radius'])} of each other`],
-  ['Start', `${formatShort(start)}: while the first runs, from tomorrow at the earliest`],
-];
+export const alignWorking = (first: Site, second: Site, start: number, cfg: Settings): Working => {
+  const w = strings().working;
+  return [
+    [w.first, `${shortTitle(first.title)}, ${dayRange(first.start, first.end)}`],
+    [w.second, `${shortTitle(second.title)}, ${dayRange(second.start, second.end)}`],
+    [w.sameStretch, w.sameStretchHow(metres(cfg['together.radius']))],
+    [w.start, w.startHow(formatShort(start))],
+  ];
+};
 
-export const finishWorking = (site: Site, others: Site[]): Working => [
-  ['Clashes with', others.map((s) => shortTitle(s.title)).join(' · ')],
-  ['No move', 'no planned works in the group can move to at least halve their overlap'],
-  ['This one', `runs longest of the started works: ${site.openEnded ? 'no end date' : `until ${formatDay(site.end)}`}`],
-];
+export const finishWorking = (site: Site, others: Site[]): Working => {
+  const w = strings().working;
+  return [
+    [w.clashesWith, others.map((s) => shortTitle(s.title)).join(' · ')],
+    [w.noMove, w.noMoveHow],
+    [w.thisOne, w.thisOneHow(site.openEnded ? null : formatDay(site.end))],
+  ];
+};
 
 /** The Construction Impact Score: each factor's 0–1 value × its share of the 100 points. */
-export const impactWorking = (a: ImpactAssessment, cfg: Settings): Working => [
-  ...a.factors.map((f): [string, string] => [f.label, f.value === null ? `unknown; share ${num(f.weight)} of 100` : `${num(f.value)} × ${num(f.weight)} = ${num(f.contribution!)}`]),
-  ['Total', a.total === null ? `not worked out: ${a.missing.join(', ')} unknown` : `${num(a.total)} of 100`],
-  ['Priority', `low up to ${cfg['impact.band.medium']}, medium up to ${cfg['impact.band.high']}, high up to ${cfg['impact.band.veryHigh']}, very high above`],
-];
+export const impactWorking = (a: ImpactAssessment, cfg: Settings): Working => {
+  const w = strings().working;
+  return [
+    ...a.factors.map((f): [string, string] => [f.label, f.value === null ? w.unknownShare(num(f.weight)) : `${num(f.value)} × ${num(f.weight)} = ${num(f.contribution!)}`]),
+    [w.total, a.total === null ? w.notWorkedOut(a.missing.join(', ')) : w.outOf100(num(a.total))],
+    [w.priority, w.priorityHow(cfg['impact.band.medium'], cfg['impact.band.high'], cfg['impact.band.veryHigh'])],
+  ];
+};

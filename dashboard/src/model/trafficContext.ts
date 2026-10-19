@@ -1,8 +1,9 @@
 import type { Poi } from '../data/sources';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
 import { pointShapeDist, toXY } from './geo';
 import type { PotentialConflict, ProjectEvidence } from './outlook';
 import { validLonLat } from './outlook';
-import { ROAD_LABEL } from './sites';
 import type { Site } from './sites';
 
 export type TrafficContext = {
@@ -14,7 +15,7 @@ export type TrafficContext = {
   limitations: string[];
 };
 
-/** Context only: proximity is neither a closure nor evidence that a transit line is disrupted. */
+/** Context only: proximity is neither a closure nor evidence that a transit line is disrupted. Worded in `t`'s language. */
 export function trafficContext(
   site: Site,
   evidence: ProjectEvidence,
@@ -22,27 +23,25 @@ export function trafficContext(
   roadsAvailable: boolean,
   conflicts: PotentialConflict[],
   radius = 500,
+  t: Strings = strings(),
 ): TrafficContext {
   if (!Number.isFinite(radius) || radius < 0) throw new RangeError('Context radius must be non-negative.');
-  const limitations = [
-    'Proximity does not prove a traffic or public transport disruption.',
-    'Alternative route analysis unavailable: no verified closure-aware network analysis is connected.',
-    'Road classifications are not measured traffic volumes or delay estimates.',
-  ];
-  const sources = ['Reported construction footprints and dates · do.move / Stadt Dortmund'];
+  const said = t.traffic;
+  const limitations = [said.noProof, said.noAlternative, said.notVolumes];
+  const sources = [said.sourceSites];
   const matchedRoad = roadsAvailable && evidence.shape !== null && site.roadName.trim() !== '';
-  const road = matchedRoad ? `${site.roadName} · ${ROAD_LABEL[site.road]}` : null;
+  const road = matchedRoad ? `${site.roadName} · ${t.roads[site.road]}` : null;
   if (roadsAvailable) {
-    sources.push('Stadt Dortmund · fb62-strassenabschnitte');
-    limitations.push('The road feed includes selected main and through roads only; no match does not establish a local-road classification.');
-  } else limitations.push('Road network data unavailable.');
-  if (!road) limitations.push('No verified road classification for this construction footprint.');
-  if (stops !== null) sources.push('Stadt Dortmund · haltestellen (rail / Stadtbahn; not a complete bus-stop inventory)');
-  else limitations.push('Public transport stop data unavailable.');
-  if (!evidence.shape) limitations.push('Verified construction footprint unavailable; proximity distances are not calculated from a synthetic marker.');
+    sources.push(said.sourceRoads);
+    limitations.push(said.roadsPartial);
+  } else limitations.push(said.noRoads);
+  if (!road) limitations.push(said.noRoadClass);
+  if (stops !== null) sources.push(said.sourceStops);
+  else limitations.push(said.noStops);
+  if (!evidence.shape) limitations.push(said.noFootprint);
   const validStops = stops?.filter((stop) => stop.name.trim() !== '' && validLonLat(stop.at));
   const stopsKnown = !!evidence.shape && stops !== null && validStops?.length === stops.length;
-  if (validStops && stops && validStops.length !== stops.length) limitations.push('Some stops have invalid coordinates or names; nearby-stop counts are incomplete.');
+  if (validStops && stops && validStops.length !== stops.length) limitations.push(said.badStops);
 
   const nearbyStops = !evidence.shape || stops === null ? [] : stops
     .filter((stop) => stop.name.trim() !== '' && validLonLat(stop.at))

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import type { Cluster, ClusterAdvice, Conflict, ProgrammeBalance } from '../model/analysis';
-import { KIND_LABEL } from '../model/closures';
 import type { ClosureKind } from '../model/closures';
 import { formatShort, isoDay, toDay } from '../model/days';
 import { PERIODS } from '../data/sources';
 import type { PeriodKey, ProgrammeProject } from '../data/sources';
+import { useStrings } from '../i18n';
 import type { LonLat } from '../model/geo';
 import type { HypotheticalSite, Shift } from '../model/scenario';
 import type { Site } from '../model/sites';
 import { Derived } from './Derived';
-import { clashText, dayRange, metres, num, plural, shiftText, shortTitle } from './format';
+import { clashText, dayRange, metres, num, shiftText, shortTitle } from './format';
 import { Info } from './Info';
 import { useSettings } from './useSettings';
 import { alignWorking, finishWorking, moveWorking } from './working';
@@ -40,33 +40,38 @@ function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onAp
   onToggle: () => void; onSelectSite: (id: string) => void; onApply: () => void;
 }) {
   const cfg = useSettings();
+  const t = useStrings();
+  const c = t.coordinate;
   const sites = cluster.siteIds.map((id) => byId.get(id)!).filter(Boolean).sort((a, b) => b.severity - a.severity);
   const districts = [...new Set(sites.map((s) => s.district).filter(Boolean))].join(', ');
   return (
     <li className={open ? 'card open' : 'card'}>
-      <button className="card-head" onClick={onToggle} aria-pressed={open} title="Show on the map">
+      <button className="card-head" onClick={onToggle} aria-pressed={open} title={c.showOnMap}>
         <strong>{districts || 'Dortmund'}</strong>
-        <span className="muted">{plural(sites.length, 'site')} · {dayRange(cluster.from, cluster.to)}</span>
+        <span className="muted">{c.clusterMeta(sites.length, dayRange(cluster.from, cluster.to))}</span>
       </button>
       {advice?.option ? (
         <div className="suggestion">
           <span>
-            Start <strong>{shortTitle(advice.site.title)}</strong> {shiftText(advice.option.shift)}
-            <span className="muted small"> · {dayRange(advice.option.start, advice.option.end)} · clashes <Derived how={moveWorking(advice.site, advice.current, advice.option, cfg)}>{clashText(advice.current)} → {clashText(advice.option)}</Derived></span>
+            {c.start(<strong>{shortTitle(advice.site.title)}</strong>, shiftText(advice.option.shift))}
+            <span className="muted small">
+              {c.moveDetail(dayRange(advice.option.start, advice.option.end),
+                <Derived how={moveWorking(advice.site, advice.current, advice.option, cfg)}>{clashText(advice.current)} → {clashText(advice.option)}</Derived>)}
+            </span>
           </span>
-          <button className="button" onClick={onApply}>Apply</button>
+          <button className="button" onClick={onApply}>{c.apply}</button>
         </div>
       ) : advice ? (
         <div className="suggestion muted">
           <span>
-            <Derived how={finishWorking(advice.site, sites.filter((s) => s.id !== advice.site.id))}>No date move clears this</Derived>: ask to finish{' '}
-            <strong>{shortTitle(advice.site.title)}</strong> (until {formatShort(advice.site.end)}) sooner.
+            <Derived how={finishWorking(advice.site, sites.filter((s) => s.id !== advice.site.id))}>{c.noMove}</Derived>
+            {c.askFinish(<strong>{shortTitle(advice.site.title)}</strong>, formatShort(advice.site.end))}
           </span>
         </div>
       ) : null}
       <ul className="plain sites">
         {sites.map((s) => (
-          <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{KIND_LABEL[s.kind]}</span></li>
+          <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{t.kinds[s.kind]}</span></li>
         ))}
       </ul>
     </li>
@@ -74,6 +79,8 @@ function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onAp
 }
 
 function ProjectForm({ place, today, onAdd, onCancel }: { place: string; today: number; onAdd: Props['onAdd']; onCancel: () => void }) {
+  const t = useStrings();
+  const c = t.coordinate;
   const [name, setName] = useState('');
   const [kind, setKind] = useState<ClosureKind>('full');
   const [radius, setRadius] = useState(40);
@@ -83,27 +90,27 @@ function ProjectForm({ place, today, onAdd, onCancel }: { place: string; today: 
   return (
     <form className="project-form" onSubmit={(e) => {
       e.preventDefault();
-      if (valid) onAdd({ name: name.trim() || 'Proposed works', kind, center: [0, 0], radius, start: toDay(start), days });
+      if (valid) onAdd({ name: name.trim() || c.proposedWorks, kind, center: [0, 0], radius, start: toDay(start), days });
     }}>
       <p className="muted">{place}</p>
-      <label>Name<input value={name} maxLength={120} placeholder="Proposed works" onChange={(e) => setName(e.target.value)} /></label>
-      <label>Restriction
+      <label>{c.name}<input value={name} maxLength={120} placeholder={c.proposedWorks} onChange={(e) => setName(e.target.value)} /></label>
+      <label>{c.restriction}
         <select value={kind} onChange={(e) => setKind(e.target.value as ClosureKind)}>
-          {PROJECT_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+          {PROJECT_KINDS.map((k) => <option key={k} value={k}>{t.kinds[k]}</option>)}
         </select>
       </label>
       <div className="form-row">
-        <label>Size
+        <label>{c.size}
           <select value={radius} onChange={(e) => setRadius(+e.target.value)}>
-            <option value={20}>Small (20 m)</option><option value={40}>Medium (40 m)</option><option value={80}>Large (80 m)</option>
+            <option value={20}>{c.small}</option><option value={40}>{c.medium}</option><option value={80}>{c.large}</option>
           </select>
         </label>
-        <label>Duration (days)<input type="number" min={1} max={365} value={days} onChange={(e) => setDays(+e.target.value)} /></label>
+        <label>{c.duration}<input type="number" min={1} max={365} value={days} onChange={(e) => setDays(+e.target.value)} /></label>
       </div>
-      <label>Earliest start<input type="date" min={isoDay(today)} value={start} onChange={(e) => setStart(e.target.value)} /></label>
+      <label>{c.earliestStart}<input type="date" min={isoDay(today)} value={start} onChange={(e) => setStart(e.target.value)} /></label>
       <div className="form-row">
-        <button className="button primary" type="submit" disabled={!valid}>Add and find the best window</button>
-        <button className="button" type="button" onClick={onCancel}>Cancel</button>
+        <button className="button primary" type="submit" disabled={!valid}>{c.addProject}</button>
+        <button className="button" type="button" onClick={onCancel}>{c.cancel}</button>
       </div>
     </form>
   );
@@ -111,6 +118,7 @@ function ProjectForm({ place, today, onAdd, onCancel }: { place: string; today: 
 
 function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
   const cfg = useSettings();
+  const c = useStrings().coordinate;
   const [cell, setCell] = useState<{ district: string; period: PeriodKey } | null>(null);
   const max = Math.max(1, ...balance.rows.flatMap((r) => PERIODS.map(([k]) => balance.cells.get(r)![k].count)));
   const picked = cell ? balance.cells.get(cell.district)![cell.period] : null;
@@ -118,29 +126,31 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
     ? [...picked.projects].sort((a, b) =>
         Number(a.status === 'im Bau') - Number(b.status === 'im Bau') || a.points - b.points)
     : [];
+  // the feed's "überörtlich", which the data layer calls Citywide
+  const district = (name: string) => (name === 'Citywide' ? c.citywide : name);
   return (
     <>
       <div className="heat-wrap">
         <table className="heat">
-          <thead><tr><th scope="col">District</th>{PERIODS.map(([k, label]) => <th scope="col" key={k}>{label}</th>)}</tr></thead>
+          <thead><tr><th scope="col">{c.district}</th>{PERIODS.map(([k]) => <th scope="col" key={k}>{c.periods[k]}</th>)}</tr></thead>
           <tbody>
             {balance.rows.map((r) => (
               <tr key={r}>
-                <th scope="row">{r}</th>
-                {PERIODS.map(([k, label]) => {
-                  const c = balance.cells.get(r)![k];
-                  const step = c.count ? Math.min(4, Math.ceil((c.count / max) * 5) - 1) : -1;
+                <th scope="row">{district(r)}</th>
+                {PERIODS.map(([k]) => {
+                  const counts = balance.cells.get(r)![k];
+                  const step = counts.count ? Math.min(4, Math.ceil((counts.count / max) * 5) - 1) : -1;
                   const selected = cell?.district === r && cell.period === k;
                   return (
                     <td key={k}>
                       <button
                         className={`heat-cell${step >= 0 ? ` heat-${step}` : ''}${selected ? ' selected' : ''}`}
-                        aria-label={`${r}, ${label}: ${plural(c.count, 'project')} in construction${c.overloaded ? ', overloaded' : ''}`}
+                        aria-label={c.cell(district(r), c.periods[k], counts.count, counts.overloaded)}
                         aria-pressed={selected}
-                        disabled={!c.count}
+                        disabled={!counts.count}
                         onClick={() => setCell(selected ? null : { district: r, period: k })}
                       >
-                        {c.count || ''}{c.overloaded && <span className="overload" aria-hidden="true">▲</span>}
+                        {counts.count || ''}{counts.overloaded && <span className="overload" aria-hidden="true">▲</span>}
                       </button>
                     </td>
                   );
@@ -152,13 +162,13 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
       </div>
       {cell && (
         <div className="block">
-          <h4>{cell.district}, {PERIODS.find(([k]) => k === cell.period)![1]}: deferral candidates first</h4>
+          <h4>{c.deferral(district(cell.district), c.periods[cell.period])}</h4>
           <p className="muted small">
             <Derived how={[
-              ['Middle district', `${plural(balance.medians[cell.period], 'project')} in this period`],
-              ['▲ overloaded', `from ${cfg['overload.min']} projects and ${num(cfg['overload.factor'])} × the middle district: ${picked!.overloaded ? 'yes' : 'no'}`],
+              [c.middleDistrict, c.middleHow(balance.medians[cell.period])],
+              [c.overloaded, c.overloadedHow(cfg['overload.min'], num(cfg['overload.factor']), picked!.overloaded)],
             ]}>
-              {plural(picked!.count, 'project')} in construction{picked!.overloaded ? ' ▲' : ''}
+              {c.inConstruction(picked!.count)}{picked!.overloaded ? ' ▲' : ''}
             </Derived>
           </p>
           <ul className="plain">
@@ -166,8 +176,8 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
               <li key={p.id}>
                 <strong>{p.name}</strong>
                 <div className="muted">
-                  {p.trade || 'Works'} · priority class {p.priorityClass || '–'} · {p.points} points{p.status ? ` · ${p.status}` : ''}
-                  {p.mainRoad ? ' · main-road traffic' : ''}{p.transit ? ' · ÖPNV' : ''}
+                  {c.project(p.trade, p.priorityClass, p.points)}{p.status ? ` · ${p.status}` : ''}
+                  {p.mainRoad ? c.mainRoad : ''}{p.transit ? c.transit : ''}
                 </div>
               </li>
             ))}
@@ -180,29 +190,26 @@ function ProgrammeGrid({ balance }: { balance: ProgrammeBalance }) {
 
 export function CoordinateTab(props: Props) {
   const cfg = useSettings();
+  const c = useStrings().coordinate;
   const { byId, clusters, advice, bundles, today, horizon } = props;
   return (
     <div className="tab-body">
       <section className="block">
-        <h3>Clashes <span className="count">{clusters.length}</span></h3>
-        <Info>
-          Serious works within {metres(cfg['cluster.radius'])} of each other at the same time make each other's detours worse. "3 sites on
-          40 days" means: on 40 days, up to 3 other serious sites within {metres(cfg['clash.radius'])} run at the same time. Click a card to see it on the map.
-          {horizon !== null && ` Suggestions know the works published up to ${formatShort(horizon)}; later ones aren't announced yet.`}
-        </Info>
-        {clusters.length === 0 && <p className="ok">No serious works clash within {metres(cfg['cluster.radius'])} in the coming year.</p>}
+        <h3>{c.clashes} <span className="count">{clusters.length}</span></h3>
+        <Info>{c.clashesInfo(metres(cfg['cluster.radius']), metres(cfg['clash.radius']), horizon !== null ? formatShort(horizon) : null)}</Info>
+        {clusters.length === 0 && <p className="ok">{c.noClashes(metres(cfg['cluster.radius']))}</p>}
         <ul className="cards">
-          {clusters.map((c) => (
+          {clusters.map((cluster) => (
             <ClusterCard
-              key={c.id}
-              cluster={c}
-              advice={advice.get(c.id) ?? null}
-              open={props.selectedCluster === c.id}
+              key={cluster.id}
+              cluster={cluster}
+              advice={advice.get(cluster.id) ?? null}
+              open={props.selectedCluster === cluster.id}
               byId={byId}
-              onToggle={() => props.onSelectCluster(props.selectedCluster === c.id ? null : c.id)}
+              onToggle={() => props.onSelectCluster(props.selectedCluster === cluster.id ? null : cluster.id)}
               onSelectSite={props.onSelectSite}
               onApply={() => {
-                const a = advice.get(c.id);
+                const a = advice.get(cluster.id);
                 if (a?.option) props.onShift(a.site.id, [a.option.shift, a.option.shift]);
               }}
             />
@@ -211,9 +218,9 @@ export function CoordinateTab(props: Props) {
       </section>
 
       <section className="block">
-        <h3>Do these together <span className="count">{bundles.length}</span></h3>
-        <Info>Works on the same stretch of street at different times close it twice. Starting the later one while the first runs spares residents the second closure.</Info>
-        {bundles.length === 0 && <p className="muted">No works on the same stretch follow each other within {cfg['together.maxGap']} days.</p>}
+        <h3>{c.together} <span className="count">{bundles.length}</span></h3>
+        <Info>{c.togetherInfo}</Info>
+        {bundles.length === 0 && <p className="muted">{c.noTogether(cfg['together.maxGap'])}</p>}
         <ul className="cards">
           {bundles.map((b) => {
             const [first, second] = [byId.get(b.a)!, byId.get(b.b)!].sort((x, y) => x.start - y.start);
@@ -224,8 +231,8 @@ export function CoordinateTab(props: Props) {
                 <div><button className="link-button" title={first.title} onClick={() => props.onSelectSite(first.id)}>{shortTitle(first.title)}</button> <span className="muted">{first.owner}</span></div>
                 <div><button className="link-button" title={second.title} onClick={() => props.onSelectSite(second.id)}>{shortTitle(second.title)}</button> <span className="muted">{second.owner}</span></div>
                 <div className="suggestion">
-                  <span><Derived how={alignWorking(first, second, target, cfg)}>Same street, {plural(b.days, 'day')} apart</Derived>. Start the second on {formatShort(target)}: one closure instead of two.</span>
-                  <button className="button" onClick={() => props.onShift(second.id, [target - second.baseStart, target - second.baseStart])}>Align</button>
+                  <span><Derived how={alignWorking(first, second, target, cfg)}>{c.sameStreet(b.days)}</Derived>{c.startSecond(formatShort(target))}</span>
+                  <button className="button" onClick={() => props.onShift(second.id, [target - second.baseStart, target - second.baseStart])}>{c.align}</button>
                 </div>
               </li>
             );
@@ -234,24 +241,21 @@ export function CoordinateTab(props: Props) {
       </section>
 
       <section className="block">
-        <h3>Plan a new project</h3>
+        <h3>{c.newProject}</h3>
         {props.draft ? (
           <ProjectForm place={props.draftPlace} today={today} onAdd={(h) => props.onAdd({ ...h, center: props.draft! })} onCancel={props.onCancelDraft} />
         ) : (
           <>
-            <p className="muted">Place it on the map to get the start dates that disturb least.</p>
-            <button className="button primary" onClick={props.onPlace}>Place on the map</button>
+            <p className="muted">{c.newProjectHint}</p>
+            <button className="button primary" onClick={props.onPlace}>{c.place}</button>
           </>
         )}
       </section>
 
       <section className="block">
-        <h3>Works programme 2025–2028</h3>
-        <Info>
-          Projects of the Tiefbauamt in the "Bau" stage per period: 2026 by quarter, the other years whole. <span aria-hidden="true">▲</span> marks
-          a district with at least {cfg['overload.min']} projects and {num(cfg['overload.factor'])} times the period's middle value, a candidate for moving work to a quieter period. Click a cell for its projects.
-        </Info>
-        {props.balance ? <ProgrammeGrid balance={props.balance} /> : <p className="muted">The Tiefbauamt's works programme couldn't be loaded.</p>}
+        <h3>{c.programme}</h3>
+        <Info>{c.programmeInfo(<span aria-hidden="true">▲</span>, cfg['overload.min'], num(cfg['overload.factor']))}</Info>
+        {props.balance ? <ProgrammeGrid balance={props.balance} /> : <p className="muted">{c.programmeFailed}</p>}
       </section>
     </div>
   );
