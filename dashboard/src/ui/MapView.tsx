@@ -5,6 +5,7 @@ import type { ExpressionSpecification, GeoJSONSource, MapMouseEvent } from 'mapl
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import type { TransitFeature } from '../data/sources';
 import { formatDay } from '../model/days';
 import type { ProjectEvidence } from '../model/outlook';
 import { siteState } from './mapState';
@@ -60,6 +61,10 @@ type Props = {
   districtMax?: number;
   selectedDistrict: string | null;
   pois: MapPoi[];
+  /** the Transit role's lines, already narrowed to the switched-on kinds; empty elsewhere */
+  transit: TransitFeature[];
+  /** a Stadtbahn line picked out: everything else on the transit layers fades */
+  lineFocus: string | null;
   overlay: MapOverlay | null;
   focus: MapFocus | null;
   picking: boolean;
@@ -69,6 +74,7 @@ type Props = {
 };
 
 const SITE_LAYERS = ['site-fill', 'site-dot'];
+const TRANSIT_HIT = ['transit-stadtbahn', 'transit-train', 'transit-bus'];
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 // the route around the works draws itself from A to B: coloured up to t of its length
 const drawnTo = (color: string, t: number): ExpressionSpecification => ['step', ['line-progress'], color, t, TRANSPARENT];
@@ -91,7 +97,7 @@ const collection = (features: Feature[]): FeatureCollection => ({ type: 'Feature
 
 function addLayers(map: MlMap, p: Palette) {
   const empty = collection([]);
-  for (const id of ['districts', 'sites', 'site-points', 'links', 'pois', 'route', 'reach']) map.addSource(id, { type: 'geojson', data: empty, lineMetrics: id === 'route' });
+  for (const id of ['districts', 'transit', 'sites', 'site-points', 'links', 'pois', 'route', 'reach']) map.addSource(id, { type: 'geojson', data: empty, lineMetrics: id === 'route' });
   const band: ExpressionSpecification = ['match', ['get', 'band'], 'high', p.severity.high, 'medium', p.severity.medium, p.severity.low];
   const seq = p.sequential;
   map.addLayer({
@@ -99,6 +105,43 @@ function addLayers(map: MlMap, p: Palette) {
     paint: { 'fill-color': ['step', ['get', 'v'], seq[0], 0.2, seq[1], 0.4, seq[2], 0.6, seq[3], 0.8, seq[4]], 'fill-opacity': 0.5 },
   });
   map.addLayer({ id: 'district-line', type: 'line', source: 'districts', paint: { 'line-color': p.muted, 'line-width': 1 } });
+  // Transit lines lie under the works. Buses are grey corridors, wider where more lines share a street; trains take the
+  // map convention of a dark line with light dashes; the Stadtbahn runs in DSW21's line colours on a halo. A picked line
+  // keeps full strength and everything else on these layers fades.
+  const kind = (k: string): ExpressionSpecification => ['==', ['get', 'kind'], k];
+  const faded = (opacity: number): ExpressionSpecification => ['case', ['==', ['get', 'dim'], 1], opacity * 0.18, opacity];
+  const round = { 'line-cap': 'round', 'line-join': 'round' } as const;
+  const busWidth = (base: number, per: number, max: number): ExpressionSpecification => ['min', max, ['+', base, ['*', per, ['get', 'n']]]];
+  map.addLayer({
+    id: 'transit-bus', type: 'line', source: 'transit', filter: kind('bus'), layout: round,
+    paint: { 'line-color': p.ink, 'line-opacity': faded(0.6), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, busWidth(0.6, 0.3, 4.5), 15, busWidth(1.5, 0.65, 11)] },
+  });
+  map.addLayer({
+    id: 'transit-train', type: 'line', source: 'transit', filter: kind('train'),
+    paint: { 'line-color': p.ink, 'line-opacity': faded(0.85), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 15, 5] },
+  });
+  map.addLayer({
+    id: 'transit-train-dash', type: 'line', source: 'transit', filter: kind('train'),
+    paint: { 'line-color': p.surface, 'line-opacity': faded(1), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 15, 2.5], 'line-dasharray': [3, 3] },
+  });
+  map.addLayer({
+    id: 'transit-stadtbahn-halo', type: 'line', source: 'transit', filter: kind('stadtbahn'), layout: round,
+    paint: { 'line-color': p.surface, 'line-opacity': faded(0.9), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6.5, 15, 12] },
+  });
+  map.addLayer({
+    id: 'transit-stadtbahn', type: 'line', source: 'transit', filter: kind('stadtbahn'), layout: round,
+    paint: { 'line-color': ['to-color', ['get', 'colour'], p.accent], 'line-opacity': faded(1), 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 15, 7.5] },
+  });
+  map.addLayer({
+    id: 'transit-label', type: 'symbol', source: 'transit', filter: ['all', ['!=', ['get', 'kind'], 'bus'], ['!=', ['get', 'dim'], 1]],
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 320, 'text-field': ['get', 'ref'], 'text-font': FONT, 'text-size': 11 },
+    paint: { 'text-color': p.ink, 'text-halo-color': p.surface, 'text-halo-width': 2 },
+  });
+  map.addLayer({
+    id: 'transit-bus-label', type: 'symbol', source: 'transit', minzoom: 14.5, filter: ['all', kind('bus'), ['!=', ['get', 'dim'], 1]],
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 400, 'text-field': ['get', 'refs'], 'text-font': FONT, 'text-size': 10 },
+    paint: { 'text-color': p.muted, 'text-halo-color': p.surface, 'text-halo-width': 1.5 },
+  });
   // the chosen district: a dark edge under a bright line, so it shows on every shade of the fill and the basemap
   const selected: ExpressionSpecification = ['==', ['get', 'sel'], 1];
   map.addLayer({ id: 'district-selected-edge', type: 'line', source: 'districts', filter: selected, paint: { 'line-color': '#000', 'line-opacity': 0.6, 'line-width': 6 } });
@@ -177,7 +220,8 @@ function addLayers(map: MlMap, p: Palette) {
     map.addLayer({
       id: `poi-dot${suffix}`, type: 'circle', source: 'pois', minzoom, filter: ['==', ['get', 'minor'], minor],
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 7],
+        // Stadtbahn stops sit on their lines: smaller at city zoom, so the line reads before its stops
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'glyph'], 'U', 2, 3], 13, ['match', ['get', 'glyph'], 'U', 5, 7]],
         'circle-color': p.surface, 'circle-stroke-color': p.ink, 'circle-stroke-width': 1.25,
       },
     });
@@ -281,6 +325,7 @@ export function MapView(props: Props) {
     const box: [[number, number], [number, number]] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
     const site = props.picking ? undefined : map.queryRenderedFeatures(box, { layers: SITE_LAYERS })[0];
     const poi = props.picking || site ? undefined : map.queryRenderedFeatures(box, { layers: ['poi-dot', 'poi-dot-minor'] })[0];
+    const line = props.picking || site || poi || !props.transit.length ? undefined : map.queryRenderedFeatures(box, { layers: TRANSIT_HIT })[0];
     map.getCanvas().style.cursor = props.picking ? 'crosshair' : site ? 'pointer' : '';
     const s = site && byId.get(String(site.properties.id));
     if (s) {
@@ -290,6 +335,12 @@ export function MapView(props: Props) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, t.map.severity(severityText(s, cfg), s.band), `${s.hypothetical ? t.map.proposed : s.owner} · ${dates}`])).addTo(map);
     } else if (poi) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(String(poi.properties.name), [String(poi.properties.detail)].filter(Boolean))).addTo(map);
+    } else if (line) {
+      const l = line.properties;
+      const content = l.kind === 'bus'
+        ? popupContent(t.map.busLines(Number(l.n)), [String(l.refs)])
+        : popupContent(String(l.ref), [l.from && l.to ? t.map.between(String(l.from), String(l.to)) : ''].filter(Boolean));
+      popup.setLngLat(e.lngLat).setDOMContent(content).addTo(map);
     } else popup.remove();
   });
 
@@ -350,6 +401,13 @@ export function MapView(props: Props) {
       type: 'Feature', geometry: { type: 'LineString', coordinates: [l.from, l.to] }, properties: { type: l.type },
     }))));
   }, [props.links, styleVersion]);
+
+  useEffect(() => {
+    const focus = props.lineFocus;
+    setData(mapRef.current, 'transit', collection(focus
+      ? props.transit.map((f) => (f.properties.ref === focus && f.properties.kind === 'stadtbahn' ? f : { ...f, properties: { ...f.properties, dim: 1 } }))
+      : props.transit));
+  }, [props.transit, props.lineFocus, styleVersion]);
 
   useEffect(() => {
     setData(mapRef.current, 'pois', collection(props.pois.map((p) => ({

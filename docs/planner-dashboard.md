@@ -13,12 +13,18 @@ The features are grouped by who uses them. The roles run across the header. Each
 | **Planning** | works coordination (Tiefbauamt) | To do · Coordinate · Outlook · Priorities | active sites · disruption points · clashes ahead | – |
 | **Traffic** | police and traffic control (in practice the road traffic authority and the control centre) | Priorities · Capacity · Routes · Outlook | disruption points · full closures · active sites | – |
 | **Emergency** | fire and ambulance | Routes · Outlook | full closures · active sites | fire and rescue stations, hospitals |
-| **Transit** | buses, trams and bikes | Transit · Routes | stops beside 2+ works · active sites | Stadtbahn stops, bike share, P+R |
+| **Transit** | buses, trams and bikes | Transit · Routes | stops beside 2+ works · active sites | the Stadtbahn, train and bus lines, Stadtbahn stops, bike share, P+R, each switchable |
 
 - **Routes per role.** Traffic plans for commuters and lorries, Emergency for blue-light vehicles (with emergency reach first), Transit for cyclists and pedestrians. A role with one group shows no group picker.
 - **A site's panel.** Moving dates, finishing sooner and the impact score are planning actions, so only Planning shows them. The other roles see the site's facts, the works that coincide with it, and its traffic context.
 - **Full closures** counts the active sites whose restrictions include a full closure. That's the same rule by which the routes treat a site as shut for fire and ambulance.
 - **Stops beside 2+ works** counts Stadtbahn stops with two or more works of severity 0.5 or more within 500 m, over the 30 days from the chosen day. These are the defaults, which Settings can change. That's the same rule as "stops under pressure" in the Transit view.
+- **Lines and stops (Transit).** The card under "Bands | Heat" switches each layer on or off, and the browser remembers the choice. Each layer is drawn its own way:
+  - Stadtbahn lines in DSW21's line colours, on a halo so they read on either basemap
+  - S-Bahn and regional trains as a dark line with light dashes, the usual map sign for railways
+  - buses per street, wider where more lines share it, so the main bus corridors stand out; hover a street for its lines
+
+  A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. Bike share starts switched off.
 - **To do → Transit.** A "Transit help" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
 
@@ -96,15 +102,16 @@ The public server takes at most 100 vertices and 10 km of outline in `exclude_po
 | `haltestellen`, `fahrradmietstation`, `park-and-ride` | 123 Stadtbahn stops, 94 bike-share stations, 32 P+R sites |
 | `feuerwehr` (the Feuer- und Rettungswachen), `krankenhaus` (`KrankenhausKlinik`) | emergency layers |
 | `baumassnahmen-arbeitsprogramm-des-tiefbauamtes-2026-gesamtubersicht` | 578 projects with their stage per period to 2028 |
+| `public/transit-lines.json`, built from [OpenStreetMap](https://www.openstreetmap.org) route relations by `npm run transit-lines` (19 Oct 2026) | the Transit role's lines: 8 Stadtbahn lines with DSW21's colours, 21 S-Bahn and regional train lines (no ICE, IC or Flixtrain), and 109 bus lines (no Flixbus) as 7,450 street pieces, each with the lines that use it; about 150 KB compressed, loaded the first time the Transit role opens |
 | [OpenHolidays](https://openholidaysapi.org) | NRW school holidays |
 | [Valhalla](https://valhalla1.openstreetmap.de) by FOSSGIS e.V., [OpenFreeMap](https://openfreemap.org) | routes and reach; the basemap |
 
-The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (basemap, routing) needs attribution, which the page footer and the map carry. Only the sites are required: any other source can fail on its own, and the page names what's missing.
+The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (basemap, routing, transit lines) needs attribution, which the page footer and the map carry. `transit-lines.json` is a database derived from OpenStreetMap, so it stays under the ODbL and says so in its `attribution` field. Rebuild it after a timetable change (usually December) with `npm run transit-lines`. The script refuses to overwrite the file if Overpass returns fewer than 5 Stadtbahn lines or 100 bus pieces. Only the sites are required: any other source can fail on its own, and the page names what's missing.
 
 ## Limits
 
 - **Published plans reach about four weeks ahead** (16 Nov on 17 Oct). After that, load looks low only because later works aren't announced; the timeline marks the date, and suggestions past it say so.
-- **No bus network.** The city publishes Stadtbahn stops only, so closures on main roads stand in for bus diversions.
+- **No bus network in the analysis.** The city publishes Stadtbahn stops only, so transit need and stops under pressure count Stadtbahn stops, and closures on main roads stand in for bus diversions. The bus lines on the Transit map come from OpenStreetMap and aren't part of any figure yet.
 - **The restriction comes from the title.** A site whose title names nothing counts as minor until #12's `closures_override` exists.
 - **The works programme has no locations**, so it's compared by district and period only.
 - **Daytime-only closures** count around the clock.

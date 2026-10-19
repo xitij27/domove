@@ -2,7 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useData } from './data/useData';
 import type { Dataset } from './data/useData';
-import type { Poi } from './data/sources';
+import { fetchTransitLines } from './data/sources';
+import type { Poi, TransitFeature } from './data/sources';
 import { useLanguage, useStrings } from './i18n';
 import {
   adviseClusters, bestWindows, clusterConflicts, dailyLoad, findConflicts, isActive, priorities, programmeBalance, stopsUnderPressure, todoList,
@@ -46,6 +47,9 @@ import { setThemePreference, useTheme } from './ui/theme';
 import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
+import { saveTransitLayers, savedTransitLayers } from './ui/transitLayers';
+import type { TransitLayer } from './ui/transitLayers';
+import { TransitLayersCard } from './ui/TransitLayersCard';
 import { useScenario } from './ui/useScenario';
 import { SettingsContext } from './ui/useSettings';
 
@@ -96,6 +100,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const [draft, setDraft] = useState<LonLat | null>(null);
   const [overlay, setOverlay] = useState<MapOverlay | null>(null);
   const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [transitLayers, setTransitLayers] = useState(savedTransitLayers);
+  const [transitLines, setTransitLines] = useState<TransitFeature[] | null>(null);
+  const [transitFailed, setTransitFailed] = useState(false);
+  const [lineFocus, setLineFocus] = useState<string | null>(null);
   const panelBody = useRef<HTMLDivElement>(null);
   const from = today - BACK;
   const to = today + AHEAD;
@@ -172,6 +180,13 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   ), [selected, sites, neighbours, holidayRanges, today, horizon, cfg]);
 
   useEffect(() => {
+    if (mode !== 'transit' || transitLines) return;
+    let live = true;
+    fetchTransitLines().then((lines) => live && setTransitLines(lines), () => live && setTransitFailed(true));
+    return () => { live = false; };
+  }, [mode, transitLines]);
+
+  useEffect(() => {
     panelBody.current?.scrollTo({ top: 0 });
   }, [tab, selectedId, settingsOpen]);
 
@@ -199,6 +214,22 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const d = name && districtShapes.find((x) => x.name === name);
     if (d) setFocus({ bounds: toBounds([d.shape.bbox]) });
   };
+  const toggleTransit = (layer: TransitLayer) => {
+    const next = { ...transitLayers, [layer]: !transitLayers[layer] };
+    setTransitLayers(next);
+    saveTransitLayers(next);
+    if (layer === 'stadtbahn') setLineFocus(null);
+  };
+  // picking a Stadtbahn line frames its whole route
+  const focusLine = (ref: string | null) => {
+    setLineFocus(ref);
+    const line = ref ? transitLines?.find((f) => f.properties.kind === 'stadtbahn' && f.properties.ref === ref) : undefined;
+    if (!line) return;
+    const points = line.geometry.type === 'LineString' ? line.geometry.coordinates : line.geometry.coordinates.flat();
+    const lons = points.map((c) => c[0]);
+    const lats = points.map((c) => c[1]);
+    setFocus({ bounds: [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)] });
+  };
   const showOverlay = (o: MapOverlay | null) => {
     setOverlay(o);
     const pts = [...(o?.normal ?? []), ...(o?.aware ?? []), ...(o?.ends ?? [])];
@@ -210,6 +241,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     setMode(next);
     saveMode(next);
     setOverlay(null);
+    setLineFocus(null);
     switchTab(view);
   };
   const switchTab = (id: Tab) => {
@@ -287,10 +319,17 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   // each role keeps its own places on the map, whichever view is open
   const pois = useMemo((): MapPoi[] => {
     const as = (kind: MapPoi['kind'], list: typeof data.stops) => list.map((p) => ({ kind, name: p.name, detail: p.detail, at: p.at }));
-    if (mode === 'transit') return [...as('stop', data.stops), ...as('bike', data.bikes), ...as('pr', data.parkRide)];
+    if (mode === 'transit') {
+      return [...(transitLayers.stop ? as('stop', data.stops) : []), ...(transitLayers.bike ? as('bike', data.bikes) : []), ...(transitLayers.pr ? as('pr', data.parkRide) : [])];
+    }
     if (mode === 'emergency') return [...as('fire', data.fire), ...as('hospital', data.hospitals)];
     return [];
-  }, [mode, data]);
+  }, [mode, data, transitLayers]);
+  const mapTransit = useMemo(
+    () => (mode === 'transit' && transitLines ? transitLines.filter((f) => transitLayers[f.properties.kind]) : []),
+    [mode, transitLines, transitLayers],
+  );
+  const stadtbahnLines = useMemo(() => transitLines?.filter((f) => f.properties.kind === 'stadtbahn') ?? null, [transitLines]);
   const active = useMemo(() => sites.filter((s) => isActive(s, date)), [sites, date]);
   const districtsWithResidents = useMemo(
     () => data.districts.map((d) => ({ geometry: d.geometry, residents: data.residents.get(d.name) ?? 0 })),
@@ -425,6 +464,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             theme={theme} impactView={impactView} sites={mapSites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
             outlookProjects={outlookPeriod ? outlookResult.active : undefined}
             districts={districtValues} districtMax={tab === 'capacity' ? LOAD_SCALE : undefined} selectedDistrict={tab === 'transit' || tab === 'capacity' ? district : null} pois={pois}
+            transit={mapTransit} lineFocus={lineFocus}
             overlay={tab === 'routes' ? overlay : null} focus={focus} picking={!!pick}
             onPick={(at) => { pick?.done(at); setPick(null); }}
             onSelectSite={selectSite}
@@ -440,6 +480,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{t.app.views[id]}</button>
             ))}
           </div>
+          {mode === 'transit' && (
+            <TransitLayersCard layers={transitLayers} lines={stadtbahnLines} failed={transitFailed} focus={lineFocus}
+              onToggle={toggleTransit} onFocus={focusLine} />
+          )}
           <Legend mode={mode} tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
         </section>
         <aside className="panel">
@@ -586,9 +630,6 @@ function Legend({ mode, tab, date, impactView, outlookPeriod }: { mode: Mode; ta
           <div className="legend-row"><i className="key-line aware" />{t.aware}</div>
           {mode === 'emergency' && <div className="legend-row"><i className="swatch lost" />{t.lost}</div>}
         </>
-      )}
-      {mode === 'transit' && (
-        <div className="legend-row"><span className="glyph">U</span>{t.stadtbahn} · <span className="glyph">B</span>{t.bikeShare} · <span className="glyph">P</span>{t.parkRide}</div>
       )}
       {mode === 'emergency' && <div className="legend-row"><span className="glyph">F</span>{t.fire} · <span className="glyph">H</span>{t.hospital}</div>}
     </details>

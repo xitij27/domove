@@ -1,6 +1,6 @@
 // Every dataset the dashboard reads, straight from the browser: Supabase for the sites (the same
 // table the app reads), the city's open data portal for the rest, OpenHolidays for school holidays.
-import type { LineString, MultiLineString, MultiPolygon, Polygon } from 'geojson';
+import type { Feature, FeatureCollection, LineString, MultiLineString, MultiPolygon, Polygon } from 'geojson';
 import { strings } from '../i18n';
 import type { Strings } from '../i18n';
 import type { LonLat } from '../model/geo';
@@ -71,6 +71,22 @@ async function getJson(url: string, dataset: Dataset, init?: RequestInit): Promi
   }
   if (!res.ok) throw new Error(`${named(dataset)}: HTTP ${res.status}`);
   return res.json();
+}
+
+export type TransitKind = 'stadtbahn' | 'train' | 'bus';
+/** A Stadtbahn or train line (`ref`, its colour and ends), or a street piece with the bus lines that use it (`refs`, `n`). */
+export type TransitFeature = Feature<LineString | MultiLineString, {
+  kind: TransitKind; ref?: string; colour?: string; from?: string; to?: string; refs?: string; n?: number;
+}>;
+const TRANSIT_KINDS = new Set(['stadtbahn', 'train', 'bus']);
+
+/** Dortmund's Stadtbahn, train and bus lines from OpenStreetMap, built by scripts/transit-lines.mjs and served with the site. */
+export async function fetchTransitLines(): Promise<TransitFeature[]> {
+  const body = await getJson('/transit-lines.json', 'transitLines');
+  const features = (body as Partial<FeatureCollection> | null)?.features;
+  if (!Array.isArray(features)) throw new Error(`${named('transitLines')}: ${strings().data.unexpected}`);
+  return features.filter((f): f is TransitFeature =>
+    TRANSIT_KINDS.has(f?.properties?.kind) && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'));
 }
 
 async function getRows(dataset: string, label: Dataset, params: Record<string, string> = {}): Promise<Row[]> {
