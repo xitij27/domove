@@ -4,17 +4,16 @@ import { applyTheme, readThemePreference, resolveTheme, setThemePreference } fro
 afterEach(() => vi.unstubAllGlobals());
 
 describe('dashboard theme', () => {
-  it('uses the system setting until a valid preference is saved', () => {
+  it('starts light until a valid preference is saved', () => {
     expect(readThemePreference('light')).toBe('light');
     expect(readThemePreference('dark')).toBe('dark');
     expect(readThemePreference('unknown')).toBeNull();
-    expect(resolveTheme(null, true)).toBe('dark');
-    expect(resolveTheme('unknown', false)).toBe('light');
-    expect(resolveTheme('light', true)).toBe('light');
-    expect(resolveTheme('dark', false)).toBe('dark');
+    expect(resolveTheme(null)).toBe('light');
+    expect(resolveTheme('unknown')).toBe('light');
+    expect(resolveTheme('dark')).toBe('dark');
   });
 
-  it('saves a choice and reapplies it independently of the system setting', () => {
+  it('starts light on a system set to dark, then saves and reapplies a choice', () => {
     const saved = new Map<string, string>();
     const root = { dataset: { theme: '' } };
     vi.stubGlobal('document', { documentElement: root });
@@ -23,9 +22,16 @@ describe('dashboard theme', () => {
         getItem: (key: string) => saved.get(key) ?? null,
         setItem: (key: string, value: string) => saved.set(key, value),
       },
-      matchMedia: () => ({ matches: true }),
+      matchMedia: () => ({ matches: true }), // the system asks for dark
       dispatchEvent: vi.fn(),
     });
+
+    applyTheme();
+    expect(root.dataset.theme).toBe('light');
+
+    setThemePreference('dark');
+    expect(saved.get('domove-dashboard-theme')).toBe('dark');
+    expect(root.dataset.theme).toBe('dark');
 
     setThemePreference('light');
     expect(saved.get('domove-dashboard-theme')).toBe('light');

@@ -32,7 +32,6 @@ export const PALETTES: Record<Theme, Palette> = {
   },
 };
 
-const query = () => window.matchMedia('(prefers-color-scheme: dark)');
 const STORAGE_KEY = 'domove-dashboard-theme';
 const CHANGE_EVENT = 'domove-dashboard-theme-change';
 let inMemoryPreference: Theme | null = null;
@@ -40,14 +39,14 @@ let inMemoryPreference: Theme | null = null;
 export const readThemePreference = (value: string | null): Theme | null =>
   value === 'light' || value === 'dark' ? value : null;
 
-export const resolveTheme = (value: string | null, systemDark: boolean): Theme =>
-  readThemePreference(value) ?? (systemDark ? 'dark' : 'light');
+/** Light unless dark was chosen; the system's dark setting doesn't switch it. */
+export const resolveTheme = (value: string | null): Theme => readThemePreference(value) ?? 'light';
 
 const currentTheme = (): Theme => {
   try {
-    return resolveTheme(window.localStorage.getItem(STORAGE_KEY) ?? inMemoryPreference, query().matches);
+    return resolveTheme(window.localStorage.getItem(STORAGE_KEY) ?? inMemoryPreference);
   } catch {
-    return resolveTheme(inMemoryPreference, query().matches);
+    return resolveTheme(inMemoryPreference);
   }
 };
 
@@ -67,20 +66,17 @@ export const setThemePreference = (theme: Theme) => {
 };
 
 const subscribe = (onChange: () => void) => {
-  const q = query();
   const update = () => { applyTheme(); onChange(); };
   const onStorage = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY || event.key === null) update();
   };
-  q.addEventListener('change', update);
   window.addEventListener(CHANGE_EVENT, update);
   window.addEventListener('storage', onStorage);
   return () => {
-    q.removeEventListener('change', update);
     window.removeEventListener(CHANGE_EVENT, update);
     window.removeEventListener('storage', onStorage);
   };
 };
 
-/** Follows the system setting until a light or dark preference is saved. */
+/** Light until a light or dark preference is saved. */
 export const useTheme = (): Theme => useSyncExternalStore(subscribe, currentTheme);
