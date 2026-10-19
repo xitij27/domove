@@ -32,6 +32,9 @@ import { trafficContext } from './model/trafficContext';
 import { TrafficContextPanel } from './ui/TrafficContextPanel';
 import { ImpactScorePanel } from './ui/ImpactScorePanel';
 import { MapView } from './ui/MapView';
+import { MODES, saveMode, savedMode } from './ui/modes';
+import type { Mode, StatKey, Tab } from './ui/modes';
+import { ModeSwitch } from './ui/ModeSwitch';
 import type { ImpactView, MapFocus, MapLink, MapOverlay, MapPoi } from './ui/MapView';
 import { PrioritiesTab } from './ui/PrioritiesTab';
 import { RoutesTab } from './ui/RoutesTab';
@@ -46,9 +49,7 @@ import { TransitTab } from './ui/TransitTab';
 import { useScenario } from './ui/useScenario';
 import { SettingsContext } from './ui/useSettings';
 
-type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'capacity' | 'routes';
 const IMPACT_VIEWS: ImpactView[] = ['bands', 'heat'];
-const TABS: Tab[] = ['todo', 'coordinate', 'priorities', 'transit', 'capacity', 'routes'];
 const BACK = 30;
 const AHEAD = 365;
 
@@ -84,7 +85,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const [impactTarget, setImpactTarget] = useState<ImpactTarget>('public');
   const [businessLocations, setBusinessLocations] = useState<Poi[]>([]);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('todo');
+  const [mode, setMode] = useState<Mode>(savedMode);
+  const [tab, setTab] = useState<Tab>(() => MODES[mode].tabs[0]);
   const [impactView, setImpactView] = useState<ImpactView>('bands');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -204,6 +206,12 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const all = [...pts, ...(ring as LonLat[])];
     if (all.length > 1) setFocus({ bounds: toBounds([bboxOf(all.map(toXY))]) });
   };
+  const switchMode = (next: Mode, view: Tab = MODES[next].tabs[0]) => {
+    setMode(next);
+    saveMode(next);
+    setOverlay(null);
+    switchTab(view);
+  };
   const switchTab = (id: Tab) => {
     setTab(id);
     setSelectedId(null);
@@ -244,9 +252,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const c = tab === 'coordinate' && clusterId ? clusters.find((x) => x.id === clusterId) : undefined;
     return c ? c.siteIds : [];
   }, [selected, selectedConflicts, tab, clusterId, clusters]);
-  const outlookPeriod = tab === 'coordinate' && outlookMap ? { from: outlookResult.from, to: outlookResult.to } : null;
+  const outlookPeriod = tab === 'outlook' && outlookMap ? { from: outlookResult.from, to: outlookResult.to } : null;
   const mapSites = useMemo(() => {
-    if (tab !== 'coordinate' || !outlookMap) return sites;
+    if (tab !== 'outlook' || !outlookMap) return sites;
     const ids = new Set([...outlookResult.active.map((p) => p.id), ...highlight]);
     return sites.filter((s) => ids.has(s.id));
   }, [tab, outlookMap, sites, outlookResult.active, highlight]);
@@ -276,35 +284,51 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     if (tab === 'capacity') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: capacityResult.districts.find((r) => r.district === d.name)?.load ?? null }));
     return [];
   }, [tab, data.districts, gaps, capacityResult]);
+  // each role keeps its own places on the map, whichever view is open
   const pois = useMemo((): MapPoi[] => {
     const as = (kind: MapPoi['kind'], list: typeof data.stops) => list.map((p) => ({ kind, name: p.name, detail: p.detail, at: p.at }));
-    if (tab === 'transit') return [...as('stop', data.stops), ...as('bike', data.bikes), ...as('pr', data.parkRide)];
-    if (tab === 'routes') return [...as('fire', data.fire), ...as('hospital', data.hospitals)];
+    if (mode === 'transit') return [...as('stop', data.stops), ...as('bike', data.bikes), ...as('pr', data.parkRide)];
+    if (mode === 'emergency') return [...as('fire', data.fire), ...as('hospital', data.hospitals)];
     return [];
-  }, [tab, data]);
+  }, [mode, data]);
   const active = useMemo(() => sites.filter((s) => isActive(s, date)), [sites, date]);
   const districtsWithResidents = useMemo(
     () => data.districts.map((d) => ({ geometry: d.geometry, residents: data.residents.get(d.name) ?? 0 })),
     [data.districts, data.residents],
   );
 
-  const stats = useMemo((): Stat[] => {
+  const statPool = useMemo((): Record<StatKey, Stat> => {
     const s = t.stats;
     const at = load[date - from];
     const month = load.slice(Math.max(0, date - from - 15), date - from + 16);
     const usual = month.map((p) => p.total).sort((a, b) => a - b)[Math.floor(month.length / 2)];
     const vsUsual = at.total / (usual || 1) - 1;
     const inBand = (b: Band) => active.filter((site) => site.band === b).length;
-    return [
-      {
+    const closed = active.filter((site) => site.kinds.includes('full'));
+    return {
+      active: {
         value: String(active.length), label: s.active,
         how: [
           [s.counted, s.countedHow(formatDay(date))],
-          [s.fullClosures, String(active.filter((site) => site.kind === 'full').length)],
+          [s.fullClosures, String(closed.length)],
           [s.onMainRoads, String(active.filter((site) => site.road === 'main').length)],
         ],
       },
-      {
+      closures: {
+        value: String(closed.length), label: s.closures,
+        how: [
+          [s.counted, s.closuresHow(formatDay(date))],
+          [s.onMainRoads, String(closed.filter((site) => site.road === 'main').length)],
+        ],
+      },
+      stops: {
+        value: String(pressure.length), label: s.stops,
+        how: [
+          [s.counted, s.stopsHow(num(cfg['stop.minSeverity']), metres(cfg['stop.radius']), cfg['transit.days'], formatDay(date))],
+          ...(pressure.length ? [[s.mostHit, s.mostHitHow(pressure[0].stop.name, pressure[0].sites.length)] as [string, string]] : []),
+        ],
+      },
+      points: {
         value: String(Math.round(at.total)), label: s.points,
         how: [
           [s.onePoint, s.onePointHow],
@@ -318,7 +342,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           ? { text: s.aboutUsual }
           : { text: s.vsUsual(Math.round(Math.abs(vsUsual) * 100), vsUsual > 0), tone: vsUsual > 0 ? 'bad' : 'good' },
       },
-      {
+      clashes: {
         value: String(clusters.length), label: s.clashes,
         how: [
           [s.clash, s.clashHow(num(cfg['cluster.minSeverity']), metres(cfg['cluster.radius']))],
@@ -326,8 +350,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           [s.inThem, s.inThemHow(new Set(clusters.flatMap((c) => c.siteIds)).size, clusters.reduce((n, c) => n + c.conflicts.length, 0))],
         ],
       },
-    ];
-  }, [load, date, from, clusters, active, today, to, cfg, t]);
+    };
+  }, [load, date, from, clusters, active, pressure, today, to, cfg, t]);
+  const stats = MODES[mode].stats.map((k) => statPool[k]);
   // the scenario against the published plans, in things a planner can count
   const publishedClusters = useMemo(() => clusterConflicts(publishedConflicts, cfg).length, [publishedConflicts, cfg]);
   const busiest = (pts: typeof load) => pts.slice(BACK).reduce((a, b) => (b.total > a.total ? b : a));
@@ -360,73 +385,37 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     <SettingsContext value={cfg}>
     <div className="app">
       <header className="topbar">
-        <div className="header-main">
-          <div className="brand">
-            <img src="/domovelogo.png" alt="do.move" />
-            <span className="beta" title={t.app.betaTitle}>{t.app.beta}</span>
-          </div>
-          <div className="date-control" aria-label={t.app.dayShown}>
-            <button className="icon-button" aria-label={t.app.weekEarlier} onClick={() => setDate(clampDate(date - 7))}>‹</button>
-            <span className="date-value">{formatDay(date)}{date === today ? t.app.todaySuffix : ''}</span>
-            <button className="icon-button" aria-label={t.app.weekLater} onClick={() => setDate(clampDate(date + 7))}>›</button>
-            {date !== today && <button className="link-button" onClick={() => setDate(today)}>{t.app.today}</button>}
-          </div>
-          <div className="header-tools">
-            <LanguageChoice />
-            <div className="theme-choice" role="group" aria-label={t.app.colourTheme}>
-              <button type="button" aria-label={t.app.light} title={t.app.light} aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                </svg>
-              </button>
-              <button type="button" aria-label={t.app.dark} title={t.app.dark} aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
-                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
-                </svg>
-              </button>
-            </div>
-            <button
-              type="button" className="settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
-              aria-label={settingsChanged ? t.app.settingsChanged(settingsChanged) : t.app.settings}
-              title={settingsChanged ? t.app.settingsChangedTitle(settingsChanged) : t.app.settings}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        <div className="brand">
+          <img src="/domovelogo.png" alt="do.move" />
+          <span className="beta" title={t.app.betaTitle}>{t.app.beta}</span>
+        </div>
+        <ModeSwitch mode={mode} onMode={(m) => m !== mode && switchMode(m)} />
+        <div className="header-tools">
+          <LanguageChoice />
+          <div className="theme-choice" role="group" aria-label={t.app.colourTheme}>
+            <button type="button" aria-label={t.app.light} title={t.app.light} aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
               </svg>
-              {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
+            </button>
+            <button type="button" aria-label={t.app.dark} title={t.app.dark} aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+              </svg>
             </button>
           </div>
-        </div>
-        <div className="header-context">
-          <Summary items={stats} />
-          <div className="scenario">
-            {changes || settingsChanged ? (
-              <>
-                <div className="scenario-details">
-                  {changes > 0 && <strong>{t.n.change(changes)}</strong>}
-                  {publishedLoad && (
-                    <span className="muted">
-                      <Derived how={[
-                        [t.app.publishedPlans, t.app.scenarioHow(publishedClusters, formatShort(busiest(publishedLoad).day), one(busiest(publishedLoad).total))],
-                        [t.app.yourScenario, t.app.scenarioHow(clusters.length, formatShort(busiest(load).day), one(busiest(load).total))],
-                        [t.app.busiestDay, t.app.busiestOf(dayRange(today, to))],
-                      ]}>
-                        {t.app.comparison(publishedClusters, clusters.length, Math.round(busiest(publishedLoad).total), Math.round(busiest(load).total))}
-                      </Derived>
-                    </span>
-                  )}
-                  {orphaned > 0 && <span className="note">{t.app.orphaned(orphaned)}</span>}
-                </div>
-                <div className="scenario-actions">
-                  <button className="button" onClick={copyLink}>{copied ? t.app.linkCopied : t.app.copyLink}</button>
-                  <button className="button" onClick={exportCsv}>{t.app.exportCsv}</button>
-                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>{t.app.reset}</button>
-                </div>
-              </>
-            ) : <span className="muted">{t.app.noChanges}</span>}
-          </div>
+          <button
+            type="button" className="settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+            aria-label={settingsChanged ? t.app.settingsChanged(settingsChanged) : t.app.settings}
+            title={settingsChanged ? t.app.settingsChangedTitle(settingsChanged) : t.app.settings}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            {settingsChanged > 0 && <span className="settings-count" aria-hidden="true">{settingsChanged}</span>}
+          </button>
         </div>
         {problems.length > 0 && <div className="banner" role="status">{t.app.problems(problems.join('; '))}</div>}
       </header>
@@ -451,16 +440,49 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{t.app.views[id]}</button>
             ))}
           </div>
-          <Legend tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
+          <Legend mode={mode} tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
         </section>
         <aside className="panel">
-          <nav className="tabs" role="tablist" aria-label={t.app.planningViews}
-            style={{ '--tab': TABS.indexOf(tab), '--tabs': TABS.length } as CSSProperties}>
-            {TABS.map((id) => (
-              <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'tab selected' : 'tab'}
-                onClick={() => switchTab(id)}>{t.app.tabs[id]}</button>
-            ))}
-          </nav>
+          <div className="panel-head">
+            <div className="date-control" aria-label={t.app.dayShown}>
+              <button className="icon-button" aria-label={t.app.weekEarlier} onClick={() => setDate(clampDate(date - 7))}>‹</button>
+              <span className="date-value">{formatDay(date)}{date === today ? t.app.todaySuffix : ''}</span>
+              <button className="icon-button" aria-label={t.app.weekLater} onClick={() => setDate(clampDate(date + 7))}>›</button>
+              {date !== today && <button className="link-button" onClick={() => setDate(today)}>{t.app.today}</button>}
+            </div>
+            <Summary items={stats} />
+            {(changes > 0 || settingsChanged > 0) && (
+              <div className="scenario">
+                <div className="scenario-details">
+                  {changes > 0 && <strong>{t.n.change(changes)}</strong>}
+                  {publishedLoad && (
+                    <span className="muted">
+                      <Derived how={[
+                        [t.app.publishedPlans, t.app.scenarioHow(publishedClusters, formatShort(busiest(publishedLoad).day), one(busiest(publishedLoad).total))],
+                        [t.app.yourScenario, t.app.scenarioHow(clusters.length, formatShort(busiest(load).day), one(busiest(load).total))],
+                        [t.app.busiestDay, t.app.busiestOf(dayRange(today, to))],
+                      ]}>
+                        {t.app.comparison(publishedClusters, clusters.length, Math.round(busiest(publishedLoad).total), Math.round(busiest(load).total))}
+                      </Derived>
+                    </span>
+                  )}
+                  {orphaned > 0 && <span className="note">{t.app.orphaned(orphaned)}</span>}
+                </div>
+                <div className="scenario-actions">
+                  <button className="button" onClick={copyLink}>{copied ? t.app.linkCopied : t.app.copyLink}</button>
+                  <button className="button" onClick={exportCsv}>{t.app.exportCsv}</button>
+                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>{t.app.reset}</button>
+                </div>
+              </div>
+            )}
+            <nav className="tabs" role="tablist" aria-label={t.modes.views(t.modes.name[mode])}
+              style={{ '--tab': MODES[mode].tabs.indexOf(tab), '--tabs': MODES[mode].tabs.length } as CSSProperties}>
+              {MODES[mode].tabs.map((id) => (
+                <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'tab selected' : 'tab'}
+                  onClick={() => switchTab(id)}>{t.app.tabs[id]}</button>
+              ))}
+            </nav>
+          </div>
           <div className="panel-body" ref={panelBody}>
             {settingsOpen && (
               <SettingsPanel settings={settings} changed={settingsChanged} onChange={setSetting}
@@ -469,11 +491,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             {selected && !settingsOpen && (
               <>
               <SitePanel
-                key={selected.id} site={selected} byId={byId} conflicts={selectedConflicts} advice={siteAdvice} shift={scenario.shifts[selected.id]} date={date} today={today}
+                key={selected.id} site={selected} plan={mode === 'plan'} byId={byId} conflicts={selectedConflicts} advice={siteAdvice} shift={scenario.shifts[selected.id]} date={date} today={today}
                 priority={(() => { const i = ranked.findIndex((p) => p.site.id === selected.id); return i >= 0 ? { rank: i + 1, of: ranked.length, p: ranked[i] } : null; })()}
                 onShift={(s) => setShift(selected.id, s)} onSelect={selectSite} onBack={() => setSelectedId(null)} onRemove={() => removeProject(selected.id)}
               />
-              <ImpactScorePanel assessment={assessment} target={impactTarget} locations={businessLocations} scenario={changeCount(scenario) > 0}
+              {mode === 'plan' && <ImpactScorePanel assessment={assessment} target={impactTarget} locations={businessLocations} scenario={changeCount(scenario) > 0}
                 locationError={locationError} onTarget={(target) => { setImpactTarget(target); setLocationError(null); }}
                 onAdd={() => {
                   setLocationError(null);
@@ -483,18 +505,20 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                   } });
                 }}
                 onRename={(index, name) => setBusinessLocations((items) => items.map((p, i) => i === index ? { ...p, name } : p))}
-                onRemove={(index) => setBusinessLocations((items) => items.filter((_, i) => i !== index))} />
+                onRemove={(index) => setBusinessLocations((items) => items.filter((_, i) => i !== index))} />}
               <TrafficContextPanel context={selectedTraffic} evidence={selectedEvidence} byId={byId} onSelect={selectSite} scenario={changeCount(scenario) > 0} />
               </>
             )}
             <div hidden={!!selected || settingsOpen || tab !== 'todo'}>
               <TodoTab todo={todo} byId={byId} horizon={horizon} onSelectSite={selectSite} onShift={setShift}
-                onOpenDistrict={(name) => { switchTab('transit'); selectDistrict(name); }} />
+                onOpenDistrict={(name) => { switchMode('transit', 'transit'); selectDistrict(name); }} />
             </div>
-            <div hidden={!!selected || settingsOpen || tab !== 'coordinate'}>
+            <div hidden={!!selected || settingsOpen || tab !== 'outlook'} className="tab-body">
               <OutlookPanel result={outlookResult} days={outlookDays} byId={byId} mapFiltered={outlookMap}
                 retrievedAt={data.retrievedAt} scenario={changeCount(scenario) > 0} onSelect={selectSite}
                 onDays={(days) => { setOutlookDays(days); setOutlookMap(true); }} onMapFilter={setOutlookMap} />
+            </div>
+            <div hidden={!!selected || settingsOpen || tab !== 'coordinate'}>
               <CoordinateTab
                 byId={byId} clusters={clusters} advice={advice} bundles={bundles} today={today} horizon={horizon}
                 selectedCluster={clusterId} onSelectCluster={selectCluster} onSelectSite={selectSite} onShift={setShift} balance={balance}
@@ -514,10 +538,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <TransitTab gaps={gaps} pressure={pressure} bikes={data.bikes} parkRide={data.parkRide} date={date} residentsYear={data.residentsYear}
                 selected={district} onSelect={selectDistrict} onSelectSite={selectSite} />
             </div>
-            <div hidden={!!selected || settingsOpen || tab !== 'routes'}>
-              <RoutesTab active={active} date={date} fire={data.fire} hospitals={data.hospitals} parkRide={data.parkRide} districts={districtsWithResidents}
+            {MODES[mode].groups.length > 0 && <div hidden={!!selected || settingsOpen || tab !== 'routes'}>
+              <RoutesTab key={mode} groups={MODES[mode].groups} active={active} date={date} fire={data.fire} hospitals={data.hospitals} parkRide={data.parkRide} districts={districtsWithResidents}
                 onOverlay={showOverlay} onPick={(hint, done) => setPick({ hint, done })} onSelectSite={selectSite} />
-            </div>
+            </div>}
           </div>
         </aside>
       </div>
@@ -528,7 +552,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 }
 
-function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: number; impactView: ImpactView; outlookPeriod: { from: number; to: number } | null }) {
+function Legend({ mode, tab, date, impactView, outlookPeriod }: { mode: Mode; tab: Tab; date: number; impactView: ImpactView; outlookPeriod: { from: number; to: number } | null }) {
   const t = useStrings().legend;
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
@@ -555,20 +579,18 @@ function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: numb
       {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>{t.rank}</div>}
       {tab === 'capacity' && <div className="legend-row"><i className="ramp" />{t.load}</div>}
       {(tab === 'capacity' || tab === 'transit') && <div className="legend-row"><i className="key-line selection" />{t.district}</div>}
-      {tab === 'transit' && (
-        <>
-          <div className="legend-row"><i className="ramp" />{t.need}</div>
-          <div className="legend-row"><span className="glyph">U</span>{t.stadtbahn} · <span className="glyph">B</span>{t.bikeShare} · <span className="glyph">P</span>{t.parkRide}</div>
-        </>
-      )}
+      {tab === 'transit' && <div className="legend-row"><i className="ramp" />{t.need}</div>}
       {tab === 'routes' && (
         <>
           <div className="legend-row"><i className="key-line normal" />{t.normal}</div>
           <div className="legend-row"><i className="key-line aware" />{t.aware}</div>
-          <div className="legend-row"><i className="swatch lost" />{t.lost}</div>
-          <div className="legend-row"><span className="glyph">F</span>{t.fire} · <span className="glyph">H</span>{t.hospital}</div>
+          {mode === 'emergency' && <div className="legend-row"><i className="swatch lost" />{t.lost}</div>}
         </>
       )}
+      {mode === 'transit' && (
+        <div className="legend-row"><span className="glyph">U</span>{t.stadtbahn} · <span className="glyph">B</span>{t.bikeShare} · <span className="glyph">P</span>{t.parkRide}</div>
+      )}
+      {mode === 'emergency' && <div className="legend-row"><span className="glyph">F</span>{t.fire} · <span className="glyph">H</span>{t.hospital}</div>}
     </details>
   );
 }

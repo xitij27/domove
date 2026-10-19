@@ -37,7 +37,7 @@ const de: Strings = {
   app: {
     loading: 'Dortmunds Baustellen und offene Daten werden geladen …',
     tryAgain: 'Erneut versuchen',
-    tabs: { todo: 'Aufgaben', coordinate: 'Koordinieren', priorities: 'Prioritäten', transit: 'ÖPNV', capacity: 'Kapazität', routes: 'Routen' },
+    tabs: { todo: 'Aufgaben', coordinate: 'Koordinieren', outlook: 'Ausblick', priorities: 'Prioritäten', transit: 'ÖPNV', capacity: 'Kapazität', routes: 'Routen' },
     views: { bands: 'Stufen', heat: 'Heatmap' },
     beta: 'Beta',
     betaTitle: 'Frühe Version: Die Gewichte hinter den Zahlen sind Ermessensentscheidungen',
@@ -64,12 +64,10 @@ const de: Strings = {
     copyLink: 'Link kopieren',
     exportCsv: 'CSV exportieren',
     reset: 'Zurücksetzen',
-    noChanges: 'Noch keine Änderungen',
     copyPrompt: 'Kopieren Sie diesen Link, um das Szenario zu teilen:',
     problems: (list) => `Einige Ebenen konnten nicht geladen werden (${list}). Alles andere funktioniert.`,
     cancel: 'Abbrechen',
     colourBy: 'Baustellen einfärben nach',
-    planningViews: 'Planungsansichten',
     pickBusiness: 'Klicken Sie auf einen Unternehmensstandort in Dortmund (Esc zum Abbrechen)',
     outsideStudyArea: 'Wählen Sie einen Standort innerhalb des Dortmunder Untersuchungsgebiets.',
     businessName: (n) => `Unternehmensstandort ${n}`,
@@ -80,6 +78,13 @@ const de: Strings = {
     footer: 'Daten: Open Data der Stadt Dortmund · OpenHolidays · Routing: Valhalla (FOSSGIS) · Karte © OpenStreetMap-Mitwirkende, OpenFreeMap',
     keyFigures: 'Kennzahlen für den gewählten Tag',
     howThisWorks: 'So funktioniert das',
+  },
+
+  modes: {
+    label: 'Rolle',
+    name: { plan: 'Planung', traffic: 'Verkehr', emergency: 'Rettung', transit: 'ÖPNV' },
+    role: { plan: 'Baustellenkoordination', traffic: 'Polizei & Verkehrslenkung', emergency: 'Feuerwehr & Rettungsdienst', transit: 'Bus, Bahn & Rad' },
+    views: (name) => `Ansichten ${name}`,
   },
 
   stats: {
@@ -103,6 +108,13 @@ const de: Strings = {
     againstUsualHow: (today, usual, change) => `${today} ÷ ${usual} − 1 = ${change}; innerhalb von 5 % gilt als üblich`,
     aboutUsual: 'etwa üblich',
     vsUsual: (percent, above) => `${percent} % ${above ? 'über' : 'unter'} üblich`,
+    closures: 'Vollsperrungen',
+    closuresHow: (day) => `Baustellen, die am ${day} für den gesamten Verkehr gesperrt sind; die Routen behandeln sie auch für Feuerwehr und Rettungsdienst als gesperrt`,
+    stops: 'Haltestellen an 2+ Baustellen',
+    stopsHow: (severity, within, days, day) =>
+      `Stadtbahn-Haltestellen mit 2 oder mehr Baustellen ab Schwere ${severity} im Umkreis von ${within}, in den ${days} Tagen ab ${day}`,
+    mostHit: 'Am stärksten betroffen',
+    mostHitHow: (stop, works) => `${stop}: ${plural(works, 'Baustelle', 'Baustellen')}`,
     clashes: 'Konflikte voraus',
     clash: 'Konflikt',
     clashHow: (from, within) => `Arbeiten mit Schwere ab ${from} im Umkreis von ${within} voneinander an denselben Tagen, zu Gruppen verbunden`,

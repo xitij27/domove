@@ -7,6 +7,7 @@ import type { FactorKey } from '../model/impact';
 import type { Band, SettingGroup, SettingKey, SettingUnit } from '../model/settings';
 import type { RoadClass } from '../model/sites';
 import type { Group } from '../routing/valhalla';
+import type { Mode } from '../ui/modes';
 import { rich } from './rich';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -46,7 +47,7 @@ const en = {
   app: {
     loading: "Loading Dortmund's construction sites and open data…",
     tryAgain: 'Try again',
-    tabs: { todo: 'To do', coordinate: 'Coordinate', priorities: 'Priorities', transit: 'Transit', capacity: 'Capacity', routes: 'Routes' },
+    tabs: { todo: 'To do', coordinate: 'Coordinate', outlook: 'Outlook', priorities: 'Priorities', transit: 'Transit', capacity: 'Capacity', routes: 'Routes' },
     views: { bands: 'Bands', heat: 'Heat' },
     beta: 'Beta',
     betaTitle: 'Early version: the weights behind the figures are judgement calls',
@@ -73,12 +74,10 @@ const en = {
     copyLink: 'Copy link',
     exportCsv: 'Export CSV',
     reset: 'Reset',
-    noChanges: 'No changes yet',
     copyPrompt: 'Copy this link to share the scenario:',
     problems: (list: string) => `Some layers couldn't load (${list}). Everything else works.`,
     cancel: 'Cancel',
     colourBy: 'Colour the works by',
-    planningViews: 'Planning views',
     pickBusiness: 'Click a business location in Dortmund (Escape to cancel)',
     outsideStudyArea: 'Choose a location within the Dortmund study area.',
     businessName: (n: number) => `Business location ${n}`,
@@ -89,6 +88,14 @@ const en = {
     footer: 'Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map © OpenStreetMap contributors, OpenFreeMap',
     keyFigures: 'Key figures for the chosen day',
     howThisWorks: 'How this works',
+  },
+
+  /** The roles the dashboard is arranged by; each shows its own views and figures. */
+  modes: {
+    label: 'Role',
+    name: { plan: 'Planning', traffic: 'Traffic', emergency: 'Emergency', transit: 'Transit' } as Record<Mode, string>,
+    role: { plan: 'Works coordination', traffic: 'Police & traffic control', emergency: 'Fire & ambulance', transit: 'Buses, trams & bikes' } as Record<Mode, string>,
+    views: (name: string) => `${name} views`,
   },
 
   stats: {
@@ -112,6 +119,13 @@ const en = {
     againstUsualHow: (today: string, usual: string, change: string) => `${today} ÷ ${usual} − 1 = ${change}; within 5% counts as usual`,
     aboutUsual: 'about usual',
     vsUsual: (percent: number, above: boolean) => `${percent} % ${above ? 'above' : 'below'} usual`,
+    closures: 'full closures',
+    closuresHow: (day: string) => `works closed to all traffic on ${day}; the routes treat them as shut for fire and ambulance too`,
+    stops: 'stops beside 2+ works',
+    stopsHow: (severity: string, within: string, days: number, day: string) =>
+      `Stadtbahn stops with 2 or more works of severity ${severity}+ within ${within}, over the ${days} days from ${day}`,
+    mostHit: 'Most hit',
+    mostHitHow: (stop: string, works: number) => `${stop}: ${plural(works, 'work')}`,
     clashes: 'clashes ahead',
     clash: 'Clash',
     clashHow: (from: string, within: string) => `works of severity ${from}+ within ${within} of each other on the same days, linked into groups`,

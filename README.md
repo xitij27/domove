@@ -22,7 +22,7 @@ This project turns the city's list into answers to those questions.
 | Who | What they use | What it does for them |
 |---|---|---|
 | People who live in or travel through Dortmund, on foot, by bike or by car | the **mobile app** (Android) | shows the works on their own routes, rates them, suggests a way around and reminds them before work starts |
-| The city's planners | the **planner dashboard**, a website: <https://domove-dashboard-sigma.vercel.app> | shows where works pile up, what to move or do together, which works to finish first and which districts need extra public transport |
+| The city: road works planners, traffic police and control, fire and ambulance, and the bus and tram operator | the **planner dashboard**, a website: <https://domove-dashboard-sigma.vercel.app>, with one role for each | planners: where works pile up and what to move or do together · traffic: where the works hurt most and the detours · fire and ambulance: what the day's closures do to each station's reach · transit: which districts and stops the works cut off |
 
 ## What the mobile app does
 
@@ -39,14 +39,14 @@ This project turns the city's list into answers to those questions.
 
 ## What the planner dashboard does
 
-The dashboard answers the city's question rather than one person's: across Dortmund and the coming year, are works stacking up so that a neighbourhood loses every way around? It opens on a **To do** list of suggestions, each in a single line, and has a view for each question:
+The dashboard answers the city's question rather than one person's: across Dortmund and the coming year, are works stacking up so that a neighbourhood loses every way around? Its features are grouped into four **roles**, picked at the top of the page. Each role shows only its own views, its own key figures and its own places on the map:
 
-- **Coordinate:** which works clash (close together on the same days), which works on the same stretch of road should be done together, and the best start dates for a new project.
-- **Priorities:** which running works to finish first, judged by how disruptive they are, how long they have left, and whether they block emergency services or rail.
-- **Transit:** which districts lose roads without a tram or light-rail (Stadtbahn) stop in walking distance, so they need public-transport help.
-- **Routes:** how commuters, delivery traffic, emergency services, cyclists and pedestrians get around on a chosen day, and how far a fire station can reach with the day's closures.
+- **Planning** (works coordination) opens on a **To do** list of suggestions, each in a single line. It then has **Coordinate** (which works clash, which works on the same stretch should be done together, and the best start dates for a new project), **Outlook** (what starts, runs and ends in the next 7, 14 or 30 days) and **Priorities** (which running works to finish first). Only this role can move works and try out proposed projects.
+- **Traffic** (police and traffic control) has **Priorities**, **Capacity** (how loaded each district's roads are on the day), **Routes** for commuters and lorries around the day's closures, and **Outlook**.
+- **Emergency** (fire and ambulance) has **Routes**: how far a chosen fire and rescue station reaches in 5–12 minutes with and without the day's full closures, and routes for blue-light vehicles. It also has **Outlook**, and shows the fire stations and hospitals on the map.
+- **Transit** (buses, trams and bikes) has **Transit** (which districts lose roads without a Stadtbahn stop in walking distance, and which stops sit beside two or more works) and **Routes** for cyclists and pedestrians. It shows stops, bike-share stations and P+R sites on the map.
 
-Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). It is in English or German: the **EN | DE** buttons next to the light/dark switch change it, and the browser remembers the choice. More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). It is in English or German: the **EN | DE** buttons next to the light/dark switch change it, and the browser remembers the choice, as it does the role. More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
 
 ## How it works, in plain words
 
@@ -108,7 +108,7 @@ Each site's card shows an impact score from 0 to 10 for the way you travel, with
 
 ## Planner dashboard (`dashboard/`)
 
-Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city's planners, on the same data: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city on the same data, with a role each for planning, traffic, emergency services and transit: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, what the day's closures do to fire stations' reach, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each role and view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).
 
 1. Copy `dashboard/.env.example` to `dashboard/.env` (gitignored) and set `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`: the same public values as the app's `EXPO_PUBLIC_SUPABASE_*`.
 2. `cd dashboard && npm ci && npm run dev`, then open the printed URL.

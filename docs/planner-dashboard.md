@@ -1,24 +1,44 @@
 # Planner dashboard
 
-Website for the city's planners · `dashboard/` · live at <https://domove-dashboard-sigma.vercel.app> · 17 Oct 2026
+Website for the city's planners, traffic authority, fire and ambulance, and transit operator · `dashboard/` · live at <https://domove-dashboard-sigma.vercel.app> · 17 Oct 2026, roles added 19 Oct 2026
 
 The app answers one resident's question: which works are on my route? The dashboard answers the city's: across Dortmund and the coming year, are works stacking up so that a neighbourhood loses every way around? It reads the same `construction_sites` table as the app, plus the city's open data, and runs everything in the browser. There is no backend change.
+
+## Roles
+
+The features are grouped by who uses them. The roles run across the header. The picked one is underlined in yellow, the colour of temporary road markings at German road works, which override the usual white ones. Each role has its own views, its own figures at the top of the side panel, and its own places on the map. All roles share the same sites, settings, scenario and day. The browser remembers the last role; the first visit opens Planning.
+
+| Role | For | Views (the first opens) | Figures | Also on the map |
+|---|---|---|---|---|
+| **Planning** | works coordination (Tiefbauamt) | To do · Coordinate · Outlook · Priorities | active sites · disruption points · clashes ahead | – |
+| **Traffic** | police and traffic control (in practice the road traffic authority and the control centre) | Priorities · Capacity · Routes · Outlook | disruption points · full closures · active sites | – |
+| **Emergency** | fire and ambulance | Routes · Outlook | full closures · active sites | fire and rescue stations, hospitals |
+| **Transit** | buses, trams and bikes | Transit · Routes | stops beside 2+ works · active sites | Stadtbahn stops, bike share, P+R |
+
+- **Routes per role.** Traffic plans for commuters and lorries, Emergency for blue-light vehicles (with emergency reach first), Transit for cyclists and pedestrians. A role with one group shows no group picker.
+- **A site's panel.** Moving dates, finishing sooner and the impact score are planning actions, so only Planning shows them. The other roles see the site's facts, the works that coincide with it, and its traffic context.
+- **Full closures** counts the active sites whose restrictions include a full closure. That's the same rule by which the routes treat a site as shut for fire and ambulance.
+- **Stops beside 2+ works** counts Stadtbahn stops with two or more works of severity 0.5 or more within 500 m, over the 30 days from the chosen day. These are the defaults, which Settings can change. That's the same rule as "stops under pressure" in the Transit view.
+- **To do → Transit.** A "Transit help" item's **Open** switches to the Transit role with that district selected.
+- **On a phone** the roles form a row of four under the logo.
 
 ## What it answers
 
 | Question | Where | How |
 |---|---|---|
-| What should I act on first? | **To do** (the first view) | every suggestion the other views make, one line each, numbered like the map: moves that clear clashes, works to do together, clashes only finishing sooner can clear, districts needing transit help |
-| Are works piling up in one place at one time? | **Coordinate** · clashes, and the timeline | works close together on the same days, linked into clusters |
-| Which works should happen together instead? | **Coordinate** · do these together | works on the same stretch at different times |
-| When should these works start? | a site's panel · best windows; **Plan a new project** | start dates scored against everything else planned |
-| Is the Tiefbauamt's programme balanced? | **Coordinate** · works programme | projects in construction per district and period |
-| Which running works should finish first? | **Priorities** | severity, time left, overlaps, emergency access, rail nearby |
-| Which districts need public-transport attention? | **Transit** | closures with no Stadtbahn in walking distance, per resident |
-| How do commuters, logistics, emergency services, cyclists and pedestrians get around on a given day? | **Routes** | the router, around that day's closures for that group |
-| What do the closures do to a fire station's reach? | **Routes** · Emergency reach | reach without and with the day's full closures |
+| What should I act on first? | **To do** (Planning's first view) | every suggestion the other views make, one line each, numbered like the map: moves that clear clashes, works to do together, clashes only finishing sooner can clear, districts needing transit help |
+| Are works piling up in one place at one time? | **Coordinate** · clashes, and the timeline (Planning) | works close together on the same days, linked into clusters |
+| Which works should happen together instead? | **Coordinate** · do these together (Planning) | works on the same stretch at different times |
+| When should these works start? | a site's panel · best windows; **Plan a new project** in Coordinate (Planning) | start dates scored against everything else planned |
+| What starts, runs and ends soon? | **Outlook** (Planning, Traffic, Emergency) | the next 7, 14 or 30 days: works starting, running and ending, possible conflicts and uncertain dates; the map and timeline can show only that window |
+| Is the Tiefbauamt's programme balanced? | **Coordinate** · works programme (Planning) | projects in construction per district and period |
+| Which running works should finish first? | **Priorities** (Planning, Traffic) | severity, time left, overlaps, emergency access, rail nearby |
+| How loaded are each district's roads? | **Capacity** (Traffic) | an estimate of each district's road load on the day, from its lane-kilometres, residents and the day's works |
+| Which districts need public-transport attention? | **Transit** (Transit) | closures with no Stadtbahn in walking distance, per resident |
+| How do commuters, logistics, emergency services, cyclists and pedestrians get around on a given day? | **Routes** (Traffic: commuters, logistics · Emergency · Transit: cyclists, pedestrians) | the router, around that day's closures for that group |
+| What do the closures do to a fire station's reach? | **Routes** · Emergency reach (Emergency) | reach without and with the day's full closures |
 
-Every view follows the chosen day: the header's arrows (a week at a time), a click or drag on the timeline, or the arrow keys on it (a day; PgUp/PgDn a week; Home is today). The map is the same map in every tab, with the tab's layers on top.
+Every view follows the chosen day: the arrows above the role's figures (a week at a time), a click or drag on the timeline, or the arrow keys on it (a day; PgUp/PgDn a week; Home is today). The map is the same map in every view, with the view's and the role's layers on top.
 
 Numbers are stated in things a planner can count. A clash is another serious site within 1 km running on the same days, so a suggestion reads "clashes 6 sites on 60 days → 2 sites on 9 days". Disruption is in points: 1 point is a full closure on a main road, and lighter restrictions and side streets count less. Each section's (i) holds its rules; lists are never cut short.
 
@@ -26,7 +46,7 @@ Every figure the dashboard works out is underlined dotted. Hover, focus or tap i
 
 ### Scenarios
 
-Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and the header counts the clashes and the busiest day's points, published → yours. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
+Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and a yellow-tinted bar above the views counts the clashes and the busiest day's points, published → yours. The bar only appears once something differs from the published plans. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
 
 ## How it scores
 
@@ -90,6 +110,23 @@ The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (ba
 - **Daytime-only closures** count around the clock.
 - **Scenarios are not stored centrally**: a shared store would need planner logins, because the publishable key mustn't write.
 - **The public router is fair-use.** Heavy use needs openrouteservice (#12) or our own router.
+- **Roles are views, not permissions.** Anyone with the link sees every role. That's fine while every source is public, but loading a city's internal plans needs logins first.
+- **The role isn't in the share link.** A colleague opening a scenario link sees it in their own last role.
+
+## Roles in the code
+
+- `src/ui/modes.ts`: `MODES` lists each role's views (the first one opens), its figures and its route groups. The picked role is kept in `localStorage` under `domove-dashboard-mode`, falling back to Planning when storage is blocked.
+- `src/ui/ModeSwitch.tsx`: the switch and its icons. Role names and role lines are under `modes` in `src/i18n/en.ts` and `de.ts`. View names are under `app.tabs`.
+- `src/App.tsx`:
+  - `statPool`: every figure a role can show, each with its working
+  - `pois`: the places each role adds to the map
+  - `Legend`: the legend rows for those places
+  - the site panel's planning-only parts (`plan` on `SitePanel`, and the impact score)
+- `src/ui/modes.test.ts`: every view and every route group must stay reachable from some role, and a role has route groups exactly when it has Routes.
+- **To add a view to a role**, add its id to that role's `tabs`. **To add a role**, add it to `MODES` and its words to both language files. The type check fails on any word missing in German.
+- **Look.**
+  - The yellow is the `--selection` token, the same yellow that marks a chosen district on the map.
+  - Headings, figures, roles and views use Barlow Semi Condensed, a typeface drawn from road signage. It's bundled with the site (`@fontsource/barlow-semi-condensed`, weights 500 and 600), so no font request goes to Google. Body text stays in the system font.
 
 ## Run, test, deploy
 
