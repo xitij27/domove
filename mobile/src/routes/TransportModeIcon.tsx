@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { TRANSPORT_MODES, type TransportMode } from './model';
+import { useStrings } from '../i18n';
+import type { TransportMode } from './model';
 
 const ICONS: Record<TransportMode, React.ComponentProps<typeof MaterialIcons>['name']> = {
   car: 'directions-car',
@@ -17,8 +18,9 @@ export default function TransportModeIcon({
   size?: number;
   color?: string;
 }) {
+  const t = useStrings();
   return (
-    <View accessibilityRole="image" accessibilityLabel={TRANSPORT_MODES[mode]}>
+    <View accessibilityRole="image" accessibilityLabel={t.modes[mode]}>
       <MaterialIcons name={ICONS[mode]} size={size} color={color} />
     </View>
   );

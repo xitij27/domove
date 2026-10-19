@@ -1,3 +1,4 @@
+import { useStrings } from '../i18n';
 import type { ProjectEvidence } from '../model/outlook';
 import type { TrafficContext } from '../model/trafficContext';
 import type { Site } from '../model/sites';
@@ -11,26 +12,27 @@ export function TrafficContextPanel({ context, evidence, byId, onSelect, scenari
   scenario?: boolean;
 }) {
   const cfg = useSettings();
+  const t = useStrings().traffic;
   return (
     <section className="block project-analytics" aria-labelledby="traffic-context-title">
-      <h3 id="traffic-context-title">Traffic Context</h3>
-      <Info>Distances use the published construction footprint. Concurrent projects use full reported periods, independently of the selected outlook window. Missing footprints or dates may hide further relationships. The Routes tab can investigate a chosen trip; a verified project-specific alternative route is not available here.</Info>
-      {scenario && <p className="note">Scenario context includes proposed dates or construction footprints.</p>}
-      {!context ? <p className="muted">No separate verified assessment is available for this project representation.</p> : (
+      <h3 id="traffic-context-title">{t.title}</h3>
+      <Info>{t.info}</Info>
+      {scenario && <p className="note">{t.scenario}</p>}
+      {!context ? <p className="muted">{t.none}</p> : (
         <>
           <dl className="facts">
-            <dt>Mapped road</dt><dd>{context.road ?? 'Unknown / unavailable'}</dd>
-            <dt>Stops within {metres(cfg['stop.radius'])}</dt><dd>{context.stopsKnown ? context.stops.length : 'Unavailable / incomplete'}</dd>
-            <dt>Concurrent projects</dt><dd>{evidence?.shape && evidence.start !== null && evidence.end !== null ? `${context.nearby.length} known potential conflicts within ${metres(cfg['impact.radius'])}` : 'Unavailable: dates or footprint missing'}</dd>
+            <dt>{t.road}</dt><dd>{context.road ?? t.unknownRoad}</dd>
+            <dt>{t.stops(metres(cfg['stop.radius']))}</dt><dd>{context.stopsKnown ? context.stops.length : t.stopsUnknown}</dd>
+            <dt>{t.concurrent}</dt><dd>{evidence?.shape && evidence.start !== null && evidence.end !== null ? t.concurrentCount(context.nearby.length, metres(cfg['impact.radius'])) : t.concurrentUnknown}</dd>
           </dl>
           {!!context.stops.length && <ul className="plain analytics-list">{context.stops.map((s, i) => (
-            <li key={`${s.name}:${i}`}>{s.name} · about {metres(s.m)}{s.detail ? ` · ${s.detail}` : ''}</li>
+            <li key={`${s.name}:${i}`}>{t.stop(s.name, metres(s.m), s.detail)}</li>
           ))}</ul>}
           {!!context.nearby.length && <ul className="plain analytics-list">{context.nearby.map((p) => (
-            <li key={p.id}><button className="link-button" onClick={() => onSelect(p.id)}>{byId.get(p.id)?.title ?? p.id}</button><div className="muted small">About {metres(p.metres)} between footprints · {dayRange(p.from, p.to)}</div></li>
+            <li key={p.id}><button className="link-button" onClick={() => onSelect(p.id)}>{byId.get(p.id)?.title ?? p.id}</button><div className="muted small">{t.between(metres(p.metres), dayRange(p.from, p.to))}</div></li>
           ))}</ul>}
           <details>
-            <summary>Sources and limitations</summary>
+            <summary>{t.sources}</summary>
             <ul className="plain small">{context.sources.map((s) => <li key={s}>{s}</li>)}</ul>
             <ul className="plain muted small">{[...context.limitations, ...(evidence?.issues ?? [])].map((s) => <li key={s}>{s}</li>)}</ul>
           </details>

@@ -1,4 +1,15 @@
+import type { Language } from '../i18n';
+import { QUESTIONS_DE } from './questions.de';
 import type { Question } from './quiz';
+
+/** The question as asked in `language`; one without a translation stays in English. */
+export function questionIn(question: Question, language: Language): Question {
+  const de = language === 'de' ? QUESTIONS_DE[question.id] : undefined;
+  if (!de) return question;
+  return question.kind === 'choice'
+    ? { ...question, prompt: de.prompt, options: de.options ?? question.options, fact: de.fact }
+    : { ...question, prompt: de.prompt, answers: [...(de.answers ?? []), ...question.answers], fact: de.fact };
+}
 
 // Mostly Dortmund itself, and some on getting around it: roadworks signs, detours, transport.
 // A choice's answer is the index of the right option; mix up where it sits.

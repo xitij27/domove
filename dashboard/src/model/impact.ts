@@ -1,6 +1,8 @@
 // A prototype review-priority indicator, independent of the planner's Disruption Points.
 import type { Poi } from '../data/sources';
-import { classifyClosures, KIND_LABEL } from './closures';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
+import { classifyClosures } from './closures';
 import { bboxGap, pointShapeDist, toXY } from './geo';
 import { parseReportedDay, validLonLat } from './outlook';
 import type { ProjectEvidence, PotentialConflict } from './outlook';
@@ -34,17 +36,17 @@ export function calculateImpact(values: Record<FactorKey, number | null>, cfg: S
   return FACTOR_KEYS.reduce((sum, k) => sum + weights[k] * values[k]!, 0);
 }
 
-export function reviewPriority(total: number | null, cfg: Settings = DEFAULT_SETTINGS): string | null {
+export function reviewPriority(total: number | null, cfg: Settings = DEFAULT_SETTINGS, t: Strings = strings()): string | null {
   if (total === null || !Number.isFinite(total) || total < 0 || total > 100) return null;
-  const level = total <= cfg['impact.band.medium'] ? 'Low' : total <= cfg['impact.band.high'] ? 'Medium' : total <= cfg['impact.band.veryHigh'] ? 'High' : 'Very High';
-  return `${level} Review Priority`;
+  const level = total <= cfg['impact.band.medium'] ? 'low' : total <= cfg['impact.band.high'] ? 'medium' : total <= cfg['impact.band.veryHigh'] ? 'high' : 'veryHigh';
+  return t.impact.priorities[level];
 }
 
 /** Reuse the existing German title classifier and the planner's restriction weights, with path-specific full-closure wording kept scoped. */
-export function restrictionSeverity(title: string, cfg: Settings = DEFAULT_SETTINGS): { value: number | null; reason: string } {
+export function restrictionSeverity(title: string, cfg: Settings = DEFAULT_SETTINGS, t: Strings = strings()): { value: number | null; reason: string } {
   const text = title.toLocaleLowerCase('de').replaceAll('ß', 'ss');
   if (/^(?:.* - )?(?:keine (?:relevanten? )?(?:verkehrs)?einschränkungen|keine verkehrsbehinderungen)[.!]?$/.test(text.trim())) {
-    return { value: 0, reason: 'The source explicitly reports no relevant traffic restriction.' };
+    return { value: 0, reason: t.impact.noRestriction };
   }
   // Keep both word orders scoped: "Vollsperrung Radweg", "Gehweg voll gesperrt", "Radweg-Vollsperrung".
   // Remove only the path phrase, so a separately reported motor-road closure remains classifiable.
@@ -55,11 +57,10 @@ export function restrictionSeverity(title: string, cfg: Settings = DEFAULT_SETTI
   const scopedPath = pathClosure.test(withoutNegatedClosure);
   const kinds = classifyClosures(withoutNegatedClosure.replace(pathClosure, ' ')).filter((k) => k !== 'unknown');
   const value = kinds.length || scopedPath ? Math.max(scopedPath ? cfg['weight.sidewalk'] : 0, ...kinds.map((k) => cfg[`weight.${k}`])) : null;
-  const labels = [...kinds.map((k) => KIND_LABEL[k]), ...(scopedPath ? ['Path closure (walking/cycling only)'] : [])];
+  const labels = [...kinds.map((k) => t.kinds[k]), ...(scopedPath ? [t.impact.pathClosure] : [])];
   return {
     value,
-    reason: value === null ? 'No supported restriction is reported; an unknown restriction is not zero.'
-      : `${labels.join('; ')}. Classified from published wording, not a verified traffic impact.${scopedPath || kinds.includes('sidewalk') ? ' The named path restriction is not evidence of a full motor-vehicle closure.' : ''}`,
+    reason: value === null ? t.impact.unsupported : t.impact.classified(labels.join('; '), scopedPath || kinds.includes('sidewalk')),
   };
 }
 
@@ -79,10 +80,10 @@ export function durationValue(p: ProjectEvidence, cfg: Settings = DEFAULT_SETTIN
   return days <= cfg['impact.short'] ? 0.25 : days <= cfg['impact.medium'] ? 0.5 : days <= cfg['impact.long'] ? 0.75 : 1;
 }
 
-function exposure(p: ProjectEvidence, locations: Poi[] | null, target: ImpactTarget, cfg: Settings): Pick<ImpactFactor, 'value' | 'reason'> {
-  const name = target === 'public' ? 'public-service' : 'selected business';
-  if (!p.shape) return { value: null, reason: 'Published construction geometry is missing; marker-centre distances are not substituted.' };
-  if (!locations?.length) return { value: null, reason: `No verified ${name} locations are available.` };
+function exposure(p: ProjectEvidence, locations: Poi[] | null, target: ImpactTarget, cfg: Settings, t: Strings): Pick<ImpactFactor, 'value' | 'reason'> {
+  const name = target === 'public' ? t.impact.publicName : t.impact.businessName;
+  if (!p.shape) return { value: null, reason: t.impact.noGeometry };
+  if (!locations?.length) return { value: null, reason: t.impact.noLocations(name) };
   let nearest: { poi: Poi; metres: number } | null = null;
   let invalid = false;
   for (const poi of locations) {
@@ -92,15 +93,15 @@ function exposure(p: ProjectEvidence, locations: Poi[] | null, target: ImpactTar
     else if (!Number.isFinite(metres)) invalid = true;
   }
   // Invalid locations could hide a closer point. Only the maximum already-established factor is conclusive.
-  if (!nearest || (invalid && nearest.metres > cfg['impact.near'])) return { value: null, reason: `Some ${name} locations have invalid coordinates; maximum exposure cannot be established.` };
-  return { value: exposureValue(nearest.metres, cfg), reason: `Maximum ${name} exposure: ${nearest.poi.name || 'unnamed location'}, approximately ${Math.round(nearest.metres)} m from the published construction geometry. Proximity is not proof of disruption.` };
+  if (!nearest || (invalid && nearest.metres > cfg['impact.near'])) return { value: null, reason: t.impact.invalidLocations(name) };
+  return { value: exposureValue(nearest.metres, cfg), reason: t.impact.exposure(name, nearest.poi.name || t.impact.unnamed, Math.round(nearest.metres)) };
 }
 
-function conflictFactor(p: ProjectEvidence, all: ProjectEvidence[], conflicts: PotentialConflict[], cfg: Settings): Pick<ImpactFactor, 'value' | 'reason'> {
+function conflictFactor(p: ProjectEvidence, all: ProjectEvidence[], conflicts: PotentialConflict[], cfg: Settings, t: Strings): Pick<ImpactFactor, 'value' | 'reason'> {
   const radius = cfg['impact.radius'];
-  if (!validPeriod(p) || !p.shape) return { value: null, reason: 'Verified dates and construction geometry are required for conflict assessment.' };
+  if (!validPeriod(p) || !p.shape) return { value: null, reason: t.impact.conflictNeeds };
   const matching = conflicts.filter((c) => c.a === p.id || c.b === p.id);
-  if (matching.some((c) => c.intersects)) return { value: 1, reason: 'Construction Outlook identifies intersecting published geometries and overlapping reported dates. This is a potential construction conflict.' };
+  if (matching.some((c) => c.intersects)) return { value: 1, reason: t.impact.intersecting };
   const unresolved = all.some((other) => {
     if (other.id === p.id) return false;
     if (other.start !== null && other.start > p.end || other.end !== null && other.end < p.start) return false;
@@ -109,31 +110,32 @@ function conflictFactor(p: ProjectEvidence, all: ProjectEvidence[], conflicts: P
     if (!other.shape && other.center && pointShapeDist(toXY(other.center), p.shape!) > radius) return false;
     return !validPeriod(other) || !other.shape;
   });
-  if (unresolved) return { value: null, reason: 'Other potentially concurrent projects have missing dates or geometry; a maximum conflict factor cannot be established.' };
+  if (unresolved) return { value: null, reason: t.impact.unresolved };
   return matching.some((c) => c.metres <= radius)
-    ? { value: 0.5, reason: `Construction Outlook identifies a project within ${radius} m with overlapping dates. The radius is a planning heuristic, not evidence of traffic disruption.` }
-    : { value: 0, reason: `Construction Outlook finds no intersecting or within-${radius} m concurrent project in the available dataset.` };
+    ? { value: 0.5, reason: t.impact.withinRadius(radius) }
+    : { value: 0, reason: t.impact.noConflict(radius) };
 }
 
+/** The score, with its reasons, sources and priority in `t`'s language. */
 export function impactAssessment(
   site: Site, evidence: ProjectEvidence, allEvidence: ProjectEvidence[], conflicts: PotentialConflict[],
-  locations: Poi[] | null, target: ImpactTarget, cfg: Settings = DEFAULT_SETTINGS,
+  locations: Poi[] | null, target: ImpactTarget, cfg: Settings = DEFAULT_SETTINGS, t: Strings = strings(),
 ): ImpactAssessment {
-  const severity = restrictionSeverity(site.title, cfg);
-  const nearby = exposure(evidence, locations, target, cfg);
-  const conflict = conflictFactor(evidence, allEvidence, conflicts, cfg);
+  const severity = restrictionSeverity(site.title, cfg, t);
+  const nearby = exposure(evidence, locations, target, cfg, t);
+  const conflict = conflictFactor(evidence, allEvidence, conflicts, cfg, t);
   const duration = durationValue(evidence, cfg);
   const weights = impactWeights(cfg) ?? { S: 0, E: 0, C: 0, D: 0 };
-  const factor = (key: FactorKey, label: string, value: number | null, reason: string, source: string): ImpactFactor => ({
-    key, label, weight: weights[key], value, contribution: value === null ? null : value * weights[key], reason, source,
+  const factor = (key: FactorKey, value: number | null, reason: string, source: string): ImpactFactor => ({
+    key, label: t.impact.factors[key], weight: weights[key], value, contribution: value === null ? null : value * weights[key], reason, source,
   });
   const factors = [
-    factor('S', 'Restriction Severity', severity.value, severity.reason, 'Published construction title; the restriction weights in Settings'),
-    factor('E', 'Location Exposure', nearby.value, nearby.reason, target === 'public' ? 'Dortmund Open Data: schools, kindergartens and public transport stops' : 'User-selected business locations; browser only'),
-    factor('C', 'Construction Conflict', conflict.value, conflict.reason, `Construction Outlook: published dates and geometries; ${cfg['impact.radius']} m heuristic`),
-    factor('D', 'Construction Duration', duration, duration === null ? 'A valid, finite reported start and end date are required; placeholder/open-ended dates are excluded.' : `${evidence.end! - evidence.start! + 1} days, including both reported start and end dates.`, 'Published construction dates; scenario shifts where explicitly applied'),
+    factor('S', severity.value, severity.reason, t.impact.sourceS),
+    factor('E', nearby.value, nearby.reason, target === 'public' ? t.impact.sourcePublic : t.impact.sourceBusiness),
+    factor('C', conflict.value, conflict.reason, t.impact.sourceC(cfg['impact.radius'])),
+    factor('D', duration, duration === null ? t.impact.durationNeeds : t.impact.duration(evidence.end! - evidence.start! + 1), t.impact.sourceD),
   ];
   const values = Object.fromEntries(factors.map((f) => [f.key, f.value])) as Record<FactorKey, number | null>;
   const total = calculateImpact(values, cfg);
-  return { total, priority: reviewPriority(total, cfg), factors, missing: factors.filter((f) => f.value === null).map((f) => f.label) };
+  return { total, priority: reviewPriority(total, cfg, t), factors, missing: factors.filter((f) => f.value === null).map((f) => f.label) };
 }

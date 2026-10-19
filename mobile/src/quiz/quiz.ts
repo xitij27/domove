@@ -54,10 +54,10 @@ export function startQuiz(questions: readonly Question[], random = Math.random):
   return { deck: shuffle(questions, random), index: 0, given: null, right: 0, asked: 0 };
 }
 
-/** Scores the first answer to the question on show; later ones change nothing. */
-export function answerQuestion(state: QuizState, given: Given): QuizState {
+/** Scores the first answer to the question on show, as it was `asked` (in the app's language); later ones change nothing. */
+export function answerQuestion(state: QuizState, given: Given, asked: Question = state.deck[state.index]): QuizState {
   if (state.given !== null) return state;
-  const right = isRight(state.deck[state.index], given);
+  const right = isRight(asked, given);
   return { ...state, given, right: state.right + (right ? 1 : 0), asked: state.asked + 1 };
 }
 

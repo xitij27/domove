@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useData } from './data/useData';
 import type { Dataset } from './data/useData';
 import type { Poi } from './data/sources';
+import { useLanguage, useStrings } from './i18n';
 import {
   adviseClusters, bestWindows, clusterConflicts, dailyLoad, findConflicts, isActive, priorities, programmeBalance, stopsUnderPressure, todoList,
   transitGaps,
@@ -24,7 +25,8 @@ import { buildSites, findNeighbours, nearestRoad, prepareContext, weigh } from '
 import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
 import { Derived } from './ui/Derived';
-import { dayRange, metres, num, one, plural, signed } from './ui/format';
+import { dayRange, metres, num, one, signed } from './ui/format';
+import { LanguageChoice } from './ui/LanguageChoice';
 import { OutlookPanel } from './ui/OutlookPanel';
 import { trafficContext } from './model/trafficContext';
 import { TrafficContextPanel } from './ui/TrafficContextPanel';
@@ -45,17 +47,18 @@ import { useScenario } from './ui/useScenario';
 import { SettingsContext } from './ui/useSettings';
 
 type Tab = 'todo' | 'coordinate' | 'priorities' | 'transit' | 'capacity' | 'routes';
-const IMPACT_VIEWS: [ImpactView, string][] = [['bands', 'Bands'], ['heat', 'Heat']];
-const TABS: [Tab, string][] = [['todo', 'To do'], ['coordinate', 'Coordinate'], ['priorities', 'Priorities'], ['transit', 'Transit'], ['capacity', 'Capacity'], ['routes', 'Routes']];
+const IMPACT_VIEWS: ImpactView[] = ['bands', 'heat'];
+const TABS: Tab[] = ['todo', 'coordinate', 'priorities', 'transit', 'capacity', 'routes'];
 const BACK = 30;
 const AHEAD = 365;
 
 export default function App() {
+  const t = useStrings();
   const [today] = useState(berlinToday);
   const { state, retry } = useData(today);
-  if (state.status === 'loading') return <Splash loading><p>Loading Dortmund's construction sites and open data…</p></Splash>;
+  if (state.status === 'loading') return <Splash loading><p>{t.app.loading}</p></Splash>;
   if (state.status === 'failed') {
-    return <Splash><p role="alert">{state.message}</p><button className="button primary" onClick={retry}>Try again</button></Splash>;
+    return <Splash><p role="alert">{state.message}</p><button className="button primary" onClick={retry}>{t.app.tryAgain}</button></Splash>;
   }
   return <Planner data={state.data} problems={state.problems} today={today} />;
 }
@@ -71,6 +74,9 @@ const toBounds = (boxes: BBox[]): MapFocus['bounds'] => {
 
 function Planner({ data, problems, today }: { data: Dataset; problems: string[]; today: number }) {
   const theme = useTheme();
+  // the model's reasons and the figures' working are worked out in memos below, each given `t` so a new language redoes them
+  const t = useStrings();
+  const language = useLanguage();
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
   const [outlookDays, setOutlookDays] = useState<OutlookDays>(7);
@@ -106,7 +112,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const sites = useMemo(() => applyShifts(baseSites, scenario.shifts), [baseSites, scenario.shifts]);
   const evidence = useMemo(() => buildEvidence([
     ...data.raw, ...scenario.added.map((h) => hypotheticalInput(h, districtShapes)),
-  ], sites), [data.raw, scenario.added, districtShapes, sites]);
+  ], sites, t), [data.raw, scenario.added, districtShapes, sites, t]);
   const analyticsConflicts = useMemo(() => potentialConflicts(evidence, cfg['impact.radius']), [evidence, cfg]);
   const outlookResult = useMemo(() => outlook(evidence, date, outlookDays, cfg['impact.radius'], analyticsConflicts), [evidence, date, outlookDays, analyticsConflicts, cfg]);
   const byId = useMemo(() => new Map(sites.map((s) => [s.id, s])), [sites]);
@@ -115,7 +121,10 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const planned = published.filter((s) => s.status === 'planned' && s.baseStart <= s.baseEnd);
     return planned.length ? Math.max(...planned.map((s) => s.baseStart)) : null;
   }, [published]);
-  const holidays = useMemo(() => data.holidays.map((h) => ({ start: toDay(h.start), end: toDay(h.end), name: h.name })), [data.holidays]);
+  const holidays = useMemo(
+    () => data.holidays.map((h) => ({ start: toDay(h.start), end: toDay(h.end), name: language === 'de' ? h.nameDe : h.name })),
+    [data.holidays, language],
+  );
   const holidayRanges = useMemo(() => holidays.map((h): DayRange => [h.start, h.end]), [holidays]);
 
   const load = useMemo(() => dailyLoad(sites, from, to), [sites, from, to]);
@@ -129,7 +138,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     () => adviseClusters(clusters, byId, sites, neighbours, holidayRanges, today, horizon, cfg),
     [clusters, byId, sites, neighbours, holidayRanges, today, horizon, cfg],
   );
-  const ranked = useMemo(() => priorities(sites, neighbours, date, cfg), [sites, neighbours, date, cfg]);
+  const ranked = useMemo(() => priorities(sites, neighbours, date, cfg, t), [sites, neighbours, date, cfg, t]);
   const districtRoadKm = useMemo(() => roadKm(data.roads, districtShapes), [data.roads, districtShapes]);
   const roadLaneKm = useMemo(() => laneKm(districtRoadKm, cfg), [districtRoadKm, cfg]);
   const [capacityParams, setCapacityParams] = useState(DEFAULT_PARAMS);
@@ -148,11 +157,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const selectedEvidence = evidence.find((p) => p.id === selectedId);
   const assessment = useMemo(() => selected && selectedEvidence ? impactAssessment(selected, selectedEvidence,
-    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget, cfg) : null,
-  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations, cfg]);
+    evidence, analyticsConflicts, impactTarget === 'public' ? data.analytics.publicLocations : businessLocations, impactTarget, cfg, t) : null,
+  [selected, selectedEvidence, evidence, analyticsConflicts, impactTarget, data.analytics.publicLocations, businessLocations, cfg, t]);
   const selectedTraffic = useMemo(() => selected && selectedEvidence ? trafficContext(selected, selectedEvidence,
-    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts, cfg['stop.radius']) : null,
-  [selected, selectedEvidence, data, analyticsConflicts, cfg]);
+    data.analytics.stopsAvailable ? data.stops : null, data.analytics.roadsAvailable, analyticsConflicts, cfg['stop.radius'], t) : null,
+  [selected, selectedEvidence, data, analyticsConflicts, cfg, t]);
   const selectedConflicts = useMemo(() => (selected ? conflicts.filter((c) => c.a === selected.id || c.b === selected.id) : []), [selected, conflicts]);
   const siteAdvice = useMemo(() => (
     selected && (selected.hypothetical || selected.baseStart > today)
@@ -256,8 +265,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     if (tab !== 'todo') return null;
     // the To do list's numbers, on the site each item is about
     const numbers = new Map<string, number>();
-    todo.forEach((t, i) => {
-      const id = t.kind === 'align' ? t.second.id : t.kind === 'transit' ? null : t.site.id;
+    todo.forEach((item, i) => {
+      const id = item.kind === 'align' ? item.second.id : item.kind === 'transit' ? null : item.site.id;
       if (id && !numbers.has(id)) numbers.set(id, i + 1);
     });
     return numbers;
@@ -280,44 +289,45 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   );
 
   const stats = useMemo((): Stat[] => {
+    const s = t.stats;
     const at = load[date - from];
     const month = load.slice(Math.max(0, date - from - 15), date - from + 16);
     const usual = month.map((p) => p.total).sort((a, b) => a - b)[Math.floor(month.length / 2)];
     const vsUsual = at.total / (usual || 1) - 1;
-    const inBand = (b: Band) => plural(active.filter((s) => s.band === b).length, 'site');
+    const inBand = (b: Band) => active.filter((site) => site.band === b).length;
     return [
       {
-        value: String(active.length), label: 'active sites',
+        value: String(active.length), label: s.active,
         how: [
-          ['Counted', `every site whose dates include ${formatDay(date)}`],
-          ['Full closures', String(active.filter((s) => s.kind === 'full').length)],
-          ['On main roads', String(active.filter((s) => s.road === 'main').length)],
+          [s.counted, s.countedHow(formatDay(date))],
+          [s.fullClosures, String(active.filter((site) => site.kind === 'full').length)],
+          [s.onMainRoads, String(active.filter((site) => site.road === 'main').length)],
         ],
       },
       {
-        value: String(Math.round(at.total)), label: 'disruption points',
+        value: String(Math.round(at.total)), label: s.points,
         how: [
-          ['1 point', 'a full closure on a main road; each site counts its severity, restriction weight × road weight'],
-          ['High', `${inBand('high')} of severity ${num(cfg['band.high'])}+: ${one(at.high)}`],
-          ['Medium', `${inBand('medium')} of ${num(cfg['band.medium'])}–${num(cfg['band.high'])}: ${one(at.medium)}`],
-          ['Low', `${inBand('low')} below ${num(cfg['band.medium'])}: ${one(at.low)}`],
-          ['Usual', `${one(usual)}: the middle of the daily totals ${dayRange(month[0].day, month[month.length - 1].day)}`],
-          ['Against usual', `${one(at.total)} ÷ ${one(usual)} − 1 = ${signed(vsUsual)}; within 5% counts as usual`],
+          [s.onePoint, s.onePointHow],
+          [s.high, s.highHow(inBand('high'), num(cfg['band.high']), one(at.high))],
+          [s.medium, s.mediumHow(inBand('medium'), num(cfg['band.medium']), num(cfg['band.high']), one(at.medium))],
+          [s.low, s.lowHow(inBand('low'), num(cfg['band.medium']), one(at.low))],
+          [s.usual, s.usualHow(one(usual), dayRange(month[0].day, month[month.length - 1].day))],
+          [s.againstUsual, s.againstUsualHow(one(at.total), one(usual), signed(vsUsual))],
         ],
         note: Math.abs(vsUsual) < 0.05
-          ? { text: 'about usual' }
-          : { text: `${Math.round(Math.abs(vsUsual) * 100)} % ${vsUsual > 0 ? 'above' : 'below'} usual`, tone: vsUsual > 0 ? 'bad' : 'good' },
+          ? { text: s.aboutUsual }
+          : { text: s.vsUsual(Math.round(Math.abs(vsUsual) * 100), vsUsual > 0), tone: vsUsual > 0 ? 'bad' : 'good' },
       },
       {
-        value: String(clusters.length), label: 'clashes ahead',
+        value: String(clusters.length), label: s.clashes,
         how: [
-          ['Clash', `works of severity ${num(cfg['cluster.minSeverity'])}+ within ${metres(cfg['cluster.radius'])} of each other on the same days, linked into groups`],
-          ['Looking at', dayRange(today, to)],
-          ['In them', `${plural(new Set(clusters.flatMap((c) => c.siteIds)).size, 'site')}, ${plural(clusters.reduce((n, c) => n + c.conflicts.length, 0), 'overlapping pair')}`],
+          [s.clash, s.clashHow(num(cfg['cluster.minSeverity']), metres(cfg['cluster.radius']))],
+          [s.lookingAt, dayRange(today, to)],
+          [s.inThem, s.inThemHow(new Set(clusters.flatMap((c) => c.siteIds)).size, clusters.reduce((n, c) => n + c.conflicts.length, 0))],
         ],
       },
     ];
-  }, [load, date, from, clusters, active, today, to, cfg]);
+  }, [load, date, from, clusters, active, today, to, cfg, t]);
   // the scenario against the published plans, in things a planner can count
   const publishedClusters = useMemo(() => clusterConflicts(publishedConflicts, cfg).length, [publishedConflicts, cfg]);
   const busiest = (pts: typeof load) => pts.slice(BACK).reduce((a, b) => (b.total > a.total ? b : a));
@@ -331,11 +341,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       },
-      () => window.prompt('Copy this link to share the scenario:', window.location.href),
+      () => window.prompt(t.app.copyPrompt, window.location.href),
     );
   };
   const exportCsv = () => {
-    const url = URL.createObjectURL(new Blob([scenarioCsv(scenario, sites)], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([scenarioCsv(scenario, sites, t)], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = `domove-scenario-${isoDay(today)}.csv`;
@@ -344,7 +354,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   };
   const clampDate = (d: number) => Math.min(to, Math.max(from, d));
   const near = draft ? nearestRoad(draft, ctx) : null;
-  const draftPlace = draft ? (near && near.m <= 40 ? `On ${near.name}` : `At ${draft[1].toFixed(4)}° N, ${draft[0].toFixed(4)}° E`) : '';
+  const draftPlace = draft ? (near && near.m <= 40 ? t.app.onRoad(near.name) : t.app.at(draft[1].toFixed(4), draft[0].toFixed(4))) : '';
 
   return (
     <SettingsContext value={cfg}>
@@ -353,23 +363,24 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         <div className="header-main">
           <div className="brand">
             <img src="/domovelogo.png" alt="do.move" />
-            <span className="beta" title="Early version: the weights behind the figures are judgement calls">Beta</span>
+            <span className="beta" title={t.app.betaTitle}>{t.app.beta}</span>
           </div>
-          <div className="date-control" aria-label="Day shown">
-            <button className="icon-button" aria-label="One week earlier" onClick={() => setDate(clampDate(date - 7))}>‹</button>
-            <span className="date-value">{formatDay(date)}{date === today ? ' · today' : ''}</span>
-            <button className="icon-button" aria-label="One week later" onClick={() => setDate(clampDate(date + 7))}>›</button>
-            {date !== today && <button className="link-button" onClick={() => setDate(today)}>Today</button>}
+          <div className="date-control" aria-label={t.app.dayShown}>
+            <button className="icon-button" aria-label={t.app.weekEarlier} onClick={() => setDate(clampDate(date - 7))}>‹</button>
+            <span className="date-value">{formatDay(date)}{date === today ? t.app.todaySuffix : ''}</span>
+            <button className="icon-button" aria-label={t.app.weekLater} onClick={() => setDate(clampDate(date + 7))}>›</button>
+            {date !== today && <button className="link-button" onClick={() => setDate(today)}>{t.app.today}</button>}
           </div>
           <div className="header-tools">
-            <div className="theme-choice" role="group" aria-label="Colour theme">
-              <button type="button" aria-label="Light mode" title="Light mode" aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
+            <LanguageChoice />
+            <div className="theme-choice" role="group" aria-label={t.app.colourTheme}>
+              <button type="button" aria-label={t.app.light} title={t.app.light} aria-pressed={theme === 'light'} onClick={() => setThemePreference('light')}>
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">
                   <circle cx="12" cy="12" r="4" />
                   <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
                 </svg>
               </button>
-              <button type="button" aria-label="Dark mode" title="Dark mode" aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
+              <button type="button" aria-label={t.app.dark} title={t.app.dark} aria-pressed={theme === 'dark'} onClick={() => setThemePreference('dark')}>
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true" focusable="false">
                   <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
                 </svg>
@@ -377,8 +388,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             </div>
             <button
               type="button" className="settings-button" aria-pressed={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
-              aria-label={settingsChanged ? `Settings, ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
-              title={settingsChanged ? `Settings: ${plural(settingsChanged, 'setting')} changed` : 'Settings'}
+              aria-label={settingsChanged ? t.app.settingsChanged(settingsChanged) : t.app.settings}
+              title={settingsChanged ? t.app.settingsChangedTitle(settingsChanged) : t.app.settings}
             >
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
@@ -394,30 +405,30 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
             {changes || settingsChanged ? (
               <>
                 <div className="scenario-details">
-                  {changes > 0 && <strong>{plural(changes, 'change')}</strong>}
+                  {changes > 0 && <strong>{t.n.change(changes)}</strong>}
                   {publishedLoad && (
                     <span className="muted">
                       <Derived how={[
-                        ['Published plans', `${plural(publishedClusters, 'clash', 'clashes')}; busiest day ${formatShort(busiest(publishedLoad).day)}, ${one(busiest(publishedLoad).total)} points`],
-                        ['Your scenario', `${plural(clusters.length, 'clash', 'clashes')}; busiest day ${formatShort(busiest(load).day)}, ${one(busiest(load).total)} points`],
-                        ['Busiest day', `of ${dayRange(today, to)}`],
+                        [t.app.publishedPlans, t.app.scenarioHow(publishedClusters, formatShort(busiest(publishedLoad).day), one(busiest(publishedLoad).total))],
+                        [t.app.yourScenario, t.app.scenarioHow(clusters.length, formatShort(busiest(load).day), one(busiest(load).total))],
+                        [t.app.busiestDay, t.app.busiestOf(dayRange(today, to))],
                       ]}>
-                        clashes {publishedClusters} → {clusters.length} · busiest day {Math.round(busiest(publishedLoad).total)} → {Math.round(busiest(load).total)} points
+                        {t.app.comparison(publishedClusters, clusters.length, Math.round(busiest(publishedLoad).total), Math.round(busiest(load).total))}
                       </Derived>
                     </span>
                   )}
-                  {orphaned > 0 && <span className="note">{orphaned} no longer in the feed</span>}
+                  {orphaned > 0 && <span className="note">{t.app.orphaned(orphaned)}</span>}
                 </div>
                 <div className="scenario-actions">
-                  <button className="button" onClick={copyLink}>{copied ? 'Link copied' : 'Copy link'}</button>
-                  <button className="button" onClick={exportCsv}>Export CSV</button>
-                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>Reset</button>
+                  <button className="button" onClick={copyLink}>{copied ? t.app.linkCopied : t.app.copyLink}</button>
+                  <button className="button" onClick={exportCsv}>{t.app.exportCsv}</button>
+                  <button className="button" onClick={() => { setScenario(EMPTY_SCENARIO); setSelectedId(null); }}>{t.app.reset}</button>
                 </div>
               </>
-            ) : <span className="muted">No changes yet</span>}
+            ) : <span className="muted">{t.app.noChanges}</span>}
           </div>
         </div>
-        {problems.length > 0 && <div className="banner" role="status">Some layers couldn't load ({problems.join('; ')}). Everything else works.</div>}
+        {problems.length > 0 && <div className="banner" role="status">{t.app.problems(problems.join('; '))}</div>}
       </header>
       <div className="workspace">
         <section className="map-area">
@@ -432,22 +443,22 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           />
           {pick && (
             <div className="pick-hint" role="status">
-              {pick.hint} <button className="button" onClick={() => setPick(null)}>Cancel</button>
+              {pick.hint} <button className="button" onClick={() => setPick(null)}>{t.app.cancel}</button>
             </div>
           )}
-          <div className="map-tool" role="group" aria-label="Colour the works by">
-            {IMPACT_VIEWS.map(([id, label]) => (
-              <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{label}</button>
+          <div className="map-tool" role="group" aria-label={t.app.colourBy}>
+            {IMPACT_VIEWS.map((id) => (
+              <button key={id} className={impactView === id ? 'selected' : ''} aria-pressed={impactView === id} onClick={() => setImpactView(id)}>{t.app.views[id]}</button>
             ))}
           </div>
           <Legend tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
         </section>
         <aside className="panel">
-          <nav className="tabs" role="tablist" aria-label="Planning views"
-            style={{ '--tab': TABS.findIndex(([id]) => id === tab), '--tabs': TABS.length } as CSSProperties}>
-            {TABS.map(([id, label]) => (
+          <nav className="tabs" role="tablist" aria-label={t.app.planningViews}
+            style={{ '--tab': TABS.indexOf(tab), '--tabs': TABS.length } as CSSProperties}>
+            {TABS.map((id) => (
               <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'tab selected' : 'tab'}
-                onClick={() => switchTab(id)}>{label}</button>
+                onClick={() => switchTab(id)}>{t.app.tabs[id]}</button>
             ))}
           </nav>
           <div className="panel-body" ref={panelBody}>
@@ -466,9 +477,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 locationError={locationError} onTarget={(target) => { setImpactTarget(target); setLocationError(null); }}
                 onAdd={() => {
                   setLocationError(null);
-                  setPick({ hint: 'Click a business location in Dortmund (Escape to cancel)', done: (at) => {
-                    if (!validLonLat(at)) { setLocationError('Choose a location within the Dortmund study area.'); return; }
-                    setBusinessLocations((items) => [...items, { name: `Business location ${items.length + 1}`, detail: 'Selected in this browser tab', district: '', at }]);
+                  setPick({ hint: t.app.pickBusiness, done: (at) => {
+                    if (!validLonLat(at)) { setLocationError(t.app.outsideStudyArea); return; }
+                    setBusinessLocations((items) => [...items, { name: t.app.businessName(items.length + 1), detail: t.app.businessDetail, district: '', at }]);
                   } });
                 }}
                 onRename={(index, name) => setBusinessLocations((items) => items.map((p, i) => i === index ? { ...p, name } : p))}
@@ -488,7 +499,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 byId={byId} clusters={clusters} advice={advice} bundles={bundles} today={today} horizon={horizon}
                 selectedCluster={clusterId} onSelectCluster={selectCluster} onSelectSite={selectSite} onShift={setShift} balance={balance}
                 draft={draft} draftPlace={draftPlace}
-                onPlace={() => setPick({ hint: 'Click where the works will be', done: setDraft })}
+                onPlace={() => setPick({ hint: t.app.pickProject, done: setDraft })}
                 onAdd={addProject} onCancelDraft={() => setDraft(null)}
               />
             </div>
@@ -511,52 +522,51 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         </aside>
       </div>
       <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} outlookPeriod={outlookPeriod} />
-      <footer className="footer muted">
-        Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map © OpenStreetMap contributors, OpenFreeMap
-      </footer>
+      <footer className="footer muted">{t.app.footer}</footer>
     </div>
     </SettingsContext>
   );
 }
 
 function Legend({ tab, date, impactView, outlookPeriod }: { tab: Tab; date: number; impactView: ImpactView; outlookPeriod: { from: number; to: number } | null }) {
+  const t = useStrings().legend;
   // folded on phones, where it would cover half the map
   const [open] = useState(() => !window.matchMedia('(max-width: 960px)').matches);
   return (
     <details className="legend" open={open}>
-      <summary className="legend-title">{outlookPeriod ? `Outlook ${formatShort(outlookPeriod.from)} – ${formatShort(outlookPeriod.to)}` : `Sites on ${formatShort(date)}`}</summary>
+      <summary className="legend-title">{outlookPeriod ? t.outlook(formatShort(outlookPeriod.from), formatShort(outlookPeriod.to)) : t.sitesOn(formatShort(date))}</summary>
       {impactView === 'bands' ? (
         <>
-          <div className="legend-row"><i className="swatch high" />High disruption</div>
-          <div className="legend-row"><i className="swatch medium" />Medium</div>
-          <div className="legend-row"><i className="swatch low" />Low</div>
+          <div className="legend-row"><i className="swatch high" />{t.high}</div>
+          <div className="legend-row"><i className="swatch medium" />{t.medium}</div>
+          <div className="legend-row"><i className="swatch low" />{t.low}</div>
         </>
       ) : (
-        <div className="legend-row"><i className="ramp impact" />Disruption heat (zoom in for sites)</div>
+        <div className="legend-row"><i className="ramp impact" />{t.heat}</div>
       )}
-      <div className="legend-row"><i className="swatch later" />{outlookPeriod ? 'Starts within selected period' : 'Starts within 30 days'}</div>
+      <div className="legend-row"><i className="swatch later" />{outlookPeriod ? t.startsInPeriod : t.startsSoon}</div>
       {tab === 'coordinate' && (
         <>
-          <div className="legend-row"><i className="key-line ink" />Running at the same time</div>
-          <div className="legend-row"><i className="key-line bundle" />Same stretch: do together</div>
+          <div className="legend-row"><i className="key-line ink" />{t.sameTime}</div>
+          <div className="legend-row"><i className="key-line bundle" />{t.sameStretch}</div>
         </>
       )}
-      {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>Matches the number in the To do list</div>}
-      {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>Priority rank (1 = finish first)</div>}
-      {tab === 'capacity' && <div className="legend-row"><i className="ramp" />Road load: 0 → 125% (top colour = full)</div>}
-      {(tab === 'capacity' || tab === 'transit') && <div className="legend-row"><i className="key-line selection" />Chosen district</div>}
+      {tab === 'todo' && <div className="legend-row"><span className="glyph">1</span>{t.todoNumber}</div>}
+      {tab === 'priorities' && <div className="legend-row"><span className="glyph">1</span>{t.rank}</div>}
+      {tab === 'capacity' && <div className="legend-row"><i className="ramp" />{t.load}</div>}
+      {(tab === 'capacity' || tab === 'transit') && <div className="legend-row"><i className="key-line selection" />{t.district}</div>}
       {tab === 'transit' && (
         <>
-          <div className="legend-row"><i className="ramp" />Transit need per resident</div>
-          <div className="legend-row"><span className="glyph">U</span>Stadtbahn · <span className="glyph">B</span>Bike share · <span className="glyph">P</span>P+R</div>
+          <div className="legend-row"><i className="ramp" />{t.need}</div>
+          <div className="legend-row"><span className="glyph">U</span>{t.stadtbahn} · <span className="glyph">B</span>{t.bikeShare} · <span className="glyph">P</span>{t.parkRide}</div>
         </>
       )}
       {tab === 'routes' && (
         <>
-          <div className="legend-row"><i className="key-line normal" />Normal route</div>
-          <div className="legend-row"><i className="key-line aware" />Around the works</div>
-          <div className="legend-row"><i className="swatch lost" />Reach lost to works</div>
-          <div className="legend-row"><span className="glyph">F</span>Fire &amp; rescue · <span className="glyph">H</span>Hospital</div>
+          <div className="legend-row"><i className="key-line normal" />{t.normal}</div>
+          <div className="legend-row"><i className="key-line aware" />{t.aware}</div>
+          <div className="legend-row"><i className="swatch lost" />{t.lost}</div>
+          <div className="legend-row"><span className="glyph">F</span>{t.fire} · <span className="glyph">H</span>{t.hospital}</div>
         </>
       )}
     </details>

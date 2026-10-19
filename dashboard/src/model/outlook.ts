@@ -1,6 +1,8 @@
 import { booleanDisjoint, booleanValid, booleanWithin, kinks, polygon } from '@turf/turf';
 import type { MultiPolygon, Polygon } from 'geojson';
 import type { RawSite } from '../data/sources';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
 import { DAY_MS, isoDay, overlapDays } from './days';
 import { shapeOf } from './geo';
 import type { LonLat, Shape } from './geo';
@@ -66,9 +68,10 @@ function verifiedShape(geometry: Polygon | MultiPolygon | null): Shape | null {
   }
 }
 
-/** Keep source evidence separate from the Planner's synthetic point circles/date defaults. */
-export function buildEvidence(raw: RawSite[], sites: Site[]): ProjectEvidence[] {
+/** Keep source evidence separate from the Planner's synthetic point circles/date defaults. Its issues are in `t`'s language. */
+export function buildEvidence(raw: RawSite[], sites: Site[], t: Strings = strings()): ProjectEvidence[] {
   const byId = new Map(sites.map((site) => [site.id, site]));
+  const said = t.outlook;
   const normalized = raw.map((record) => {
     const issues: string[] = [];
     let start = parseReportedDay(record.startsOn);
@@ -77,11 +80,11 @@ export function buildEvidence(raw: RawSite[], sites: Site[]): ProjectEvidence[] 
     const openEnded = !record.endsOn || sentinel(end);
     if (sentinel(start)) start = null;
     if (openEnded) end = null;
-    if (start === null) issues.push('Missing or invalid reported start date.');
-    if (end === null) issues.push(openEnded ? 'Reported end date is unknown or open-ended.' : 'Invalid reported end date.');
+    if (start === null) issues.push(said.missingStart);
+    if (end === null) issues.push(openEnded ? said.openEnd : said.invalidEnd);
     if (start !== null && end !== null && start > end) {
       start = end = null;
-      issues.push('Reported start date is after the end date.');
+      issues.push(said.startAfterEnd);
     }
     const site = byId.get(record.id);
     if (site) {
@@ -89,13 +92,13 @@ export function buildEvidence(raw: RawSite[], sites: Site[]): ProjectEvidence[] 
       if (end !== null && Number.isInteger(site.end - site.baseEnd)) end += site.end - site.baseEnd;
       if (start !== null && end !== null && start > end) {
         start = end = null;
-        issues.push('Scenario date interval is invalid.');
+        issues.push(said.invalidScenario);
       }
     }
     const center = validLonLat(record.center) ? record.center : null;
     const shape = verifiedShape(record.geometry);
-    if (!shape) issues.push(record.geometry ? 'Reported construction geometry is invalid.' : 'Verified construction footprint unavailable (point only).');
-    if (!center) issues.push('Invalid Dortmund longitude/latitude coordinates.');
+    if (!shape) issues.push(record.geometry ? said.invalidGeometry : said.pointOnly);
+    if (!center) issues.push(said.invalidCoordinates);
     const evidence: ProjectEvidence = { id: record.id, start, end, openEnded, shape, center, issues };
     const text = (s: string) => s.trim().toLocaleLowerCase('de').replace(/\s+/g, ' ');
     const identity = [text(record.title), text(record.owner), record.startsOn, record.endsOn];

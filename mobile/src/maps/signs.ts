@@ -14,17 +14,6 @@ export const SIGNS: Record<Closure, Record<Status, ImageRequireSource>> = {
   other: { current: require('../../assets/signs/other_current.png'), planned: require('../../assets/signs/other_planned.png') },
 };
 
-export const CLOSURE_LABELS: Record<Closure, string> = {
-  full: 'Full closure',
-  one_way: 'One-way rule',
-  cycle_path: 'Cycle path closed',
-  sidewalk: 'Sidewalk closed',
-  signal: 'Temporary traffic lights',
-  half: 'Half closure',
-  narrowing: 'Road narrowed',
-  other: 'Roadworks',
-};
-
 // Where signs overlap, the more restrictive one lies on top.
 const STACKING: Closure[] = ['other', 'sidewalk', 'narrowing', 'half', 'signal', 'cycle_path', 'one_way', 'full'];
 

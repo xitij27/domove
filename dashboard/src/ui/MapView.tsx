@@ -8,9 +8,8 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { formatDay } from '../model/days';
 import type { ProjectEvidence } from '../model/outlook';
 import { siteState } from './mapState';
-import { KIND_LABEL } from '../model/closures';
+import { strings, useStrings } from '../i18n';
 import type { LonLat } from '../model/geo';
-import { ROAD_LABEL } from '../model/sites';
 import type { Site } from '../model/sites';
 import { dayRange } from './format';
 import { PALETTES } from './theme';
@@ -252,6 +251,7 @@ const setData = (map: MlMap | null, id: string, data: FeatureCollection) => (map
 
 export function MapView(props: Props) {
   const cfg = useSettings();
+  const t = useStrings();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const themeRef = useRef<Theme | null>(null);
@@ -283,10 +283,10 @@ export function MapView(props: Props) {
     map.getCanvas().style.cursor = props.picking ? 'crosshair' : site ? 'pointer' : '';
     const s = site && byId.get(String(site.properties.id));
     if (s) {
-      const road = `${KIND_LABEL[s.kind]} · ${ROAD_LABEL[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`;
+      const road = `${t.kinds[s.kind]} · ${t.roads[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`;
       const p = props.outlookProjects?.find((p) => p.id === s.id);
-      const dates = p ? `${p.start === null ? 'Unknown start' : formatDay(p.start)} – ${p.end === null ? 'unknown end (uncertain)' : formatDay(p.end)}` : dayRange(s.start, s.end);
-      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, `Severity ${severityText(s, cfg)}: ${s.band} disruption`, `${s.hypothetical ? 'Proposed' : s.owner} · ${dates}`])).addTo(map);
+      const dates = p ? `${p.start === null ? t.map.unknownStart : formatDay(p.start)} – ${p.end === null ? t.map.unknownEnd : formatDay(p.end)}` : dayRange(s.start, s.end);
+      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, t.map.severity(severityText(s, cfg), s.band), `${s.hypothetical ? t.map.proposed : s.owner} · ${dates}`])).addTo(map);
     } else if (poi) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(String(poi.properties.name), [String(poi.properties.detail)].filter(Boolean))).addTo(map);
     } else popup.remove();
@@ -297,7 +297,7 @@ export function MapView(props: Props) {
     const map = new MlMap({ container: container.current!, style: STYLES[theme], center: DORTMUND, zoom: 11.2, attributionControl: false });
     themeRef.current = theme;
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new AttributionControl({ compact: true, customAttribution: 'Data: Stadt Dortmund (dl-de/zero-2-0) · Routing: Valhalla, FOSSGIS e.V.' }));
+    map.addControl(new AttributionControl({ compact: true, customAttribution: strings().map.attribution }));
     map.on('style.load', () => onStyleLoad());
     // the page footer carries the full attribution, so the map's own starts folded behind its (i) button
     map.once('load', () => {
@@ -398,5 +398,5 @@ export function MapView(props: Props) {
     if (props.picking) popupRef.current?.remove();
   }, [props.picking]);
 
-  return <div ref={container} className="map" aria-label="Map of Dortmund's construction sites" role="region" />;
+  return <div ref={container} className="map" aria-label={t.map.label} role="region" />;
 }

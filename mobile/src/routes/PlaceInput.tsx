@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useStrings } from '../i18n';
 import { Reveal } from '../motion';
 import { MAX_LOCATION_LENGTH, type Place, type PlaceDraft } from './model';
 import { searchPlaces } from './places';
@@ -19,6 +20,7 @@ type Props = {
 
 /** A text field that only gets a coordinate when the user picks one of its suggestions, or a place on the map. */
 export default function PlaceInput({ accessibilityLabel, placeholder, value, onChange, editable, style, inputStyle, onPickOnMap }: Props) {
+  const t = useStrings();
   // null places: the search failed
   const [result, setResult] = useState<{ query: string; places: Place[] | null }>({ query: '', places: [] });
   // a picked place needs no suggestions until the user types again
@@ -55,7 +57,7 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
           style={[inputStyle, onPickOnMap && styles.besideMapButton]}
         />
         {onPickOnMap && (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Choose ${accessibilityLabel} on the map`} disabled={!editable} onPress={() => { Keyboard.dismiss(); onPickOnMap(); }} style={styles.mapButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.form.chooseOnMap(accessibilityLabel)} disabled={!editable} onPress={() => { Keyboard.dismiss(); onPickOnMap(); }} style={styles.mapButton}>
             <MaterialIcons name="pin-drop" size={24} color="#a8520e" />
           </Pressable>
         )}
@@ -63,7 +65,7 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
       {/* opens under the field, moving what follows down smoothly, and closes once a place is picked */}
       <Reveal clip>
         {!suggestions ? (
-          <Text style={styles.failed}>Could not load suggestions. Check your connection.</Text>
+          <Text style={styles.failed}>{t.form.suggestionsFailed}</Text>
         ) : suggestions.length > 0 && (
           <View style={styles.list}>
             {suggestions.map((place) => (
@@ -71,7 +73,7 @@ export default function PlaceInput({ accessibilityLabel, placeholder, value, onC
                 <Text style={styles.itemText}>{place.label}</Text>
               </Pressable>
             ))}
-            <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
+            <Text style={styles.attribution}>{t.form.osm}</Text>
           </View>
         )}
       </Reveal>

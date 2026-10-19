@@ -1,3 +1,4 @@
+import { strings } from '../i18n';
 import { parseSiteRatings, type SiteRating } from '../ratings/model';
 import type { SavedRoute, TransportMode } from '../routes/model';
 import { circleShape, shapeOf, toXY, type LonLat } from './geo';
@@ -40,11 +41,11 @@ export function createDetourApi(
         signal: controller.signal,
       });
     } catch {
-      throw new Error(controller.signal.aborted ? 'The server took too long to answer.' : 'Could not reach the server.');
+      throw new Error(controller.signal.aborted ? strings().errors.answerSlow : strings().errors.noServer);
     } finally {
       clearTimeout(timer);
     }
-    if (!response.ok) throw new Error(`The server could not help right now (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(strings().errors.serverCantHelp(response.status));
     return response.json();
   }
 
@@ -64,7 +65,7 @@ export function createDetourApi(
         p_weekdays: route.weekdays,
         p_start_date: route.startDate ?? null,
       });
-      if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) throw new Error('The server returned an invalid leaving time.');
+      if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) throw new Error(strings().errors.invalidLeavingTime);
       return at;
     },
     async scores(mode, at, siteIds) {
@@ -80,7 +81,7 @@ type Feature = { geometry?: { type?: unknown; coordinates?: unknown } | null; pr
 
 export function parseAreas(body: unknown): PlanSite[] {
   const features = (body as { features?: unknown } | null)?.features;
-  if (!Array.isArray(features)) throw new Error('The server returned invalid construction site areas.');
+  if (!Array.isArray(features)) throw new Error(strings().errors.invalidSiteAreas);
   return features.flatMap((f: Feature | null): PlanSite[] => {
     const id = f?.properties?.id;
     if (typeof id !== 'string') return [];

@@ -131,6 +131,7 @@ button, input, select { font: inherit; color: inherit; }
 .theme-choice button { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
 .theme-choice button:hover { background: var(--surface-2); color: var(--ink); }
 .theme-choice button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent-ink); }
+.language-choice button { font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; }
 /* the theme switch and the settings gear share the header's right-hand corner, the gear framed like the switch */
 .header-tools { display: flex; align-items: center; justify-self: end; gap: 8px; }
 .settings-button {
@@ -397,6 +398,15 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
   .scenario { width: 100%; }
   .summary { gap: 8px 18px; min-width: 0; max-width: 100%; }
   .summary li { white-space: normal; }
+}
+
+/* the language, theme and settings controls share a small phone's top row with the logo */
+@media (max-width: 520px) {
+  .header-tools { gap: 6px; }
+  .theme-choice button { flex-basis: 34px; width: 34px; height: 34px; }
+  .settings-button { width: 42px; height: 42px; }
+  .brand { min-width: 0; }
+  .brand img { height: auto; max-height: 22px; max-width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

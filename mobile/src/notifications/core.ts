@@ -1,3 +1,4 @@
+import { locale, strings } from '../i18n';
 import type { RouteNotificationSettings, RouteObstacle } from './model';
 
 export function localDate(value: string | null, time: string): Date | null {
@@ -31,15 +32,15 @@ export function reminderDate(obstacle: RouteObstacle, settings: RouteNotificatio
   return end && date.getTime() > end.getTime() ? null : date;
 }
 
-/** Wording for an alert that hands the route to Google Maps when tapped. */
+/** Wording for an alert that hands the route to Google Maps when tapped, in the app's language. */
 export function notificationContent(obstacle: RouteObstacle, now = new Date()) {
+  const t = strings().alerts;
   const start = localDate(obstacle.startsOn, '00:00');
-  const route = obstacle.destination ? `your Route to ${obstacle.destination}` : 'your Route';
   return {
-    title: 'Construction on your route',
+    title: t.title,
     body: start && start.getTime() > now.getTime()
-      ? `There will be a Construction Site at ${obstacle.siteTitle} on ${route} from ${start.toLocaleDateString()}. Tap to open the route in Google Maps.`
-      : `There is a Construction Site at ${obstacle.siteTitle} on ${route}. Tap to open the route in Google Maps.`,
+      ? t.bodyFuture(obstacle.siteTitle, obstacle.destination, start.toLocaleDateString(locale()))
+      : t.bodyNow(obstacle.siteTitle, obstacle.destination),
   };
 }
 

@@ -1,13 +1,14 @@
 // The planner's changes: shifted dates, hypothetical projects and the settings changed from their defaults. They live in
 // the URL hash only, so a reload keeps them and a link shares them, with the numbers they were worked out by.
-import { KIND_LABEL } from './closures';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
+import { IMPACTS } from './closures';
 import type { ClosureKind } from './closures';
 import { isoDay, toDay } from './days';
 import { circle, pointInShape, toLonLat, toXY } from './geo';
 import type { LonLat, Shape } from './geo';
 import { validSettings } from './settings';
 import type { Settings } from './settings';
-import { ROAD_LABEL } from './sites';
 import type { Site, SiteInput } from './sites';
 
 export type HypotheticalSite = { id: string; name: string; kind: ClosureKind; center: LonLat; radius: number; start: number; days: number };
@@ -77,10 +78,10 @@ export function decodeScenario(text: string): Scenario {
   }
   const added = (Array.isArray(raw.added) ? raw.added : []).slice(0, 50).flatMap((h: Partial<HypotheticalSite>) => {
     const ok = h && typeof h === 'object' && typeof h.id === 'string' && ID.test(h.id) &&
-      typeof h.name === 'string' && h.name.length <= 120 && typeof h.kind === 'string' && Object.hasOwn(KIND_LABEL, h.kind) &&
+      typeof h.name === 'string' && h.name.length <= 120 && typeof h.kind === 'string' && Object.hasOwn(IMPACTS, h.kind) &&
       Array.isArray(h.center) && isNum(h.center[0], 7.2, 7.8) && isNum(h.center[1], 51.3, 51.7) &&
       isNum(h.radius, 10, 500) && isInt(h.start, MIN_DAY, MAX_DAY) && isInt(h.days, 1, 1095);
-    return ok ? [{ id: h.id!, name: h.name!.trim() || 'Proposed project', kind: h.kind!, center: [h.center![0], h.center![1]] as LonLat, radius: h.radius!, start: h.start!, days: h.days! }] : [];
+    return ok ? [{ id: h.id!, name: h.name!.trim() || strings().csv.proposedProject, kind: h.kind!, center: [h.center![0], h.center![1]] as LonLat, radius: h.radius!, start: h.start!, days: h.days! }] : [];
   });
   return { shifts, added, settings: validSettings(raw.settings) };
 }
@@ -92,21 +93,21 @@ const textCell = (v: string) => {
 };
 
 /** Semicolon-separated with a BOM, as German Excel expects. */
-export function scenarioCsv(scenario: Scenario, sites: Site[]): string {
+export function scenarioCsv(scenario: Scenario, sites: Site[], t: Strings = strings()): string {
   const byId = new Map(sites.map((s) => [s.id, s]));
   const rows: (string | number)[][] = [];
   for (const [id, shift] of Object.entries(scenario.shifts)) {
     const s = byId.get(id);
     if (!s || s.hypothetical) continue; // a proposed project's own row below already has its moved dates
     const moved = shift[0] !== 0;
-    rows.push([s.title, s.owner, s.district, KIND_LABEL[s.kind], ROAD_LABEL[s.road], isoDay(s.baseStart), isoDay(s.baseEnd), isoDay(s.start), isoDay(s.end),
-      moved ? shift[0] : shift[1], moved ? 'Move' : shift[1] < 0 ? 'Finish earlier' : 'Finish later']);
+    rows.push([s.title, s.owner, s.district, t.kinds[s.kind], t.roads[s.road], isoDay(s.baseStart), isoDay(s.baseEnd), isoDay(s.start), isoDay(s.end),
+      moved ? shift[0] : shift[1], moved ? t.csv.move : shift[1] < 0 ? t.csv.finishEarlier : t.csv.finishLater]);
   }
   for (const h of scenario.added) {
     const s = byId.get(h.id);
     if (!s) continue;
-    rows.push([s.title, 'Proposed', s.district, KIND_LABEL[s.kind], ROAD_LABEL[s.road], '', '', isoDay(s.start), isoDay(s.end), '', 'New project']);
+    rows.push([s.title, t.csv.proposed, s.district, t.kinds[s.kind], t.roads[s.road], '', '', isoDay(s.start), isoDay(s.end), '', t.csv.newProject]);
   }
-  const header = ['Site', 'Owner', 'District', 'Restriction', 'Road', 'Published start', 'Published end', 'Proposed start', 'Proposed end', 'Change (days)', 'Change'];
+  const header = t.csv.header;
   return '﻿' + [header, ...rows].map((r) => r.map((v) => (typeof v === 'number' ? String(v) : textCell(v))).join(';')).join('\r\n') + '\r\n';
 }

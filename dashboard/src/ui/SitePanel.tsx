@@ -1,11 +1,10 @@
 import type { Conflict, Priority, WindowAdvice } from '../model/analysis';
-import { KIND_LABEL } from '../model/closures';
 import { formatDay, formatShort } from '../model/days';
 import type { Shift } from '../model/scenario';
-import { ROAD_LABEL } from '../model/sites';
 import type { Site } from '../model/sites';
+import { useStrings } from '../i18n';
 import { Derived } from './Derived';
-import { clashText, dayRange, metres, plural, shiftText } from './format';
+import { clashText, dayRange, metres, shiftText } from './format';
 import { Info } from './Info';
 import { useSettings } from './useSettings';
 import { clashWorking, freedWorking, moveWorking, priorityWorking, severityWorking } from './working';
@@ -24,8 +23,6 @@ type Props = {
   onBack: () => void;
   onRemove: () => void;
 };
-
-const BAND_LABEL = { high: 'High disruption', medium: 'Medium disruption', low: 'Low disruption' };
 
 /** Bars for the site and the works it overlaps, so the planner sees when they coincide. */
 function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: number }) {
@@ -55,6 +52,8 @@ function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: n
 
 export function SitePanel({ site, byId, conflicts, priority, advice, shift, date, today, onShift, onSelect, onBack, onRemove }: Props) {
   const cfg = useSettings();
+  const t = useStrings();
+  const s = t.site;
   const started = site.baseStart <= today && !site.hypothetical;
   const moved = shift?.[0] ?? 0;
   const earlier = shift?.[1] ?? 0;
@@ -64,53 +63,50 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
     <div className="site-panel">
       <button className="back-button" onClick={onBack}>
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        Back
+        {s.back}
       </button>
       <h2 className="site-title">{site.title}</h2>
       <div className="chips">
-        <Derived className={`chip band ${site.band}`} how={severityWorking(site, cfg)}><i className="swatch" />{BAND_LABEL[site.band]}</Derived>
-        <span className="chip">{KIND_LABEL[site.kind]}</span>
-        <span className="chip">{ROAD_LABEL[site.road]}{site.roadName ? ` · ${site.roadName}` : ''}</span>
-        {site.daytimeOnly && <span className="chip">Daytime only</span>}
-        {site.openEnded && <span className="chip warn">No end date</span>}
-        {site.hypothetical && <span className="chip">Proposed</span>}
+        <Derived className={`chip band ${site.band}`} how={severityWorking(site, cfg)}><i className="swatch" />{t.bands[site.band]}</Derived>
+        <span className="chip">{t.kinds[site.kind]}</span>
+        <span className="chip">{t.roads[site.road]}{site.roadName ? ` · ${site.roadName}` : ''}</span>
+        {site.daytimeOnly && <span className="chip">{s.daytimeOnly}</span>}
+        {site.openEnded && <span className="chip warn">{s.noEndDate}</span>}
+        {site.hypothetical && <span className="chip">{s.proposed}</span>}
       </div>
       <dl className="facts">
-        <dt>Owner</dt><dd>{site.hypothetical ? 'Proposed in this scenario' : site.owner || '–'}</dd>
-        <dt>District</dt><dd>{site.district || '–'}</dd>
-        <dt>{site.hypothetical ? 'Dates' : 'Published'}</dt><dd>{site.openEnded ? `since ${formatDay(site.baseStart)}` : dayRange(site.baseStart, site.baseEnd)}</dd>
-        {(moved !== 0 || earlier !== 0) && <><dt>Proposed</dt><dd className="proposed">{dayRange(site.start, site.end)}</dd></>}
+        <dt>{s.owner}</dt><dd>{site.hypothetical ? s.proposedHere : site.owner || '–'}</dd>
+        <dt>{s.district}</dt><dd>{site.district || '–'}</dd>
+        <dt>{site.hypothetical ? s.dates : s.published}</dt><dd>{site.openEnded ? s.since(formatDay(site.baseStart)) : dayRange(site.baseStart, site.baseEnd)}</dd>
+        {(moved !== 0 || earlier !== 0) && <><dt>{s.proposed}</dt><dd className="proposed">{dayRange(site.start, site.end)}</dd></>}
       </dl>
 
       {!started && (
         <section className="block">
-          <h3>Move the works</h3>
+          <h3>{s.move}</h3>
           <label className="slider">
-            <span>{moved === 0 ? 'Published dates' : `${shiftText(moved)}: ${dayRange(site.start, site.end)}`}</span>
+            <span>{moved === 0 ? s.publishedDates : `${shiftText(moved)}: ${dayRange(site.start, site.end)}`}</span>
             <input type="range" min={Math.max(-30, today + 1 - site.baseStart)} max={site.hypothetical ? 180 : 120} value={moved}
-              aria-label="Days to move the works" onChange={(e) => onShift(+e.target.value ? [+e.target.value, +e.target.value] : null)} />
+              aria-label={s.moveLabel} onChange={(e) => onShift(+e.target.value ? [+e.target.value, +e.target.value] : null)} />
           </label>
           {advice && cur && (
             <>
-              <h4>Best windows nearby</h4>
+              <h4>{s.windows}</h4>
               <p className="muted">
-                Now: clashes <Derived how={clashWorking(cur, cfg)}>{clashText(cur)}</Derived> with serious works within {metres(cfg['clash.radius'])}
-                {cur.holidayDays ? `, ${plural(cur.holidayDays, 'day')} in school holidays` : ''}.
+                {s.now(<Derived how={clashWorking(cur, cfg)}>{clashText(cur)}</Derived>, metres(cfg['clash.radius']), cur.holidayDays)}
               </p>
-              {advice.options.length === 0 && <p className="ok">These dates are already the best within the next three months.</p>}
+              {advice.options.length === 0 && <p className="ok">{s.alreadyBest}</p>}
               <ul className="options">
                 {advice.options.map((o) => (
                   <li key={o.start}>
                     <div>
                       <strong>{dayRange(o.start, o.end)}</strong> <span className="muted">({shiftText(o.shift)})</span>
                       <div className="muted">
-                        Clashes <Derived how={moveWorking(site, cur, o, cfg)}>{clashText(o)}</Derived>
-                        {o.together > 0 ? ' · together with works on the same stretch' : ''}
-                        {o.holidayDays ? ` · ${plural(o.holidayDays, 'day')} in school holidays` : ''}
+                        {s.option(<Derived how={moveWorking(site, cur, o, cfg)}>{clashText(o)}</Derived>, o.together > 0, o.holidayDays)}
                       </div>
-                      {o.afterHorizon && <div className="note">After the published plans end: later works aren't known yet.</div>}
+                      {o.afterHorizon && <div className="note">{s.afterHorizon}</div>}
                     </div>
-                    <button className="button" onClick={() => onShift(o.shift ? [o.shift, o.shift] : null)}>Apply</button>
+                    <button className="button" onClick={() => onShift(o.shift ? [o.shift, o.shift] : null)}>{s.apply}</button>
                   </li>
                 ))}
               </ul>
@@ -121,22 +117,22 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
 
       {started && (
         <section className="block">
-          <h3>Finish sooner</h3>
+          <h3>{s.finishSooner}</h3>
           {site.openEnded ? (
-            <p className="muted">The feed gives no end date. Ask {site.owner || 'the owner'} for one before planning around it.</p>
+            <p className="muted">{s.noEnd(site.owner)}</p>
           ) : (
             <label className="slider">
-              <span>{earlier === 0 ? `Ends ${formatDay(site.baseEnd)} as published` : `${shiftText(earlier)}: ends ${formatDay(site.end)}`}</span>
+              <span>{earlier === 0 ? s.endsAsPublished(formatDay(site.baseEnd)) : s.ends(shiftText(earlier), formatDay(site.end))}</span>
               <input type="range" min={Math.max(-90, Math.max(today, site.baseStart) - site.baseEnd)} max={30} value={earlier}
-                aria-label="Days to finish earlier or later" onChange={(e) => onShift(+e.target.value ? [0, +e.target.value] : null)} />
+                aria-label={s.finishLabel} onChange={(e) => onShift(+e.target.value ? [0, +e.target.value] : null)} />
             </label>
           )}
           {priority && (
             <>
-              <p><Derived how={priorityWorking(priority.p, priority.rank, priority.of, cfg)}><strong>#{priority.rank}</strong></Derived> of {priority.of} running sites to speed up on {formatDay(date)}.</p>
+              <p>{s.rank(<Derived how={priorityWorking(priority.p, priority.rank, priority.of, cfg)}><strong>#{priority.rank}</strong></Derived>, priority.of, formatDay(date))}</p>
               <div className="chips">{priority.p.reasons.map((r) => <span className="chip" key={r}>{r}</span>)}</div>
               {priority.p.freedOverlapDays > 0 && (
-                <p className="muted">Finishing {cfg['priority.sooner']} days earlier removes <Derived how={freedWorking(priority.p, cfg)}>{plural(priority.p.freedOverlapDays, 'day')}</Derived> of overlap with works nearby.</p>
+                <p className="muted">{s.freed(cfg['priority.sooner'], <Derived how={freedWorking(priority.p, cfg)}>{t.n.day(priority.p.freedOverlapDays)}</Derived>)}</p>
               )}
             </>
           )}
@@ -145,8 +141,8 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
 
       {conflicts.length > 0 && (
         <section className="block">
-          <h3>Works that coincide</h3>
-          <Info>Distances run between the edges of the two works. Days count from today, only those on which both run. Works within {metres(cfg['together.radius'])} are on the same stretch.</Info>
+          <h3>{s.coincide}</h3>
+          <Info>{s.coincideInfo(metres(cfg['together.radius']))}</Info>
           <MiniGantt site={site} others={overlapping} date={date} />
           <ul className="plain">
             {conflicts.map((c) => {
@@ -156,9 +152,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
                 <li key={other.id}>
                   <button className="link-button" onClick={() => onSelect(other.id)}>{other.title}</button>
                   <div className="muted">
-                    {c.type === 'bundle'
-                      ? `Same stretch (${metres(c.m)}), ${plural(c.days, 'day')} apart: better done together`
-                      : `${metres(c.m)} away, both running ${plural(c.days, 'day')} (${dayRange(c.from, c.to)})`}
+                    {c.type === 'bundle' ? s.sameStretch(metres(c.m), c.days) : s.away(metres(c.m), c.days, dayRange(c.from, c.to))}
                   </div>
                 </li>
               );
@@ -168,15 +162,15 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
       )}
 
       <section className="block">
-        <h3>Ways around it</h3>
-        <Info>The nearest Stadtbahn stop, fire and rescue station and hospital in the city's open data, in a straight line from the edge of the works.</Info>
+        <h3>{s.waysAround}</h3>
+        <Info>{s.waysInfo}</Info>
         <dl className="facts">
-          <dt>Stadtbahn</dt><dd>{site.rail.name ? `${site.rail.name} (${site.rail.detail || 'stop'}), ${metres(site.rail.m)}` : '–'}</dd>
-          <dt>Fire &amp; rescue</dt><dd>{site.fire.name ? `${site.fire.name}, ${metres(site.fire.m)}` : '–'}</dd>
-          <dt>Hospital</dt><dd>{site.hospital.name ? `${site.hospital.name}, ${metres(site.hospital.m)}` : '–'}</dd>
+          <dt>{s.stadtbahn}</dt><dd>{site.rail.name ? `${site.rail.name} (${site.rail.detail || s.stop}), ${metres(site.rail.m)}` : '–'}</dd>
+          <dt>{s.fire}</dt><dd>{site.fire.name ? `${site.fire.name}, ${metres(site.fire.m)}` : '–'}</dd>
+          <dt>{s.hospital}</dt><dd>{site.hospital.name ? `${site.hospital.name}, ${metres(site.hospital.m)}` : '–'}</dd>
         </dl>
       </section>
-      {site.hypothetical && <button className="button danger" onClick={onRemove}>Remove this proposed project</button>}
+      {site.hypothetical && <button className="button danger" onClick={onRemove}>{s.remove}</button>}
     </div>
   );
 }

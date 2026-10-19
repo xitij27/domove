@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { strings } from '../i18n';
 import type { SavedRoute } from '../routes/model';
 import { planTrip, type TripPlan } from './trip';
 
@@ -23,7 +24,7 @@ export function useDetours(route: SavedRoute | null, plan: typeof planTrip = pla
       (trip) => { if (!controller.signal.aborted) setResult({ route, attempt, state: { status: 'ready', ...trip } }); },
       (e: unknown) => {
         if (controller.signal.aborted) return;
-        setResult({ route, attempt, state: { status: 'failed', error: e instanceof Error ? e.message : 'Could not look for a way around construction.' } });
+        setResult({ route, attempt, state: { status: 'failed', error: e instanceof Error ? e.message : strings().errors.detoursFailed } });
       },
     );
     return () => controller.abort();

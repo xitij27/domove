@@ -1,3 +1,4 @@
+import { strings } from '../i18n';
 import { notificationContent, obstacleKey, reminderDate } from './core';
 import { DEFAULT_SETTINGS, type RouteNotificationSettings, type RouteObstacle, isObstacle, isSettings } from './model';
 
@@ -94,9 +95,7 @@ export function createNotificationService(
     }
     state.due = due;
     storage.write(JSON.stringify(state));
-    return planned.length > 0 && !allowed
-      ? 'Notifications are turned off for this app in your phone settings, so no alert was scheduled.'
-      : null;
+    return planned.length > 0 && !allowed ? strings().alerts.blocked : null;
   }
 
   return {
@@ -117,6 +116,12 @@ export function createNotificationService(
         const state = load();
         state.obstacles = obstacles;
         await reconcile(state, false);
+      });
+    },
+    /** Schedules the reminders again in the app's language; the wording is part of each one's signature, so only those that change are replaced. */
+    reword(): Promise<void> {
+      return enqueue(async () => {
+        await reconcile(load(), false);
       });
     },
     forgetRoute(routeId: string): Promise<void> {

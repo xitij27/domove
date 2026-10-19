@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { TRANSPORT_MODES, type TransportMode } from '../routes/model';
+import { decimal, useStrings } from '../i18n';
+import type { TransportMode } from '../routes/model';
 import { PALETTES, type MapTheme } from '../theme';
-import { BAND_LABELS, describeReason, formatPoints, ratedFor, routeUseText, type Band, type RouteSiteRating, type SiteRating } from './model';
+import { describeReason, formatPoints, ratedFor, routeUseText, type Band, type RouteSiteRating, type SiteRating } from './model';
 
 // Grey for little or no effect, amber for medium, red for high and severe; strong enough on white and on the night card.
 export const BAND_COLORS: Record<MapTheme, Record<Band, string>> = {
@@ -29,12 +30,13 @@ export default function ImpactScore({ rating, loading, error, onRetry, mode, onM
   onExplain: () => void;
 }) {
   const palette = PALETTES[theme];
+  const t = useStrings();
   const color = rating ? BAND_COLORS[theme][rating.band] : palette.muted;
 
   return (
     <View style={[styles.box, { borderTopColor: palette.border }]}>
       {onModeChange && (
-        <View accessibilityRole="radiogroup" accessibilityLabel="Impact score for" style={styles.modes}>
+        <View accessibilityRole="radiogroup" accessibilityLabel={t.ratings.scoreFor} style={styles.modes}>
           {MODES.map((m) => (
             <Pressable
               key={m}
@@ -43,7 +45,7 @@ export default function ImpactScore({ rating, loading, error, onRetry, mode, onM
               onPress={() => onModeChange(m)}
               style={[styles.mode, { borderColor: m === mode ? palette.accent : palette.border }]}
             >
-              <Text style={{ color: m === mode ? palette.text : palette.muted }}>{TRANSPORT_MODES[m]}</Text>
+              <Text style={{ color: m === mode ? palette.text : palette.muted }}>{t.modes[m]}</Text>
             </Pressable>
           ))}
         </View>
@@ -51,33 +53,29 @@ export default function ImpactScore({ rating, loading, error, onRetry, mode, onM
 
       {error ? (
         <Pressable accessibilityRole="button" onPress={onRetry}>
-          <Text style={{ color: palette.status.current }}>{error} — tap to retry</Text>
+          <Text style={{ color: palette.status.current }}>{t.common.tapToRetry(error)}</Text>
         </Pressable>
       ) : !rating ? (
-        loading ? <ActivityIndicator color={palette.muted} accessibilityLabel="Working out the impact score" />
-          : <Text style={{ color: palette.muted }}>No impact score for this site yet.</Text>
+        loading ? <ActivityIndicator color={palette.muted} accessibilityLabel={t.ratings.working} />
+          : <Text style={{ color: palette.muted }}>{t.ratings.noScore}</Text>
       ) : (
         <>
           <View
             style={styles.head}
             accessible
-            accessibilityLabel={`Impact ${rating.rating} out of 10, ${BAND_LABELS[rating.band]}, ${ratedFor(mode, rating.ratedAt)}`}
+            accessibilityLabel={t.ratings.spoken(rating.rating, t.ratings.bands[rating.band], ratedFor(mode, rating.ratedAt))}
           >
             <View style={[styles.badge, { backgroundColor: color }]}>
               <Text style={[styles.badgeNumber, { color: BADGE_TEXT[theme] }]}>{rating.rating}</Text>
               <Text style={[styles.badgeOf, { color: BADGE_TEXT[theme] }]}>/10</Text>
             </View>
             <View style={styles.headText}>
-              <Text style={[styles.band, { color }]}>{BAND_LABELS[rating.band]}</Text>
+              <Text style={[styles.band, { color }]}>{t.ratings.bands[rating.band]}</Text>
               <Text style={{ color: palette.muted }}>{ratedFor(mode, rating.ratedAt)}</Text>
             </View>
           </View>
 
-          {!rating.active && (
-            <Text style={{ color: palette.muted }}>
-              Not running then{rating.startsOn ? ` · runs from ${rating.startsOn}` : ''}{rating.endsOn ? ` to ${rating.endsOn}` : ''}
-            </Text>
-          )}
+          {!rating.active && <Text style={{ color: palette.muted }}>{t.ratings.notRunning(rating.startsOn, rating.endsOn)}</Text>}
           {forRoute(rating) && <Text style={{ color: palette.text }}>{routeUseText(rating)}</Text>}
 
           <ScrollView style={styles.reasons} nestedScrollEnabled>
@@ -90,7 +88,7 @@ export default function ImpactScore({ rating, loading, error, onRetry, mode, onM
                   key={`${reason.factor}-${i}`}
                   style={styles.reason}
                   accessible
-                  accessibilityLabel={[line.label, line.detail, line.note ? null : `${formatPoints(line.points)} points`].filter(Boolean).join('. ')}
+                  accessibilityLabel={[line.label, line.detail, line.note ? null : t.ratings.points(formatPoints(line.points))].filter(Boolean).join('. ')}
                 >
                   <View style={styles.reasonText}>
                     <Text style={{ color: tone }}>{line.label}</Text>
@@ -103,13 +101,13 @@ export default function ImpactScore({ rating, loading, error, onRetry, mode, onM
           </ScrollView>
 
           <Text style={[styles.sum, { color: palette.muted }]}>
-            Closure {rating.disruption.toFixed(1)} + surroundings {rating.surroundings.toFixed(1)} = {rating.score.toFixed(1)}, rounded to {rating.rating}/10
+            {t.ratings.sum(decimal(rating.disruption, 1), decimal(rating.surroundings, 1), decimal(rating.score, 1), rating.rating)}
           </Text>
         </>
       )}
 
       <Pressable accessibilityRole="button" onPress={onExplain} hitSlop={8} style={styles.explain}>
-        <Text style={{ color: palette.accent, fontWeight: '600' }}>How scores work</Text>
+        <Text style={{ color: palette.accent, fontWeight: '600' }}>{t.ratings.howScoresWork}</Text>
       </Pressable>
     </View>
   );

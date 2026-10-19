@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useStrings } from '../i18n';
 import { PALETTES, type MapTheme } from '../theme';
 import { STEPS } from './demo';
 
@@ -8,11 +9,12 @@ const SIZE = 48; // as wide as the quiz button above it
 /** A round button under the quiz; starts and ends the guided demo. */
 export function DemoButton({ running, busy, theme, onPress }: { running: boolean; busy: boolean; theme: MapTheme; onPress: () => void }) {
   const palette = PALETTES[theme];
+  const t = useStrings().demo;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Demo"
-      accessibilityHint={running ? 'Ends the demo' : 'Walks through the app, step by step'}
+      accessibilityLabel={t.label}
+      accessibilityHint={running ? t.endHint : t.startHint}
       accessibilityState={{ busy, expanded: running }}
       disabled={busy}
       onPress={onPress}
@@ -37,13 +39,14 @@ export function DemoCaption({ step, note, theme, onBack, onNext, onExit }: {
   onExit: () => void;
 }) {
   const palette = PALETTES[theme];
-  const { title, text } = STEPS[step];
+  const t = useStrings();
+  const { title, text } = t.demo.steps[STEPS[step].id];
   const last = step === STEPS.length - 1;
   return (
     <View style={styles.caption}>
       <View style={styles.head}>
-        <Text style={[styles.count, { color: palette.muted }]}>Demo · {step + 1} of {STEPS.length}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="End the demo" hitSlop={8} onPress={onExit} style={styles.close}>
+        <Text style={[styles.count, { color: palette.muted }]}>{t.demo.count(step + 1, STEPS.length)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.demo.end} hitSlop={8} onPress={onExit} style={styles.close}>
           <MaterialIcons name="close" size={22} color={palette.muted} />
         </Pressable>
       </View>
@@ -55,11 +58,11 @@ export function DemoCaption({ step, note, theme, onBack, onNext, onExit }: {
       <View style={styles.actions}>
         {step > 0 && (
           <Pressable accessibilityRole="button" onPress={onBack} style={[styles.action, styles.back, { borderColor: palette.border }]}>
-            <Text style={[styles.actionText, { color: palette.text }]}>Back</Text>
+            <Text style={[styles.actionText, { color: palette.text }]}>{t.common.back}</Text>
           </Pressable>
         )}
         <Pressable accessibilityRole="button" onPress={last ? onExit : onNext} style={[styles.action, { backgroundColor: palette.text }]}>
-          <Text style={[styles.actionText, { color: palette.surface }]}>{last ? 'Finish' : 'Next'}</Text>
+          <Text style={[styles.actionText, { color: palette.surface }]}>{last ? t.demo.finish : t.common.next}</Text>
         </Pressable>
       </View>
     </View>

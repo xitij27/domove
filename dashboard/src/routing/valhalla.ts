@@ -1,6 +1,7 @@
 // Routes and reach per user group on the public FOSSGIS Valhalla server, around the closures of a chosen day.
 import { area, difference, feature, featureCollection, intersect, pointOnFeature } from '@turf/turf';
 import type { MultiPolygon, Polygon } from 'geojson';
+import { strings } from '../i18n';
 import { IMPACTS } from '../model/closures';
 import type { ClosureKind, Mode } from '../model/closures';
 import { bboxGap, bboxOf, dist, pointInShape, pointShapeDist, shapeOf, toLonLat, toXY } from '../model/geo';
@@ -14,28 +15,18 @@ export type Group = 'commuter' | 'logistics' | 'emergency' | 'cyclist' | 'pedest
 
 const blockedFor = (mode: Mode) => (kinds: ClosureKind[]) => kinds.some((k) => IMPACTS[k][mode].effect === 'blocked');
 
-export const GROUPS: Record<Group, { label: string; costing: Costing; mode: Mode; blocks: (kinds: ClosureKind[]) => boolean; note: string }> = {
-  commuter: {
-    label: 'Commuters', costing: 'auto', mode: 'car', blocks: blockedFor('car'),
-    note: 'Car. Full closures and one-way rules block the way; other works add waiting time.',
-  },
+// Each group's name and what it assumes are in the i18n strings (routes.groups).
+export const GROUPS: Record<Group, { costing: Costing; mode: Mode; blocks: (kinds: ClosureKind[]) => boolean }> = {
+  commuter: { costing: 'auto', mode: 'car', blocks: blockedFor('car') },
+  // our assumption: lorries also avoid half closures, closed carriageways and narrowings
   logistics: {
-    label: 'Logistics', costing: 'truck', mode: 'car',
+    costing: 'truck', mode: 'car',
     blocks: (kinds) => blockedFor('car')(kinds) || kinds.some((k) => k === 'half' || k === 'carriageway' || k === 'narrowing'),
-    note: 'Truck. Our assumption: lorries also avoid half closures, closed carriageways and narrowings.',
   },
-  emergency: {
-    label: 'Emergency', costing: 'auto', mode: 'car', blocks: (kinds) => kinds.includes('full'),
-    note: 'Blue-light vehicles may pass one-way rules and narrowings, so only full closures block them.',
-  },
-  cyclist: {
-    label: 'Cyclists', costing: 'bicycle', mode: 'bike', blocks: blockedFor('bike'),
-    note: 'Bicycle. Full closures and one-way rules block, as decided for route planning (#12).',
-  },
-  pedestrian: {
-    label: 'Pedestrians', costing: 'pedestrian', mode: 'walk', blocks: blockedFor('walk'),
-    note: 'On foot. Closed sidewalks block; a full road closure usually leaves the sidewalk open.',
-  },
+  // blue-light vehicles may pass one-way rules and narrowings
+  emergency: { costing: 'auto', mode: 'car', blocks: (kinds) => kinds.includes('full') },
+  cyclist: { costing: 'bicycle', mode: 'bike', blocks: blockedFor('bike') },
+  pedestrian: { costing: 'pedestrian', mode: 'walk', blocks: blockedFor('walk') },
 };
 
 // The public server takes at most 100 vertices and 10 km of outline in exclude_polygons:
@@ -70,7 +61,7 @@ function call(path: string, body: object): Promise<unknown> {
     try {
       res = await fetch(`${BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } catch {
-      throw new RouterError('The routing server can’t be reached.');
+      throw new RouterError(strings().routes.unreachable);
     }
     const json = (await res.json().catch(() => null)) as { error?: string; error_code?: number } | null;
     if (!res.ok) throw new RouterError(json?.error ?? `Routing server: HTTP ${res.status}`, json?.error_code ?? null);
@@ -94,7 +85,7 @@ export async function route(costing: Costing, from: LonLat, to: LonLat, cuts: Lo
   })) as { trip?: { legs?: { shape?: unknown }[]; summary?: { time?: unknown; length?: unknown } } } | null;
   const shape = json?.trip?.legs?.[0]?.shape;
   const { time, length } = json?.trip?.summary ?? {};
-  if (typeof shape !== 'string' || typeof time !== 'number' || typeof length !== 'number') throw new RouterError('Unexpected answer from the routing server.');
+  if (typeof shape !== 'string' || typeof time !== 'number' || typeof length !== 'number') throw new RouterError(strings().routes.unexpected);
   return { line: decodePolyline(shape), seconds: time, meters: length * 1000 };
 }
 
@@ -110,7 +101,7 @@ export async function isochrone(costing: Costing, at: LonLat, minutes: number, c
     ...(cuts.length ? { exclude_polygons: cuts } : {}),
   })) as { features?: { geometry?: unknown }[] } | null;
   const geometry = json?.features?.find((f) => isPolygonal(f.geometry))?.geometry;
-  if (!isPolygonal(geometry)) throw new RouterError('Unexpected answer from the routing server.');
+  if (!isPolygonal(geometry)) throw new RouterError(strings().routes.unexpected);
   return geometry;
 }
 
