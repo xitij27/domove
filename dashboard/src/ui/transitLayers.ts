@@ -4,8 +4,8 @@ import type { TransitKind } from '../data/sources';
 export type TransitLayer = TransitKind | 'stop' | 'bike' | 'pr';
 export type TransitLayers = Record<TransitLayer, boolean>;
 export const TRANSIT_LAYERS: TransitLayer[] = ['stadtbahn', 'train', 'bus', 'stop', 'bike', 'pr'];
-// bike-share stations are many and only matter up close, so they start hidden
-const DEFAULTS: TransitLayers = { stadtbahn: true, train: true, bus: true, stop: true, bike: false, pr: true };
+// trains and bike share start hidden: the S-Bahn and regional lines crowd the city view, bike stations only matter up close
+const DEFAULTS: TransitLayers = { stadtbahn: true, train: false, bus: true, stop: true, bike: false, pr: true };
 const STORAGE_KEY = 'domove-dashboard-transit-layers';
 
 /** The layers picked last in this browser; anything missing or unreadable falls back to the defaults. */

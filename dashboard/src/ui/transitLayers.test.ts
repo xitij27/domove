@@ -14,8 +14,8 @@ describe('transit layers', () => {
   it('keeps saved choices and falls back to the defaults for anything missing or unreadable', () => {
     const store = (value: string | null) => vi.stubGlobal('window', { localStorage: { getItem: () => value } });
     store('{"bus":false,"bike":true,"stop":"yes"}');
-    expect(savedTransitLayers()).toEqual({ stadtbahn: true, train: true, bus: false, stop: true, bike: true, pr: true });
+    expect(savedTransitLayers()).toEqual({ stadtbahn: true, train: false, bus: false, stop: true, bike: true, pr: true });
     store('not json');
-    expect(savedTransitLayers().bike).toBe(false);
+    expect(savedTransitLayers()).toMatchObject({ train: false, bike: false });
   });
 });
