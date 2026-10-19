@@ -1,8 +1,8 @@
-# Construction Site Radar Dortmund
+# Do.Move
 
 **Know about roadworks before they get in your way.**
 
-Construction Site Radar shows every current and planned construction site in Dortmund on a map, tells you which ones are on the trips you make, how much each one will bother you, and the best way around it. A second website helps the city's planners spread the works out so the city never feels shut all at once.
+Do.Move shows every current and planned construction site in Dortmund on a map, tells you which ones are on the trips you make, how much each one will bother you, and the best way around it. A second website helps the city's planners spread the works out so the city never feels shut all at once.
 
 ![Construction sites on the map, each with the German traffic sign for what it closes](docs/images/map-signs-preview.png)
 

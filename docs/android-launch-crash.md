@@ -1,6 +1,6 @@
-# Radar v0.1 launch crash
+# Do.Move v0.1 launch crash
 
-Incident report · Construction Site Radar (Android) · 16 Oct 2026
+Incident report · Do.Move (Android) · 16 Oct 2026
 
 The Android APK released as v0.1.0 closes immediately on every launch, and v0.1.1 has the same defect. The cause is in the build, not the phones and not the API keys: R8 removes a constructor that WorkManager's database needs, and the app dies while Android is still starting the process. Commit `7cb0a30` fixes it, and the fixed APK runs on both test phones.
 
@@ -147,7 +147,7 @@ Commit `7cb0a30` adds `.github/workflows/android-apk.yml`. It builds the same ki
 |---|---|
 | **Runs on** | Pushes to `main`, or by hand (`workflow_dispatch`), since `f3ec3f3`. `7cb0a30` originally ran it on any push that changed `mobile/**`. GitHub only runs `workflow_dispatch` "if the workflow file exists on the default branch", so the workflow doesn't run at all until it is merged to `main`. |
 | **Steps** | Node 24, Temurin JDK 17, Gradle setup, `npm ci`, `npx expo prebuild --platform android`, `./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a` |
-| **Output** | Artifact `construction-site-radar-arm64-apk` containing `app-release.apk`: arm64 only, signed with the debug key like the v0.1.x releases |
+| **Output** | Artifact `domove-arm64-apk` (`construction-site-radar-arm64-apk` before the rename to Do.Move) containing `app-release.apk`: arm64 only, signed with the debug key like the v0.1.x releases |
 | **Secrets** | `EXPO_PUBLIC_MAPBOX_TOKEN`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set. `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` is optional and not set, so the Google ⇄ Mapbox toggle stays hidden. `SUPABASE_DB_URL` is deliberately not on GitHub. |
 
 **Gotcha:** a run reads secrets when it starts. The first run started at 14:09:48 UTC, before the secrets were added at 14:11 UTC, so it was cancelled and re-run.
