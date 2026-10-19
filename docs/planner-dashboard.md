@@ -6,7 +6,7 @@ The app answers one resident's question: which works are on my route? The dashbo
 
 ## Roles
 
-The features are grouped by who uses them. The roles run across the header. The picked one is underlined in yellow, the colour of temporary road markings at German road works, which override the usual white ones. Each role has its own views, its own figures at the top of the side panel, and its own places on the map. All roles share the same sites, settings, scenario and day. The browser remembers the last role; the first visit opens Planning.
+The features are grouped by who uses them. The roles run across the header. Each wears one of the German road-sign colours (the RAL "Verkehrs-" colours): Planning traffic yellow, the colour of temporary road-works markings; Traffic traffic blue; Emergency traffic red; Transit traffic green, from the H on bus-stop signs. The picked role colours the header's bottom edge, its own button, the tint behind the side panel's figures and the underline of the open view. The map, legend and timeline keep their own colours, so a red in Emergency never reads as disruption. Each role has its own views, its own figures at the top of the side panel, and its own places on the map. All roles share the same sites, settings, scenario and day. The browser remembers the last role; the first visit opens Planning.
 
 | Role | For | Views (the first opens) | Figures | Also on the map |
 |---|---|---|---|---|
@@ -125,7 +125,7 @@ The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (ba
 - `src/ui/modes.test.ts`: every view and every route group must stay reachable from some role, and a role has route groups exactly when it has Routes.
 - **To add a view to a role**, add its id to that role's `tabs`. **To add a role**, add it to `MODES` and its words to both language files. The type check fails on any word missing in German.
 - **Look.**
-  - The yellow is the `--selection` token, the same yellow that marks a chosen district on the map.
+  - Role colours are tokens in `src/styles.css`: `--mode` (edge and bar), `--mode-ink` (icons and lines, at least 4.5:1 on the surface and on the tint, in both themes) and `--mode-wash` (the panel tint). They are set by `data-mode` on the app and on each role button. The scenario bar keeps the yellow `--selection` edge in every role.
   - Headings, figures, roles and views use Barlow Semi Condensed, a typeface drawn from road signage. It's bundled with the site (`@fontsource/barlow-semi-condensed`, weights 500 and 600), so no font request goes to Google. Body text stays in the system font.
 
 ## Run, test, deploy

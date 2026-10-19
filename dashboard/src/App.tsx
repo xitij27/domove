@@ -383,7 +383,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
 
   return (
     <SettingsContext value={cfg}>
-    <div className="app">
+    <div className="app" data-mode={mode}>
       <header className="topbar">
         <div className="brand">
           <img src="/domovelogo.png" alt="do.move" />

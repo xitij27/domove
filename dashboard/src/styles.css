@@ -73,6 +73,22 @@
   --seq-ink-4: #0b0b0b;
 }
 
+/* Each role wears one of the German road-sign colours (the RAL "Verkehrs-" colours): Planning traffic yellow, the
+   temporary road-works marking; Traffic traffic blue; Emergency traffic red; Transit traffic green, the bus-stop H.
+   Chrome only, never the map, so the severity and district colours keep their meaning. --mode is the edge and bar,
+   --mode-ink is for icons and lines (4.5:1 or more on the surface and on the wash, both themes), --mode-wash tints the
+   panel head. Set on the app for the picked role and on each role button for its own. */
+[data-mode="plan"] { --mode: #f2b600; --mode-ink: #7a5800; }
+[data-mode="traffic"] { --mode: #0a5a9c; --mode-ink: #0a5a9c; }
+[data-mode="emergency"] { --mode: #c4161c; --mode-ink: #b3141a; }
+[data-mode="transit"] { --mode: #00845a; --mode-ink: #006b49; }
+[data-mode] { --mode-wash: color-mix(in srgb, var(--mode) 10%, var(--surface)); }
+:root[data-theme="dark"] [data-mode="plan"] { --mode: #f5c33b; --mode-ink: #f7cf5e; }
+:root[data-theme="dark"] [data-mode="traffic"] { --mode: #4a9be0; --mode-ink: #8cc3f2; }
+:root[data-theme="dark"] [data-mode="emergency"] { --mode: #ef4b4f; --mode-ink: #ff9089; }
+:root[data-theme="dark"] [data-mode="transit"] { --mode: #2fb383; --mode-ink: #74d5ab; }
+:root[data-theme="dark"] [data-mode] { --mode-wash: color-mix(in srgb, var(--mode) 16%, var(--surface)); }
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body { font-family: var(--font); font-size: 14px; line-height: 1.45; background: var(--page); color: var(--ink); }
@@ -117,24 +133,29 @@ button, input, select { font: inherit; color: inherit; }
 
 /* layout */
 .app { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr); height: 100vh; }
-.topbar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0 20px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.topbar {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 0 20px; padding: 0 20px; background: var(--surface);
+  border-bottom: 3px solid var(--mode); transition: border-color 260ms var(--ease);
+}
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; padding: 14px 0; }
 .brand img { height: 22px; width: auto; align-self: center; }
 .beta {
   align-self: center; padding: 1px 6px; border: 1px solid currentColor; border-radius: 4px; color: var(--accent-ink);
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.4; cursor: default;
 }
-/* roles: the picked one is underlined in the yellow of a temporary road marking, the line that overrides the usual ones */
+/* roles: each icon shows its role's colour; the picked one gets a wash and a bar standing on the header's coloured edge */
 .modes { display: flex; align-items: stretch; margin-left: 8px; }
 .mode {
   position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 0; background: none;
   color: var(--muted); cursor: pointer; text-align: left;
 }
 .mode:hover { color: var(--ink); background: var(--surface-2); }
-.mode[aria-pressed="true"] { color: var(--ink); }
+.mode[aria-pressed="true"] { color: var(--ink); background: var(--mode-wash); }
+.mode svg { color: var(--mode-ink); opacity: 0.7; transition: opacity var(--fast) var(--ease); }
+.mode:hover svg, .mode[aria-pressed="true"] svg { opacity: 1; }
 .mode::after {
-  content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 4px; border-radius: 2px 2px 0 0;
-  background: var(--selection); transform: scaleX(0); transition: transform 260ms var(--ease);
+  content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 4px; border-radius: 2px 2px 0 0;
+  background: var(--mode); transform: scaleX(0); transition: transform 260ms var(--ease);
 }
 .mode[aria-pressed="true"]::after { transform: scaleX(1); }
 .mode svg { flex: none; }
@@ -144,8 +165,8 @@ button, input, select { font: inherit; color: inherit; }
 .date-control { display: flex; align-items: center; gap: 10px; padding: 10px 16px 0; }
 .date-value { font: 600 17px/1.2 var(--display); font-variant-numeric: tabular-nums; }
 .date-control .link-button { margin-left: auto; }
-/* the scenario in force over the published plans: tinted like the marking it overrides with */
-.scenario { display: grid; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--selection) 14%, var(--surface)); }
+/* the scenario in force over the published plans: marked at its edge in the yellow of a temporary road marking */
+.scenario { display: grid; gap: 8px; padding: 10px 16px 10px 12px; border-top: 1px solid var(--border); border-left: 4px solid var(--selection); background: var(--surface); }
 .scenario-details, .scenario-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .scenario .button { padding: 3px 10px; font-size: 13px; }
 .theme-choice { display: flex; justify-self: end; flex-wrap: nowrap; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -183,11 +204,11 @@ button, input, select { font: inherit; color: inherit; }
 .map-area { position: relative; min-height: 0; }
 .map { position: absolute; inset: 0; }
 .panel { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-left: 1px solid var(--border); }
-.panel-head { flex: none; }
+.panel-head { flex: none; background: var(--mode-wash); transition: background-color 260ms var(--ease); }
 .tabs { display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex: none; position: relative; }
 /* one underline that slides to the selected tab; App sets --tab and --tabs */
 .tabs::after {
-  content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: calc(100% / var(--tabs)); background: var(--ink);
+  content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: calc(100% / var(--tabs)); background: var(--mode-ink);
   transform: translateX(calc(var(--tab) * 100%)); transition: transform 280ms var(--ease);
 }
 .tab { flex: 1; border: 0; background: none; padding: 10px 4px; font: 500 15px/1.2 var(--display); letter-spacing: 0.01em; white-space: nowrap; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
