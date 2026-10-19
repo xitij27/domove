@@ -79,7 +79,8 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 function animate(ms: number, draw: (t: number) => void): () => void {
   const start = performance.now();
   let frame = requestAnimationFrame(function tick(now) {
-    const t = Math.min(1, (now - start) / ms);
+    // a frame's timestamp can predate `start`, which would run the drawing backwards past its limits
+    const t = Math.min(1, Math.max(0, (now - start) / ms));
     draw(t);
     if (t < 1) frame = requestAnimationFrame(tick);
   });
