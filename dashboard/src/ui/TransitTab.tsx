@@ -55,6 +55,7 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
     <div className="tab-body">
       <section className="block">
         <h3>{t.title}</h3>
+        <p className="note">{t.partial}</p>
         <Info>
           {t.info(metres(cfg['reach.rail']), num(cfg['transit.mainRoadShare']), whole(PER_RESIDENTS), residentsYear || t.latest, formatDay(date), cfg['transit.days'])}
         </Info>

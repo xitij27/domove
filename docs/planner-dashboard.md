@@ -11,7 +11,7 @@ The features are grouped by who uses them. The roles run across the header. Each
 | Role | For | Views (the first opens) | Figures | Also on the map |
 |---|---|---|---|---|
 | **Planning** | works coordination (Tiefbauamt) | To do · Coordinate · Outlook · Priorities | active sites · disruption points · clashes ahead | – |
-| **Traffic** | police and traffic control (in practice the road traffic authority and the control centre) | Priorities · Capacity · Routes · Outlook | disruption points · full closures · active sites | – |
+| **Traffic** | police and traffic control (in practice the road traffic authority and the control centre) | Priorities · Road space · Routes · Outlook | disruption points · full closures · active sites | – |
 | **Emergency** | fire and ambulance | Routes · Outlook | full closures · active sites | fire and rescue stations, hospitals |
 | **Transit** | buses, trams and bikes | Transit · Routes | stops beside 2+ works · active sites | the Stadtbahn, train and bus lines, Stadtbahn stops, bike share, P+R, each switchable |
 
@@ -25,22 +25,22 @@ The features are grouped by who uses them. The roles run across the header. Each
   - buses per street, wider where more lines share it, so the main bus corridors stand out; hover a street for its lines
 
   A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. S-Bahn and regional trains, bike share and P+R start switched off.
-- **To do → Transit.** A "Transit help" item's **Open** switches to the Transit role with that district selected.
+- **To do → Transit.** A "Far from the Stadtbahn" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
 
 ## What it answers
 
 | Question | Where | How |
 |---|---|---|
-| What should I act on first? | **To do** (Planning's first view) | every suggestion the other views make, one line each, numbered like the map: moves that clear clashes, works to do together, clashes only finishing sooner can clear, districts needing transit help |
+| What should I act on first? | **To do** (Planning's first view) | every suggestion the other views make, one line each, numbered like the map: moves that clear clashes, works to do together, clashes only finishing sooner can clear, districts with works far from the Stadtbahn |
 | Are works piling up in one place at one time? | **Coordinate** · clashes, and the timeline (Planning) | works close together on the same days, linked into clusters |
 | Which works should happen together instead? | **Coordinate** · do these together (Planning) | works on the same stretch at different times |
 | When should these works start? | a site's panel · best windows; **Plan a new project** in Coordinate (Planning) | start dates scored against everything else planned |
 | What starts, runs and ends soon? | **Outlook** (Planning, Traffic, Emergency) | the next 7, 14 or 30 days: works starting, running and ending, possible conflicts and uncertain dates; the map and timeline can show only that window |
 | Is the Tiefbauamt's programme balanced? | **Coordinate** · works programme (Planning) | projects in construction per district and period |
 | Which running works should finish first? | **Priorities** (Planning, Traffic) | severity, time left, overlaps, emergency access, rail nearby |
-| How loaded are each district's roads? | **Capacity** (Traffic) | an estimate of each district's road load on the day, from its lane-kilometres, residents and the day's works |
-| Which districts need public-transport attention? | **Transit** (Transit) | closures with no Stadtbahn in walking distance, per resident |
+| How much road space does each district have per resident? | **Road space** (Traffic) | an estimate of each district's road load at the busy hour, from its lane-kilometres and residents; a line under the sliders says how many points the day's works add at most (3 on 20 Oct), since they barely change the order |
+| Which districts have works far from the Stadtbahn? | **Transit** (Transit) | closures with no Stadtbahn in walking distance, per resident; a note says buses, the S-Bahn and where people live aren't counted yet |
 | How do commuters, logistics, emergency services, cyclists and pedestrians get around on a given day? | **Routes** (Traffic: commuters, logistics · Emergency · Transit: cyclists, pedestrians) | the router, around that day's closures for that group |
 | What do the closures do to a fire station's reach? | **Routes** · Emergency reach (Emergency) | reach without and with the day's full closures |
 
@@ -111,6 +111,8 @@ The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (ba
 ## Limits
 
 - **Published plans reach about four weeks ahead** (16 Nov on 17 Oct). After that, load looks low only because later works aren't announced; the timeline marks the date, and suggestions past it say so.
+- **The feed forgets ended works.** None of the city's sites is kept once it ends, so earlier days look quieter than they were. The timeline says so at its left edge, and disruption points aren't compared with a "usual" level until the dashboard keeps its own history.
+- **Transit "need" isn't need yet.** Checked on 20 Oct 2026 against the 2022 census and OpenStreetMap stops, 96.8 % of Hörde's residents live within 400 m of a bus or tram stop, although Hörde tops the ranking: its counted works are far from the Stadtbahn, not from buses. The view is titled for what it counts until bus stops, rail and where people live are in the score.
 - **No bus network in the analysis.** The city publishes Stadtbahn stops only, so transit need and stops under pressure count Stadtbahn stops, and closures on main roads stand in for bus diversions. The bus lines on the Transit map come from OpenStreetMap and aren't part of any figure yet.
 - **The restriction comes from the title.** A site whose title names nothing counts as minor until #12's `closures_override` exists.
 - **The works programme has no locations**, so it's compared by district and period only.

@@ -26,7 +26,7 @@ import { buildSites, findNeighbours, nearestRoad, prepareContext, weigh } from '
 import { CapacityTab } from './ui/CapacityTab';
 import { CoordinateTab } from './ui/CoordinateTab';
 import { Derived } from './ui/Derived';
-import { dayRange, metres, num, one, signed } from './ui/format';
+import { dayRange, metres, num, one } from './ui/format';
 import { LanguageChoice } from './ui/LanguageChoice';
 import { OutlookPanel } from './ui/OutlookPanel';
 import { trafficContext } from './model/trafficContext';
@@ -339,9 +339,6 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const statPool = useMemo((): Record<StatKey, Stat> => {
     const s = t.stats;
     const at = load[date - from];
-    const month = load.slice(Math.max(0, date - from - 15), date - from + 16);
-    const usual = month.map((p) => p.total).sort((a, b) => a - b)[Math.floor(month.length / 2)];
-    const vsUsual = at.total / (usual || 1) - 1;
     const inBand = (b: Band) => active.filter((site) => site.band === b).length;
     const closed = active.filter((site) => site.kinds.includes('full'));
     return {
@@ -374,12 +371,9 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           [s.high, s.highHow(inBand('high'), num(cfg['band.high']), one(at.high))],
           [s.medium, s.mediumHow(inBand('medium'), num(cfg['band.medium']), num(cfg['band.high']), one(at.medium))],
           [s.low, s.lowHow(inBand('low'), num(cfg['band.medium']), one(at.low))],
-          [s.usual, s.usualHow(one(usual), dayRange(month[0].day, month[month.length - 1].day))],
-          [s.againstUsual, s.againstUsualHow(one(at.total), one(usual), signed(vsUsual))],
+          // shortcut: no "usual" until the dashboard keeps its own history of the feed (roadmap 4e); the feed forgets ended works
+          [s.againstUsual, s.noUsualHow],
         ],
-        note: Math.abs(vsUsual) < 0.05
-          ? { text: s.aboutUsual }
-          : { text: s.vsUsual(Math.round(Math.abs(vsUsual) * 100), vsUsual > 0), tone: vsUsual > 0 ? 'bad' : 'good' },
       },
       clashes: {
         value: String(clusters.length), label: s.clashes,

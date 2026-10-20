@@ -196,9 +196,6 @@ button, input, select { font: inherit; color: inherit; }
 .summary .derived { display: grid; justify-items: start; text-decoration: none; }
 .summary strong { font: 600 30px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
 .stat-label { margin-top: 4px; font-size: 12.5px; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
-.delta { font-size: 12px; font-weight: 600; }
-.delta.good { color: var(--good); }
-.delta.bad { color: var(--critical); }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0; }
 .map-area { position: relative; min-height: 0; }
