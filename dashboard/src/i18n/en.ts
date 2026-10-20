@@ -47,6 +47,8 @@ const en = {
   app: {
     loading: "Loading Dortmund's construction sites and open data…",
     tryAgain: 'Try again',
+    resizePanel: 'Side panel width',
+    resizePanelHint: 'Drag to make the panel wider or narrower; double-click to reset',
     tabs: { todo: 'To do', coordinate: 'Coordinate', outlook: 'Outlook', priorities: 'Priorities', transit: 'Transit', capacity: 'Road space', routes: 'Routes' },
     views: { bands: 'Bands', heat: 'Heat' },
     beta: 'Beta',

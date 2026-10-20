@@ -37,6 +37,8 @@ const de: Strings = {
   app: {
     loading: 'Dortmunds Baustellen und offene Daten werden geladen …',
     tryAgain: 'Erneut versuchen',
+    resizePanel: 'Breite der Seitenleiste',
+    resizePanelHint: 'Ziehen, um die Seitenleiste breiter oder schmaler zu machen; Doppelklick setzt sie zurück',
     tabs: { todo: 'Aufgaben', coordinate: 'Koordinieren', outlook: 'Ausblick', priorities: 'Prioritäten', transit: 'ÖPNV', capacity: 'Straßenraum', routes: 'Routen' },
     views: { bands: 'Stufen', heat: 'Heatmap' },
     beta: 'Beta',
