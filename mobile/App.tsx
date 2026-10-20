@@ -32,7 +32,8 @@ import { loadTheme, PALETTES, saveTheme, type MapTheme } from './src/theme';
 import { DURATION, Fade, FadeTo, Reveal, useTween } from './src/motion';
 import { useWeather, WeatherButton, WeatherForecast } from './src/weather/Weather';
 import { strings, useStrings } from './src/i18n';
-import LanguageToggle from './src/i18n/LanguageToggle';
+import Settings, { SettingsButton } from './src/settings/Settings';
+import { androidUpdater } from './src/updates/updater';
 
 const STATUSES: Status[] = ['current', 'planned'];
 
@@ -180,6 +181,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   const [gyroWarned, setGyroWarned] = useState(false);
   const quiz = useQuiz();
   const [quizOpen, setQuizOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { weather, failed: weatherFailed, reload: reloadWeather } = useWeather();
   // The forecast card takes the site card's place, so only one of them is open.
   const [forecastOpen, setForecastOpen] = useState(false);
@@ -396,8 +398,6 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
               </Pressable>
             )}
           </Fade>
-          {/* at the row's end, after the map switch; out of the way while a place is chosen */}
-          <Fade>{!picking && <LanguageToggle theme={theme} />}</Fade>
         </View>
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
@@ -407,6 +407,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
         {/* last of the round controls, so it sits under the weather */}
         <Fade>{!picking && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}</Fade>
         <Fade>{!picking && <DemoButton running={!!demo} busy={demoBusy} theme={theme} onPress={demo ? endDemo : startDemo} />}</Fade>
+        {/* the language, and updating the app */}
+        <Fade>{!picking && <SettingsButton theme={theme} onPress={() => setSettingsOpen(true)} />}</Fade>
       </View>
 
       {/* under the chips, clear of the round controls on the right */}
@@ -580,6 +582,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
       </KeyboardAvoidingView>
 
       <HowScoresWork visible={explaining} onClose={() => setExplaining(false)} theme={theme} />
+      {/* only Android installs a downloaded release; the APK is the only build there is */}
+      <Settings visible={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} updater={Platform.OS === 'android' ? androidUpdater : undefined} />
       <StatusBar style={theme === 'night' ? 'light' : 'dark'} />
     </View>
   );

@@ -35,7 +35,8 @@ This project turns the city's list into answers to those questions.
 - **Weather.** Dortmund's weather now, with the next 12 hours and 5 days, to help plan the trip.
 - **A quiz about the city**, for a minute's distraction while you wait.
 - **A guided demo.** The play button walks through all of the above, step by step.
-- **English or German.** The app starts in the phone's language; the **EN | DE** switch at the end of the chips on the map changes it, and the app remembers the choice.
+- **English or German.** The app starts in the phone's language; **Settings** (the gear under the map controls) changes it, and the app remembers the choice.
+- **Updates from inside the app.** On Android, **Settings → Check for updates** compares the app with the latest GitHub release and, if it is newer, downloads and installs it after one tap on Android's confirmation. More: [docs/app-updates.md](docs/app-updates.md).
 
 ## What the planner dashboard does
 

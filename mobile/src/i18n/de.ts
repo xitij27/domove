@@ -67,6 +67,31 @@ const de: Strings = {
     closeRoute: 'Route schließen und alle Baustellen zeigen',
   },
 
+
+  settings: {
+    title: 'Einstellungen',
+  },
+
+  updates: {
+    title: 'App-Updates',
+    version: (version) => `Installiert: Version ${version}`,
+    devBuild: 'Installiert: eine Entwicklungsversion',
+    check: 'Nach Updates suchen',
+    checkAgain: 'Erneut suchen',
+    checking: 'Suche nach Updates …',
+    current: 'Du hast die neueste Version.',
+    available: (version) => `Version ${version} ist verfügbar.`,
+    download: (mb) => (mb ? `Herunterladen und installieren (${mb} MB)` : 'Herunterladen und installieren'),
+    downloading: (version, percent) => `Version ${version} wird heruntergeladen …${percent === null ? '' : ` ${percent} %`}`,
+    confirm: 'Android fragt, ob du das Update installieren willst. Beim ersten Mal fragt es auch, ob Do.Move Apps installieren darf.',
+    openInstaller: 'Installieren',
+    retry: 'Erneut versuchen',
+    failed: (error) => `Update fehlgeschlagen: ${error}`,
+    badRelease: 'Die neueste Version hat keine Versionsnummer.',
+    noApk: 'Die neueste Version enthält keine Android-App.',
+    serverError: (status) => `GitHub hat mit ${status} geantwortet. Versuch es später noch einmal.`,
+    unknownError: 'Etwas ist schiefgelaufen.',
+  },
   routes: {
     raisePanel: 'Routenbereich öffnen',
     lowerPanel: 'Routenbereich schließen',

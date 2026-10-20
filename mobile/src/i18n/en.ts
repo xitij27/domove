@@ -67,6 +67,31 @@ const en = {
     closeRoute: 'Close the route and show every construction site',
   },
 
+
+  settings: {
+    title: 'Settings',
+  },
+
+  updates: {
+    title: 'App updates',
+    version: (version: string) => `Installed: version ${version}`,
+    devBuild: 'Installed: a development build',
+    check: 'Check for updates',
+    checkAgain: 'Check again',
+    checking: 'Checking for updates…',
+    current: 'You have the latest version.',
+    available: (version: string) => `Version ${version} is available.`,
+    download: (mb: string | null) => (mb ? `Download and install (${mb} MB)` : 'Download and install'),
+    downloading: (version: string, percent: number | null) => `Downloading version ${version}…${percent === null ? '' : ` ${percent} %`}`,
+    confirm: 'Android asks you to confirm the update. The first time, it also asks you to allow Do.Move to install apps.',
+    openInstaller: 'Install',
+    retry: 'Try again',
+    failed: (error: string) => `Update failed: ${error}`,
+    badRelease: 'The latest release has no version number.',
+    noApk: 'The latest release has no Android app.',
+    serverError: (status: number) => `GitHub answered ${status}. Try again later.`,
+    unknownError: 'Something went wrong.',
+  },
   routes: {
     raisePanel: 'Raise the routes panel',
     lowerPanel: 'Lower the routes panel',
