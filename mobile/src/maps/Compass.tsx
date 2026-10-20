@@ -3,15 +3,12 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { strings, useStrings } from '../i18n';
 import type { Coordinate } from '../routes/model';
 import { PALETTES, type MapTheme } from '../theme';
-import type { FollowView } from './navigation';
 
-// What the app needs from either map, besides what it reports through `onHeadingChange`, `onCenterChange` and `onUserMove`.
+// What the app needs from either map, besides what it reports through `onHeadingChange` and `onCenterChange`.
 export type MapHandle = {
   pointNorth: () => void;
   /** Zooms in to street level on `center`, or on the map's middle, unpadded; resolves to the point now in the middle. */
   zoomTo: (center: Coordinate | null) => Promise<Coordinate>;
-  /** While navigating: tilts the map and puts `view.center` low on screen, the way ahead above it. */
-  follow: (view: FollowView) => void;
 };
 export const POINT_NORTH_MS = 500;
 export const STREET_ZOOM = 16;

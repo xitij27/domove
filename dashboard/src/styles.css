@@ -216,6 +216,18 @@ button, input, select { font: inherit; color: inherit; }
 .panel-resizer { position: absolute; z-index: 5; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: transparent; transition: background-color var(--fast) var(--ease); }
 .panel-resizer:hover::after, .panel-resizer:focus-visible::after, .resizing-panel .panel-resizer::after { background: var(--mode-ink); }
+/* the grip: a small pill with two ridges, mid-height on the edge, so the edge reads as draggable */
+.panel-resizer::before {
+  --grip: var(--muted);
+  content: ''; position: absolute; z-index: 1; top: 50%; left: 0; box-sizing: border-box; width: 10px; height: 36px; margin-top: -18px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background:
+    linear-gradient(var(--grip), var(--grip)) 2px 50% / 1px 14px no-repeat,
+    linear-gradient(var(--grip), var(--grip)) 5px 50% / 1px 14px no-repeat,
+    var(--surface);
+  transition: border-color var(--fast) var(--ease);
+}
+.panel-resizer:hover::before, .panel-resizer:focus-visible::before, .resizing-panel .panel-resizer::before { --grip: var(--mode-ink); border-color: var(--mode-ink); }
 .panel-resizer:focus-visible { outline: none; }
 /* while dragging: no text selection, and the map doesn't take the pointer */
 .resizing-panel { cursor: col-resize; user-select: none; }

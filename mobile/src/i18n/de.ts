@@ -54,25 +54,16 @@ const de: Strings = {
     mapProvider: (name) => `Kartenanbieter: ${name}. Zum Wechseln tippen.`,
     googleMapsFailed: 'Google Maps konnte nicht geöffnet werden',
     googleMapsRetry: 'Versuch es noch einmal über die gespeicherte Route.',
-    locationOff: 'Standort ist aus',
-    locationOffBody: 'Damit die App dich entlang der Route begleiten kann, erlaube ihr in den Einstellungen, deinen Standort zu verwenden.',
-    notNow: 'Nicht jetzt',
-    openSettings: 'Einstellungen öffnen',
     noDemoRoute: 'Keine Route zum Zeigen',
     noDemoRouteBody: 'Keine der gespeicherten Routen hat bisher eine Baustelle auf der Karte. Speichere eine Route, die an einer vorbeiführt, warte die nächste Prüfung ab (alle 15 Minuten) und versuch es dann noch einmal.',
     demoFailed: 'Die Demo konnte nicht gestartet werden',
-    recentre: 'Zentrieren',
-    recentreHint: 'Folgt dir wieder und dreht die Karte in deine Richtung',
     sitesFailed: 'Baustellen konnten nicht geladen werden',
     noGyroscope: 'Kein Gyroskop in diesem Handy',
     noGyroscopeBody: 'Der Pfeil, der deine Blickrichtung zeigt, kann ungenau sein oder springen.',
     dismissGyroscope: 'Gyroskop-Hinweis schließen',
     closeSite: 'Baustelle schließen',
     highImpact: (n) => `${n} mit starker Auswirkung`,
-    exit: 'Beenden',
-    exitHint: 'Folgt dir nicht mehr und zeigt die ganze Route',
-    start: 'Start',
-    startHint: 'Folgt dir entlang der Route und dreht die Karte in deine Richtung',
+    googleMaps: 'Google Maps',
     closeRoute: 'Route schließen und alle Baustellen zeigen',
   },
 
@@ -470,7 +461,7 @@ const de: Strings = {
       },
       another: {
         title: 'Ein anderer Weg',
-        text: 'Ein Tipp auf eine graue Linie oder ihren Knopf auf der Infokarte wählt stattdessen diesen Weg. „Start“ folgt dann ihm.',
+        text: 'Ein Tipp auf eine graue Linie oder ihren Knopf auf der Infokarte wählt stattdessen diesen Weg. Den öffnet dann „Google Maps“.',
       },
       alerts: {
         title: 'Erinnerungen',
@@ -484,9 +475,9 @@ const de: Strings = {
         title: 'Aus der Erinnerung geöffnet',
         text: 'Der Tipp auf die Erinnerung hat ihre Baustelle auf der Karte geöffnet.',
       },
-      navigation: {
-        title: 'Navigation',
-        text: '„Start“ folgt dir entlang der Route und dreht die Karte in deine Richtung.',
+      google: {
+        title: 'Google Maps',
+        text: 'Die App navigiert nicht selbst: „Google Maps“ auf der Infokarte der Route öffnet den gezeigten Weg in Google Maps, mit Wegbeschreibung Schritt für Schritt.',
       },
       weather: {
         title: 'Wetter',
