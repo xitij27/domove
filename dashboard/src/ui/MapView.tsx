@@ -365,7 +365,16 @@ export function MapView(props: Props) {
     map.on('mouseout', () => popupRef.current?.remove());
     popupRef.current = new Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '280px' });
     mapRef.current = map;
+    // the map's box changes with the side panel's width, not only with the window
+    let frame = 0;
+    const resized = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => map.resize());
+    });
+    resized.observe(container.current!);
     return () => {
+      resized.disconnect();
+      cancelAnimationFrame(frame);
       map.remove();
       mapRef.current = null;
     };

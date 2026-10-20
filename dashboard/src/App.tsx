@@ -49,6 +49,8 @@ import { setThemePreference, useTheme } from './ui/theme';
 import { Timeline } from './ui/Timeline';
 import { TodoTab } from './ui/TodoTab';
 import { TransitTab } from './ui/TransitTab';
+import { PanelResizer } from './ui/PanelResizer';
+import { savedWidth } from './ui/panelWidth';
 import { saveTransitLayers, savedTransitLayers } from './ui/transitLayers';
 import type { TransitLayer } from './ui/transitLayers';
 import { TransitLayersCard } from './ui/TransitLayersCard';
@@ -86,6 +88,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
   const language = useLanguage();
   const [scenario, setScenario] = useScenario();
   const [date, setDate] = useState(today);
+  const [panelWidth, setPanelWidth] = useState(savedWidth);
   const [outlookDays, setOutlookDays] = useState<OutlookDays>(7);
   const [outlookMap, setOutlookMap] = useState(true);
   const [impactTarget, setImpactTarget] = useState<ImpactTarget>('public');
@@ -455,7 +458,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         </div>
         {problems.length > 0 && <div className="banner" role="status">{t.app.problems(problems.join('; '))}</div>}
       </header>
-      <div className="workspace">
+      <div className="workspace" style={{ '--panel-width': `${panelWidth}px` } as CSSProperties}>
         <section className="map-area">
           <MapView
             theme={theme} impactView={impactView} sites={mapSites} date={date} selectedId={selectedId} highlightIds={highlight} ranks={ranks} links={links}
@@ -484,6 +487,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           <Legend mode={mode} tab={tab} date={date} impactView={impactView} outlookPeriod={outlookPeriod} />
         </section>
         <aside className="panel">
+          <PanelResizer width={panelWidth} onWidth={setPanelWidth} />
           <div className="panel-head">
             <div className="date-control" aria-label={t.app.dayShown}>
               <button className="icon-button" aria-label={t.app.weekEarlier} onClick={() => setDate(clampDate(date - 7))}>‹</button>

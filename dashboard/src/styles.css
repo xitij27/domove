@@ -197,10 +197,11 @@ button, input, select { font: inherit; color: inherit; }
 .summary strong { font: 600 30px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
 .stat-label { margin-top: 4px; font-size: 12.5px; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
 
-.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0; }
+/* the panel's width is dragged by its edge (PanelResizer); the map always keeps 360px */
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) max(320px, min(var(--panel-width, 420px), calc(100% - 360px))); min-height: 0; }
 .map-area { position: relative; min-height: 0; }
 .map { position: absolute; inset: 0; }
-.panel { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-left: 1px solid var(--border); }
+.panel { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-left: 1px solid var(--border); }
 .panel-head { flex: none; background: var(--mode-wash); transition: background-color 260ms var(--ease); }
 .tabs { display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex: none; position: relative; }
 /* one underline that slides to the selected tab; App sets --tab and --tabs */
@@ -212,6 +213,25 @@ button, input, select { font: inherit; color: inherit; }
 .tab.selected { color: var(--ink); font-weight: 600; }
 .tab:hover { color: var(--ink); background: var(--surface-2); }
 .panel-body { overflow: auto; padding: 14px 16px 24px; flex: 1; min-height: 0; }
+.panel-resizer { position: absolute; z-index: 5; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }
+.panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: transparent; transition: background-color var(--fast) var(--ease); }
+.panel-resizer:hover::after, .panel-resizer:focus-visible::after, .resizing-panel .panel-resizer::after { background: var(--mode-ink); }
+/* the grip: a small pill with two ridges, mid-height on the edge, so the edge reads as draggable */
+.panel-resizer::before {
+  --grip: var(--muted);
+  content: ''; position: absolute; z-index: 1; top: 50%; left: 0; box-sizing: border-box; width: 10px; height: 36px; margin-top: -18px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background:
+    linear-gradient(var(--grip), var(--grip)) 2px 50% / 1px 14px no-repeat,
+    linear-gradient(var(--grip), var(--grip)) 5px 50% / 1px 14px no-repeat,
+    var(--surface);
+  transition: border-color var(--fast) var(--ease);
+}
+.panel-resizer:hover::before, .panel-resizer:focus-visible::before, .resizing-panel .panel-resizer::before { --grip: var(--mode-ink); border-color: var(--mode-ink); }
+.panel-resizer:focus-visible { outline: none; }
+/* while dragging: no text selection, and the map doesn't take the pointer */
+.resizing-panel { cursor: col-resize; user-select: none; }
+.resizing-panel .map { pointer-events: none; }
 /* tabs toggle `hidden`, so this replays on every switch */
 .tab-body, .site-panel { animation: rise 240ms var(--ease); }
 .block { margin-bottom: 20px; position: relative; }
@@ -437,6 +457,7 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .map-area { height: 62vh; }
   .panel { border-left: 0; border-top: 1px solid var(--border); }
+  .panel-resizer { display: none; }
   .panel-body { overflow: visible; }
   .keys { margin-left: 0; flex-wrap: wrap; }
   .timeline-head .hint { display: none; }
