@@ -133,7 +133,7 @@ Both apps keep every word they show in `src/i18n/`: `en.ts` is the source, and `
 
 ## Backend (`backend/supabase/`)
 
-Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city area feeds every hour (`private.sync_construction_sites()`), storing each site's centre and polygon. A second job fills `obstacles` every 5 minutes (`private.detect_obstacles()`): it asks the public [FOSSGIS router](https://routing.openstreetmap.de) for the path of each new or changed route and stores the sites near it. So there is no server to deploy.
+Supabase (free plan) with PostGIS. The app reads `construction_sites` through Supabase's REST API with the publishable key; Row Level Security allows reads only. A `pg_cron` job inside Postgres re-syncs both city area feeds every hour (`private.sync_construction_sites()`), storing each site's centre and polygon. Ten minutes after each sync, `private.record_site_history()` copies every site into `construction_site_history`, one row per version with the first and last sync that saw it. The city's feed drops works once they end and replaces a site when its dates change, so this table is the only record of past works and of how often dates move. A second job fills `obstacles` every 5 minutes (`private.detect_obstacles()`): it asks the public [FOSSGIS router](https://routing.openstreetmap.de) for the path of each new or changed route and stores the sites near it. So there is no server to deploy.
 
 Apply a new migration by pasting the file from `backend/supabase/migrations/` into the Supabase SQL editor and running it.
 

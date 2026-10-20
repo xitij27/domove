@@ -111,7 +111,7 @@ The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (ba
 ## Limits
 
 - **Published plans reach about four weeks ahead** (16 Nov on 17 Oct). After that, load looks low only because later works aren't announced; the timeline marks the date, and suggestions past it say so.
-- **The feed forgets ended works.** None of the city's sites is kept once it ends, so earlier days look quieter than they were. The timeline says so at its left edge, and disruption points aren't compared with a "usual" level until the dashboard keeps its own history.
+- **The feed forgets ended works.** None of the city's sites is kept once it ends, so earlier days look quieter than they were. The timeline says so at its left edge, and disruption points aren't compared with a "usual" level until there's history to compare with. The database keeps that history from 20 Oct 2026 in `construction_site_history`.
 - **Transit "need" isn't need yet.** Checked on 20 Oct 2026 against the 2022 census and OpenStreetMap stops, 96.8 % of Hörde's residents live within 400 m of a bus or tram stop, although Hörde tops the ranking: its counted works are far from the Stadtbahn, not from buses. The view is titled for what it counts until bus stops, rail and where people live are in the score.
 - **No bus network in the analysis.** The city publishes Stadtbahn stops only, so transit need and stops under pressure count Stadtbahn stops, and closures on main roads stand in for bus diversions. The bus lines on the Transit map come from OpenStreetMap and aren't part of any figure yet.
 - **The restriction comes from the title.** A site whose title names nothing counts as minor until #12's `closures_override` exists.
