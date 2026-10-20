@@ -218,7 +218,7 @@ How it differs from the steps above:
 - **The ratings are for the route's next departure,** as `route_site_ratings` uses: the leaving date, the next repeat day, or now.
 - **When the router can't be reached,** the card says so with a retry, and the map keeps the OSRM line and the obstacles job's sites. It never shows a path through closures without saying so.
 
-On the map, the way picked is blue and the others grey. Tapping a grey line, or a way's button on the card, picks it, and **Google Maps** opens the way picked. The map shows the sites the obstacles job found plus every site a drawn path meets, and a site's card counts its score for the way shown ("The way shown goes around it, so it doesn't count").
+On the map, the way picked is blue and the others grey. Tapping a grey line, or a way's button on the card, picks it, and **Start** follows the way picked. The map shows the sites the obstacles job found plus every site a drawn path meets, and a site's card counts its score for the way shown ("The way shown goes around it, so it doesn't count").
 
 ## 3. How it is built
 

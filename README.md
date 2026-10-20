@@ -30,7 +30,7 @@ This project turns the city's list into answers to those questions.
 - **Details for each site.** Tap a site to see what is closed, who is doing the work and until when.
 - **An impact score from 0 to 10.** Not every site matters equally: a closed main road near a school at 8 in the morning is far worse than scaffolding on a quiet street on a Sunday. The score depends on how you travel (walking, cycling or driving) and when, and the app shows every point behind it. A "How scores work" page explains it in plain words.
 - **Your saved routes.** Save the trips you make, such as home to work, with the way you travel and when you leave (once, or on chosen weekdays). The app shows only the construction on that route and how much of it has a high impact.
-- **A way around.** The app plans the best way around the construction on your route, says how long it takes and what it avoids, and offers up to two other options. One tap opens the chosen way in Google Maps for turn-by-turn directions; the app does no navigation itself.
+- **A way around.** The app plans the best way around the construction on your route, says how long it takes and what it avoids, and offers up to two other options. One tap opens the chosen way in Google Maps for turn-by-turn directions, or you can follow it in the app.
 - **Reminders.** Ask for an alert one week or one day before work starts on your route. Tapping the alert opens that site on the map.
 - **Weather.** Dortmund's weather now, with the next 12 hours and 5 days, to help plan the trip.
 - **A quiz about the city**, for a minute's distraction while you wait.

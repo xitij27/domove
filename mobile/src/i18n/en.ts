@@ -54,16 +54,25 @@ const en = {
     mapProvider: (name: string) => `Map provider: ${name}. Tap to switch.`,
     googleMapsFailed: 'Could not open Google Maps',
     googleMapsRetry: 'Try again from the saved route.',
+    locationOff: 'Location is off',
+    locationOffBody: 'To follow you along the route, allow this app to use your location in Settings.',
+    notNow: 'Not now',
+    openSettings: 'Open Settings',
     noDemoRoute: 'No route to show',
     noDemoRouteBody: 'None of the saved routes has a construction site on the map yet. Save a route past one, wait for the next check (every 15 minutes), then try again.',
     demoFailed: 'Could not start the demo',
+    recentre: 'Re-centre',
+    recentreHint: 'Follows you again, turning the map the way you go',
     sitesFailed: 'Could not load construction sites',
     noGyroscope: 'No gyroscope in this phone',
     noGyroscopeBody: 'The arrow showing which way you face may be off or jumpy.',
     dismissGyroscope: 'Dismiss the gyroscope warning',
     closeSite: 'Close the construction site',
     highImpact: (n: number) => `${n} with high impact`,
-    googleMaps: 'Google Maps',
+    exit: 'Exit',
+    exitHint: 'Stops following you and shows the whole route',
+    start: 'Start',
+    startHint: 'Follows you along the route, turning the map the way you go',
     closeRoute: 'Close the route and show every construction site',
   },
 
@@ -470,7 +479,7 @@ const en = {
       },
       another: {
         title: 'Another way',
-        text: 'Tapping a grey line, or its button on the card, picks that way instead. Google Maps then opens that one.',
+        text: 'Tapping a grey line, or its button on the card, picks that way instead. Start then follows it.',
       },
       alerts: {
         title: 'Alerts',
@@ -484,9 +493,9 @@ const en = {
         title: 'Opened from the alert',
         text: 'Tapping the alert opened its construction site on the map.',
       },
-      google: {
-        title: 'Google Maps',
-        text: 'The app does no navigation itself: Google Maps on the route card opens the way shown in Google Maps, for turn-by-turn directions.',
+      navigation: {
+        title: 'Navigation',
+        text: 'Start follows you along the route, turning the map the way you go.',
       },
       weather: {
         title: 'Weather',

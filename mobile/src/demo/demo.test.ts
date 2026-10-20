@@ -31,11 +31,11 @@ describe('pickDemo', () => {
   });
 });
 
-it('never opens a site on a step where the route first appears, going either way', () => {
-  // A newly shown route clears the site card.
+it('never opens a site or navigates on a step where the route first appears, going either way', () => {
+  // A newly shown route clears the site card and stops navigation.
   STEPS.forEach((step, i) => {
     const appears = step.scene.route && (!STEPS[i - 1]?.scene.route || !STEPS[i + 1]?.scene.route);
-    if (appears) expect(step.scene.site).toBeFalsy();
+    if (appears) expect(step.scene.site || step.scene.navigate).toBeFalsy();
     // a way is one of the shown route's
     if (step.scene.way) expect(step.scene.route).toBe(true);
   });

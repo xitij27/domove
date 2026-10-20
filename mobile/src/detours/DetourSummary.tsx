@@ -7,14 +7,16 @@ import type { DetourState } from './useDetours';
 
 /**
  * The route card's part on the way shown: how long it takes, what it goes around and what is still in the way,
- * and the other ways to pick, which the map also draws in grey. The card's Google Maps button opens the way picked.
+ * and the other ways to pick, which the map also draws in grey.
  */
-export default function DetourSummary({ detours, chosen, onChoose, onRetry, nameOf, theme }: {
+export default function DetourSummary({ detours, chosen, onChoose, onRetry, onOpenInGoogleMaps, nameOf, theme }: {
   detours: DetourState;
   /** The way shown, as an index into the plan's options. */
   chosen: number;
   onChoose: (index: number) => void;
   onRetry: () => void;
+  /** Opens the shown way. Missing when Google cannot preserve all of the route's saved stops. */
+  onOpenInGoogleMaps?: () => void;
   /** A site's name for a sentence. */
   nameOf: (siteId: string) => string;
   theme: MapTheme;
@@ -36,6 +38,17 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, name
         <Pressable accessibilityRole="button" onPress={onRetry}>
           <Text style={{ color: palette.status.current }}>{t.detours.failed(detours.error)}</Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityState={{ disabled: !onOpenInGoogleMaps }}
+          disabled={!onOpenInGoogleMaps}
+          onPress={onOpenInGoogleMaps}
+          style={[styles.google, { borderColor: palette.border, opacity: onOpenInGoogleMaps ? 1 : 0.55 }]}
+        >
+          <MaterialIcons name="open-in-new" size={17} color={onOpenInGoogleMaps ? palette.accent : palette.muted} />
+          <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>{t.detours.openInGoogleMaps}</Text>
+        </Pressable>
+        {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
       </View>
     );
   }
@@ -70,6 +83,17 @@ export default function DetourSummary({ detours, chosen, onChoose, onRetry, name
           ))}
         </View>
       )}
+      <Pressable
+        accessibilityRole="link"
+        accessibilityState={{ disabled: !onOpenInGoogleMaps }}
+        disabled={!onOpenInGoogleMaps}
+        onPress={onOpenInGoogleMaps}
+        style={[styles.google, { borderColor: palette.border, opacity: onOpenInGoogleMaps ? 1 : 0.55 }]}
+      >
+        <MaterialIcons name="open-in-new" size={17} color={onOpenInGoogleMaps ? palette.accent : palette.muted} />
+        <Text style={{ color: onOpenInGoogleMaps ? palette.text : palette.muted }}>{t.detours.openInGoogleMaps}</Text>
+      </Pressable>
+      {!onOpenInGoogleMaps && <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
       {/* the ways come from OpenStreetMap's data, which asks for this next to anything made from it */}
       <Text style={[styles.attribution, { color: palette.muted }]}>{t.detours.credit}</Text>
     </View>
@@ -83,5 +107,6 @@ const styles = StyleSheet.create({
   headline: { fontWeight: '600' },
   ways: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   way: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6 },
+  google: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2 },
   attribution: { fontSize: 11 },
 });

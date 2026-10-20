@@ -90,7 +90,7 @@ The steps:
    tap the alert when it arrives. This opens the site's card and moves the tour
    on to step 8 by itself.
 8. **Opened from the alert**: the site the alert opened.
-9. **Google Maps**: the route card's button that opens the way shown in Google Maps.
+9. **Navigation**: Start, with the map following you.
 10. **Weather**: the forecast card.
 11. **Quiz**: one question.
 
