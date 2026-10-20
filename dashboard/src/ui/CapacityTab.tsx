@@ -25,6 +25,9 @@ export function CapacityTab({ result, params, date, selected, onParams, onSelect
   const rows = result.districts.filter((d) => d.load !== null);
   const row = rows.find((d) => d.district === selected);
   const changed = params.population !== 1 || params.carUse !== 1;
+  // the district the day's works push up most: how much of the order the works explain
+  const mostAdded = rows.filter((d) => d.loadWithoutWorks !== null)
+    .reduce<typeof rows[number] | null>((a, d) => (!a || d.load! - d.loadWithoutWorks! > a.load! - a.loadWithoutWorks! ? d : a), null);
   return (
     <div className="tab-body">
       <section className="block">
@@ -33,14 +36,21 @@ export function CapacityTab({ result, params, date, selected, onParams, onSelect
           {t.info(cfg['capacity.roadLanes.main'], cfg['capacity.roadLanes.other'], pct(1 - cfg['capacity.through']), pct(cfg['capacity.through']), formatDay(date))}
         </Info>
         <p className="lead">
-          {result.over > 0 ? t.over(result.over, formatDay(date)) : t.noneOver(formatDay(date))}
+          {result.over > 0 ? t.over(result.over) : t.noneOver}
           {' '}{result.headroom < 0
-            ? t.fullToday(result.firstFull ?? '', <Derived how={roomWorking(rows[0], params)}><strong>{signed(result.headroom)}</strong></Derived>)
+            ? t.fullToday(result.firstFull ?? '', <Derived how={roomWorking(rows[0], params)}><strong>{pct(-result.headroom)}</strong></Derived>)
             : t.room(<Derived how={rows[0] ? roomWorking(rows[0], params) : []}><strong>{signed(result.headroom)}</strong></Derived>, result.firstFull)}
         </p>
         <Slider label={t.residents} value={params.population} min={0.7} max={1.5} step={0.01} text={signed(params.population - 1)} onChange={(population) => onParams({ ...params, population })} />
         <Slider label={t.carTrips} value={params.carUse} min={0.6} max={1.4} step={0.01} text={signed(params.carUse - 1)} onChange={(carUse) => onParams({ ...params, carUse })} />
         <Slider label={t.roadUse} value={params.useToday} min={0.4} max={0.95} step={0.01} text={pct(params.useToday)} onChange={(useToday) => onParams({ ...params, useToday })} />
+        {mostAdded && (
+          <p className="muted small">
+            {t.works(<Derived how={[[t.mostAdded, t.mostAddedHow(mostAdded.district, pct(mostAdded.loadWithoutWorks!), pct(mostAdded.load!))]]}>
+              <strong>{Math.round((mostAdded.load! - mostAdded.loadWithoutWorks!) * 100)}</strong>
+            </Derived>, formatDay(date))}
+          </p>
+        )}
         <p className="muted small">
           {t.network(<Derived how={citywideWorking(result, params)}><strong>{pct(result.citywide)}</strong></Derived>)}
           {changed && <> <button className="link-button" onClick={() => onParams({ ...params, population: 1, carUse: 1 })}>{t.backToToday}</button></>}

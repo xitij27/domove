@@ -2,7 +2,7 @@
 import { area, difference, feature, featureCollection, intersect, pointOnFeature } from '@turf/turf';
 import type { MultiPolygon, Polygon } from 'geojson';
 import { strings } from '../i18n';
-import { IMPACTS } from '../model/closures';
+import { blocksBlueLight, IMPACTS } from '../model/closures';
 import type { ClosureKind, Mode } from '../model/closures';
 import { bboxGap, bboxOf, dist, pointInShape, pointShapeDist, shapeOf, toLonLat, toXY } from '../model/geo';
 import type { LonLat, XY } from '../model/geo';
@@ -24,7 +24,7 @@ export const GROUPS: Record<Group, { costing: Costing; mode: Mode; blocks: (kind
     blocks: (kinds) => blockedFor('car')(kinds) || kinds.some((k) => k === 'half' || k === 'carriageway' || k === 'narrowing'),
   },
   // blue-light vehicles may pass one-way rules and narrowings
-  emergency: { costing: 'auto', mode: 'car', blocks: (kinds) => kinds.includes('full') },
+  emergency: { costing: 'auto', mode: 'car', blocks: blocksBlueLight },
   cyclist: { costing: 'bicycle', mode: 'bike', blocks: blockedFor('bike') },
   pedestrian: { costing: 'pedestrian', mode: 'walk', blocks: blockedFor('walk') },
 };

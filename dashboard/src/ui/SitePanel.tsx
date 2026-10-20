@@ -11,6 +11,8 @@ import { clashWorking, freedWorking, moveWorking, priorityWorking, severityWorki
 
 type Props = {
   site: Site;
+  /** planning role: offers moving the dates and finishing sooner */
+  plan: boolean;
   byId: Map<string, Site>;
   conflicts: Conflict[];
   priority: { rank: number; of: number; p: Priority } | null;
@@ -50,7 +52,7 @@ function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: n
   );
 }
 
-export function SitePanel({ site, byId, conflicts, priority, advice, shift, date, today, onShift, onSelect, onBack, onRemove }: Props) {
+export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift, date, today, onShift, onSelect, onBack, onRemove }: Props) {
   const cfg = useSettings();
   const t = useStrings();
   const s = t.site;
@@ -81,7 +83,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
         {(moved !== 0 || earlier !== 0) && <><dt>{s.proposed}</dt><dd className="proposed">{dayRange(site.start, site.end)}</dd></>}
       </dl>
 
-      {!started && (
+      {plan && !started && (
         <section className="block">
           <h3>{s.move}</h3>
           <label className="slider">
@@ -115,7 +117,7 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
         </section>
       )}
 
-      {started && (
+      {plan && started && (
         <section className="block">
           <h3>{s.finishSooner}</h3>
           {site.openEnded ? (
@@ -166,6 +168,8 @@ export function SitePanel({ site, byId, conflicts, priority, advice, shift, date
         <Info>{s.waysInfo}</Info>
         <dl className="facts">
           <dt>{s.stadtbahn}</dt><dd>{site.rail.name ? `${site.rail.name} (${site.rail.detail || s.stop}), ${metres(site.rail.m)}` : '–'}</dd>
+          {site.stop && <><dt>{s.busTram}</dt><dd>{[site.stop.name, metres(site.stop.m)].filter(Boolean).join(', ')}</dd></>}
+          {site.station && <><dt>{s.station}</dt><dd>{[site.station.name, metres(site.station.m)].filter(Boolean).join(', ')}</dd></>}
           <dt>{s.fire}</dt><dd>{site.fire.name ? `${site.fire.name}, ${metres(site.fire.m)}` : '–'}</dd>
           <dt>{s.hospital}</dt><dd>{site.hospital.name ? `${site.hospital.name}, ${metres(site.hospital.m)}` : '–'}</dd>
         </dl>

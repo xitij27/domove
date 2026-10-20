@@ -52,6 +52,9 @@ export type Site = {
   geometry: Polygon | MultiPolygon;
   shape: Shape;
   rail: Nearest;
+  /** The nearest bus or tram stop and train station from OpenStreetMap; null when the stop file couldn't load. */
+  stop: Nearest | null;
+  station: Nearest | null;
   fire: Nearest;
   hospital: Nearest;
   hypothetical: boolean;
@@ -60,7 +63,7 @@ export type SiteInput = RawSite & { kinds?: ClosureKind[]; hypothetical?: boolea
 
 type PreparedRoad = { name: string; key: string; main: boolean; lines: XY[][]; bbox: BBox };
 type PreparedPoi = Poi & { xy: XY };
-export type Context = { roads: PreparedRoad[]; stops: PreparedPoi[]; fire: PreparedPoi[]; hospitals: PreparedPoi[] };
+export type Context = { roads: PreparedRoad[]; stops: PreparedPoi[]; busTram: PreparedPoi[]; stations: PreparedPoi[]; fire: PreparedPoi[]; hospitals: PreparedPoi[] };
 
 /** Street names compared without case, punctuation or the "Str." abbreviation. */
 export const streetKey = (name: string): string =>
@@ -68,7 +71,11 @@ export const streetKey = (name: string): string =>
 
 const preparePois = (pois: Poi[]): PreparedPoi[] => pois.map((p) => ({ ...p, xy: toXY(p.at) }));
 
-export function prepareContext(c: { roads: Road[]; stops: Poi[]; fire: Poi[]; hospitals: Poi[] }): Context {
+export function prepareContext(c: {
+  roads: Road[]; stops: Poi[]; fire: Poi[]; hospitals: Poi[];
+  /** bus and tram stops, and train stations, from public/transit-stops.json; null when it couldn't load */
+  network?: { busTram: Poi[]; stations: Poi[] } | null;
+}): Context {
   return {
     roads: c.roads.map((r) => {
       const parts = r.geometry.type === 'LineString' ? [r.geometry.coordinates] : r.geometry.coordinates;
@@ -76,6 +83,8 @@ export function prepareContext(c: { roads: Road[]; stops: Poi[]; fire: Poi[]; ho
       return { name: r.name, key: streetKey(r.name), main: MAIN_CLASSES.has(r.cls), lines, bbox: bboxOf(lines.flat()) };
     }),
     stops: preparePois(c.stops),
+    busTram: preparePois(c.network?.busTram ?? []),
+    stations: preparePois(c.network?.stations ?? []),
     fire: preparePois(c.fire),
     hospitals: preparePois(c.hospitals),
   };
@@ -112,6 +121,8 @@ function roadOf(shape: Shape, titleKey: string, roads: PreparedRoad[]): { road: 
 function nearest(shape: Shape, pois: PreparedPoi[]): Nearest {
   let best: Nearest = { name: '', detail: '', m: Infinity };
   for (const p of pois) {
+    // the box around the shape is never further than the shape itself: skip what can't beat the best so far
+    if (bboxGap([p.xy[0], p.xy[1], p.xy[0], p.xy[1]], shape.bbox) >= best.m) continue;
     const m = pointShapeDist(p.xy, shape);
     if (m < best.m) best = { name: p.name, detail: p.detail, m };
   }
@@ -166,6 +177,8 @@ export function buildSites(inputs: SiteInput[], ctx: Context): Site[] {
       geometry,
       shape,
       rail: nearest(shape, ctx.stops),
+      stop: ctx.busTram.length ? nearest(shape, ctx.busTram) : null,
+      station: ctx.stations.length ? nearest(shape, ctx.stations) : null,
       fire: nearest(shape, ctx.fire),
       hospital: nearest(shape, ctx.hospitals),
       hypothetical: !!raw.hypothetical,
@@ -178,6 +191,13 @@ function weights(kinds: ClosureKind[], road: RoadClass, s: Settings): Pick<Site,
   const severity = s[`weight.${kind}`] * s[`road.${road}`];
   return { kind, severity, band: bandOf(severity, s) };
 }
+
+/**
+ * A bus or tram stop, or a train station, in walking distance. Unknown (the stop file didn't load) counts as served, so
+ * missing data never flags a work.
+ */
+export const servedByTransit = (s: Pick<Site, 'stop' | 'station'>, cfg: Settings = DEFAULT_SETTINGS): boolean =>
+  !s.stop || s.stop.m <= cfg['reach.stop'] || (!!s.station && s.station.m <= cfg['reach.station']);
 
 /** The sites with their kind, severity and band under other weights; cheap, unlike building them. */
 export const weigh = (sites: Site[], s: Settings): Site[] => sites.map((site) => ({ ...site, ...weights(site.kinds, site.road, s) }));

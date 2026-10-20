@@ -19,8 +19,9 @@ export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
       <section className="block">
         <h3>{t.title} <span className="count">{t.running(priorities.length)}</span></h3>
         <Info>
-          {t.info(formatDay(date), PER_DAYS, cfg['priority.horizon'], num(cfg['priority.perOverlap']), metres(cfg['clash.radius']), cfg['priority.maxOverlaps'],
-            num(cfg['priority.emergency']), metres(cfg['reach.fire']), metres(cfg['reach.hospital']), num(cfg['priority.noRail']), metres(cfg['reach.rail']))}
+          {t.info(formatDay(date), num(cfg['priority.severityPower']), PER_DAYS, cfg['priority.horizon'], num(cfg['priority.perOverlap']), metres(cfg['clash.radius']),
+            cfg['priority.maxOverlaps'], num(cfg['priority.emergency']), metres(cfg['reach.fire']), metres(cfg['reach.hospital']),
+            num(cfg['priority.noStop']), metres(cfg['reach.stop']), metres(cfg['reach.station']))}
         </Info>
         <ol className="ranked">
           {priorities.map((p, i) => (

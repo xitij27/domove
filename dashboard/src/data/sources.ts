@@ -1,6 +1,6 @@
 // Every dataset the dashboard reads, straight from the browser: Supabase for the sites (the same
 // table the app reads), the city's open data portal for the rest, OpenHolidays for school holidays.
-import type { LineString, MultiLineString, MultiPolygon, Polygon } from 'geojson';
+import type { Feature, FeatureCollection, LineString, MultiLineString, MultiPolygon, Polygon } from 'geojson';
 import { strings } from '../i18n';
 import type { Strings } from '../i18n';
 import type { LonLat } from '../model/geo';
@@ -71,6 +71,48 @@ async function getJson(url: string, dataset: Dataset, init?: RequestInit): Promi
   }
   if (!res.ok) throw new Error(`${named(dataset)}: HTTP ${res.status}`);
   return res.json();
+}
+
+export type TransitKind = 'stadtbahn' | 'train' | 'bus';
+/** A Stadtbahn or train line (`ref`, its colour and ends), or a street piece with the bus lines that use it (`refs`, `n`). */
+export type TransitFeature = Feature<LineString | MultiLineString, {
+  kind: TransitKind; ref?: string; colour?: string; from?: string; to?: string; refs?: string; n?: number;
+}>;
+const TRANSIT_KINDS = new Set(['stadtbahn', 'train', 'bus']);
+
+/** Dortmund's Stadtbahn, train and bus lines from OpenStreetMap, built by scripts/transit-network.mjs and served with the site. */
+export async function fetchTransitLines(): Promise<TransitFeature[]> {
+  const body = await getJson('/transit-lines.json', 'transitLines');
+  const features = (body as Partial<FeatureCollection> | null)?.features;
+  if (!Array.isArray(features)) throw new Error(`${named('transitLines')}: ${strings().data.unexpected}`);
+  return features.filter((f): f is TransitFeature =>
+    TRANSIT_KINDS.has(f?.properties?.kind) && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'));
+}
+
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** Every bus and tram stop, and every train station, in and around Dortmund (OpenStreetMap, scripts/transit-network.mjs). */
+export async function fetchTransitStops(): Promise<{ busTram: Poi[]; stations: Poi[] }> {
+  const body = await getJson('/transit-stops.json', 'transitStops');
+  const rows = (body as { stops?: unknown } | null)?.stops;
+  if (!Array.isArray(rows)) throw new Error(`${named('transitStops')}: ${strings().data.unexpected}`);
+  const busTram: Poi[] = [];
+  const stations: Poi[] = [];
+  for (const r of rows) {
+    if (!Array.isArray(r) || !isNumber(r[0]) || !isNumber(r[1])) continue;
+    const poi: Poi = { name: typeof r[3] === 'string' ? r[3] : '', detail: '', district: '', at: [r[0], r[1]] };
+    if (r[2] === 'rail') stations.push(poi);
+    else if (r[2] === 'bus' || r[2] === 'tram') busTram.push(poi);
+  }
+  return { busTram, stations };
+}
+
+/** Dortmund's residents per 100 m square, [longitude, latitude, residents] (Zensus 2022, scripts/population.mjs). */
+export async function fetchPopulation(): Promise<[number, number, number][]> {
+  const body = await getJson('/population.json', 'population');
+  const cells = (body as { cells?: unknown } | null)?.cells;
+  if (!Array.isArray(cells)) throw new Error(`${named('population')}: ${strings().data.unexpected}`);
+  return cells.filter((c): c is [number, number, number] => Array.isArray(c) && isNumber(c[0]) && isNumber(c[1]) && isNumber(c[2]) && c[2] > 0);
 }
 
 async function getRows(dataset: string, label: Dataset, params: Record<string, string> = {}): Promise<Row[]> {

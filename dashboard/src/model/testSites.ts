@@ -5,7 +5,7 @@ import type { LonLat } from './geo';
 import { bandOf, DEFAULT_SETTINGS as S } from './settings';
 import type { RoadClass, Site } from './sites';
 
-const ORIGIN = toXY([7.4653, 51.5136]);
+export const ORIGIN = toXY([7.4653, 51.5136]);
 
 /** A 20 m square whose south-west corner is `x`, `y` metres from the centre. */
 export function testSite(id: string, x: number, y: number, start: number, end: number, opts: Partial<Site> & { kind?: ClosureKind; road?: RoadClass } = {}): Site {
@@ -20,7 +20,7 @@ export function testSite(id: string, x: number, y: number, start: number, end: n
     kinds: [kind], kind, daytimeOnly: false, road, roadName: '', severity, band: bandOf(severity),
     baseStart: start, baseEnd: end, start, end, openEnded: false,
     center: corner(10, 10), geometry, shape: shapeOf(geometry),
-    rail: far, fire: far, hospital: far, hypothetical: false,
+    rail: far, stop: { name: '', detail: '', m: 100 }, station: null, fire: far, hospital: far, hypothetical: false,
     ...opts,
   };
 }

@@ -61,6 +61,9 @@ export function classifyClosures(title: string): ClosureKind[] {
 
 export const isDaytimeOnly = (title: string): boolean => DAYTIME.test(normalize(title));
 
+/** Blue-light vehicles may pass one-way rules, narrowings and half closures: only a full closure stops them. */
+export const blocksBlueLight = (kinds: ClosureKind[]): boolean => kinds.includes('full');
+
 /** The kind that weighs most, by the planner's weights (settings.ts). */
 export const worstKind = (kinds: ClosureKind[], s: Settings = DEFAULT_SETTINGS): ClosureKind =>
   kinds.reduce((worst, kind) => (s[`weight.${kind}`] > s[`weight.${worst}`] ? kind : worst), kinds[0] ?? 'unknown');

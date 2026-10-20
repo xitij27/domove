@@ -7,6 +7,7 @@ import type { FactorKey } from '../model/impact';
 import type { Band, SettingGroup, SettingKey, SettingUnit } from '../model/settings';
 import type { RoadClass } from '../model/sites';
 import type { Group } from '../routing/valhalla';
+import type { Mode } from '../ui/modes';
 import { rich } from './rich';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -46,7 +47,7 @@ const en = {
   app: {
     loading: "Loading Dortmund's construction sites and open data…",
     tryAgain: 'Try again',
-    tabs: { todo: 'To do', coordinate: 'Coordinate', priorities: 'Priorities', transit: 'Transit', capacity: 'Capacity', routes: 'Routes' },
+    tabs: { todo: 'To do', coordinate: 'Coordinate', outlook: 'Outlook', priorities: 'Priorities', transit: 'Transit', capacity: 'Road space', routes: 'Routes' },
     views: { bands: 'Bands', heat: 'Heat' },
     beta: 'Beta',
     betaTitle: 'Early version: the weights behind the figures are judgement calls',
@@ -73,12 +74,10 @@ const en = {
     copyLink: 'Copy link',
     exportCsv: 'Export CSV',
     reset: 'Reset',
-    noChanges: 'No changes yet',
     copyPrompt: 'Copy this link to share the scenario:',
     problems: (list: string) => `Some layers couldn't load (${list}). Everything else works.`,
     cancel: 'Cancel',
     colourBy: 'Colour the works by',
-    planningViews: 'Planning views',
     pickBusiness: 'Click a business location in Dortmund (Escape to cancel)',
     outsideStudyArea: 'Choose a location within the Dortmund study area.',
     businessName: (n: number) => `Business location ${n}`,
@@ -86,9 +85,17 @@ const en = {
     pickProject: 'Click where the works will be',
     onRoad: (name: string) => `On ${name}`,
     at: (latitude: string, longitude: string) => `At ${latitude}° N, ${longitude}° E`,
-    footer: 'Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map © OpenStreetMap contributors, OpenFreeMap',
+    footer: 'Data: Stadt Dortmund open data · OpenHolidays · Routing: Valhalla (FOSSGIS) · Map, transit lines and stops © OpenStreetMap contributors (ODbL), OpenFreeMap · Population © Destatis, Zensus 2022',
     keyFigures: 'Key figures for the chosen day',
     howThisWorks: 'How this works',
+  },
+
+  /** The roles the dashboard is arranged by; each shows its own views and figures. */
+  modes: {
+    label: 'Role',
+    name: { plan: 'Planning', traffic: 'Traffic', emergency: 'Emergency', transit: 'Transit' } as Record<Mode, string>,
+    role: { plan: 'Works coordination', traffic: 'Police & traffic control', emergency: 'Fire & ambulance', transit: 'Buses, trams & bikes' } as Record<Mode, string>,
+    views: (name: string) => `${name} views`,
   },
 
   stats: {
@@ -106,12 +113,15 @@ const en = {
     mediumHow: (sites: number, from: string, to: string, points: string) => `${plural(sites, 'site')} of ${from}–${to}: ${points}`,
     low: 'Low',
     lowHow: (sites: number, below: string, points: string) => `${plural(sites, 'site')} below ${below}: ${points}`,
-    usual: 'Usual',
-    usualHow: (usual: string, range: string) => `${usual}: the middle of the daily totals ${range}`,
     againstUsual: 'Against usual',
-    againstUsualHow: (today: string, usual: string, change: string) => `${today} ÷ ${usual} − 1 = ${change}; within 5% counts as usual`,
-    aboutUsual: 'about usual',
-    vsUsual: (percent: number, above: boolean) => `${percent} % ${above ? 'above' : 'below'} usual`,
+    noUsualHow: "not shown yet: the city's feed drops works once they end, so earlier days look quieter than they were",
+    closures: 'full closures',
+    closuresHow: (day: string) => `works closed to all traffic on ${day}; the routes treat them as shut for fire and ambulance too`,
+    stops: 'stops beside 2+ works',
+    stopsHow: (severity: string, within: string, days: number, day: string) =>
+      `Stadtbahn stops with 2 or more works of severity ${severity}+ within ${within}, over the ${days} days from ${day}`,
+    mostHit: 'Most hit',
+    mostHitHow: (stop: string, works: number) => `${stop}: ${plural(works, 'work')}`,
     clashes: 'clashes ahead',
     clash: 'Clash',
     clashHow: (from: string, within: string) => `works of severity ${from}+ within ${within} of each other on the same days, linked into groups`,
@@ -135,8 +145,7 @@ const en = {
     rank: 'Priority rank (1 = finish first)',
     load: 'Road load: 0 → 125% (top colour = full)',
     district: 'Chosen district',
-    need: 'Transit need per resident',
-    stadtbahn: 'Stadtbahn',
+    need: 'Residents near works with no stop nearby',
     bikeShare: 'Bike share',
     parkRide: 'P+R',
     normal: 'Normal route',
@@ -144,6 +153,15 @@ const en = {
     lost: 'Reach lost to works',
     fire: 'Fire & rescue',
     hospital: 'Hospital',
+    network: 'Lines and stops',
+    layers: 'Transit layers to show',
+    stadtbahnLines: 'Stadtbahn lines',
+    trains: 'S-Bahn and regional trains',
+    buses: 'Buses: wider where more lines share a street',
+    stops: 'Stadtbahn stops',
+    highlight: (ref: string) => `Highlight ${ref}'s route`,
+    linesLoading: 'Loading the lines…',
+    linesFailed: "The transit lines couldn't load.",
   },
 
   map: {
@@ -153,6 +171,8 @@ const en = {
     unknownStart: 'Unknown start',
     unknownEnd: 'unknown end (uncertain)',
     attribution: 'Data: Stadt Dortmund (dl-de/zero-2-0) · Routing: Valhalla, FOSSGIS e.V.',
+    busLines: (n: number) => `${plural(n, 'bus line')} on this street`,
+    between: (from: string, to: string) => `${from} – ${to}`,
   },
 
   site: {
@@ -190,8 +210,10 @@ const en = {
     sameStretch: (distance: string, days: number) => `Same stretch (${distance}), ${plural(days, 'day')} apart: better done together`,
     away: (distance: string, days: number, range: string) => `${distance} away, both running ${plural(days, 'day')} (${range})`,
     waysAround: 'Ways around it',
-    waysInfo: "The nearest Stadtbahn stop, fire and rescue station and hospital in the city's open data, in a straight line from the edge of the works.",
+    waysInfo: "The nearest Stadtbahn stop, fire and rescue station and hospital in the city's open data, and the nearest bus or tram stop and train station in OpenStreetMap, in a straight line from the edge of the works.",
     stadtbahn: 'Stadtbahn',
+    busTram: 'Bus or tram',
+    station: 'Train',
     stop: 'stop',
     fire: 'Fire & rescue',
     hospital: 'Hospital',
@@ -259,9 +281,9 @@ const en = {
     alignAbout: 'Works on the same stretch of street at different times. Starting the later one while the first runs closes the street once instead of twice.',
     finish: 'Ask to finish sooner',
     finishAbout: 'Clashes that no date move can clear, because the works are already running. The one listed runs longest; finishing it sooner ends the clash.',
-    transit: 'Transit help',
-    transitAbout: (within: string, days: number) =>
-      `Districts with closures more than ${within} from a Stadtbahn stop, or on main roads where buses run, from the day shown for ${days} days. Open shows suggested actions.`,
+    transit: 'No stop nearby',
+    transitAbout: (stop: string, station: string, near: string, days: number) =>
+      `Districts with works in the next ${days} days that have no bus or tram stop within ${stop} and no train station within ${station}, counted by the residents within ${near} of them (2022 census). Open shows suggested actions. Distances are in a straight line, and how often buses run isn't counted.`,
     start: (shift: string) => `Start ${shift}`,
     moveNumbers: (range: string, clashes: ReactNode) => rich(`${range} · clashes `, clashes),
     apply: 'Apply',
@@ -273,7 +295,7 @@ const en = {
     clashesWith: (sites: number) => `clashes with ${plural(sites, 'site')}`,
     ownerUnknown: 'owner unknown',
     open: 'Open',
-    farFromRail: (closures: number) => `${plural(closures, 'closure')} far from the Stadtbahn`,
+    cutOff: (residents: string, works: number) => `${residents} residents near ${plural(works, 'work')} with no stop nearby`,
     onMainRoads: (closures: number) => `${plural(closures, 'closure')} on main roads`,
     title: (n: number) => (n ? `${plural(n, 'thing')} to act on` : 'Nothing to act on'),
     intro: (horizon: string | null) =>
@@ -283,9 +305,9 @@ const en = {
   priorities: {
     title: 'Finish these first',
     running: (n: number) => `${n} running`,
-    info: (day: string, perDays: number, horizon: number, perOverlap: string, within: string, maxOverlaps: number,
-      emergency: string, fire: string, hospital: string, noRail: string, rail: string) =>
-      `Running works ranked by how much finishing them sooner would help on ${day}: how disruptive they are, how long they still run, what else overlaps, and whether people have another way to go. The top ten are numbered on the map; hover a rank for its score. Score = severity × remaining days ÷ ${perDays} (at most ${horizon} days) × (1 + ${perOverlap} for each overlapping site within ${within}, at most ${maxOverlaps}) × ${emergency} within ${fire} of a fire and rescue station or ${hospital} of a hospital × ${noRail} with no Stadtbahn stop within ${rail}. Severity = restriction weight × road weight, so a full closure on a main road is 1. All of these are in Settings.`,
+    info: (day: string, power: string, perDays: number, horizon: number, perOverlap: string, within: string, maxOverlaps: number,
+      emergency: string, fire: string, hospital: string, noStop: string, stop: string, station: string) =>
+      `Running works ranked by how much finishing them sooner would help on ${day}: how disruptive they are, how long they still run, what else overlaps, and whether people have another way to go. The top ten are numbered on the map; hover a rank for its score. Score = severity to the power ${power} × remaining days ÷ ${perDays} (at most ${horizon} days) × (1 + ${perOverlap} for each overlapping site within ${within}, at most ${maxOverlaps}) × ${emergency} for a full closure within ${fire} of a fire and rescue station or ${hospital} of a hospital × ${noStop} with no bus or tram stop within ${stop} and no train station within ${station}. Severity = restriction weight × road weight, so a full closure on a main road is 1; the power makes how much a work closes count more than how long it runs. All of these are in Settings.`,
     noEndDate: 'no end date',
     until: (day: string) => `until ${day}`,
     sooner: (days: number, less: ReactNode) => rich(`${days} days sooner: `, less, ' less overlap with works nearby'),
@@ -293,40 +315,43 @@ const en = {
     onRoad: (kind: string, road: string, name: string) => `${kind} on a ${road}${name ? ` (${name})` : ''}`,
     overlapping: (sites: number, km: number) => `${sites} overlapping ${sites === 1 ? 'site' : 'sites'} within ${km} km`,
     from: (metres: number, name: string) => `${metres} m from ${name}`,
-    noRail: (metres: number) => `No Stadtbahn within ${metres} m`,
+    noStop: (stop: number, station: number) => `No bus or tram stop within ${stop} m, no train within ${station} m`,
     noEnd: 'No end date in the feed',
     since: (year: number) => `Running since ${year}`,
   },
 
   transit: {
     boost: (site: ReactNode, distance: string, stop: string) =>
-      rich('Boost bus frequency or run a shuttle: ', site, ` is ${distance} from the nearest Stadtbahn stop, ${stop}. All closures this far from the Stadtbahn are listed below.`),
+      rich('Boost bus frequency or run a shuttle: ', site, ` is ${distance} from the nearest bus or tram stop${stop ? `, ${stop}` : ''}. Every work this far from a stop is listed below.`),
     diversions: (closures: number, streets: string) => `Agree bus diversions with DSW21 for ${plural(closures, 'closure')} on main roads: ${streets}.`,
     riders: (stop: string, closures: number, within: string) => `Expect extra riders at ${stop}: ${plural(closures, 'serious closure')} within ${within}.`,
     bikes: (stations: number) => `Promote bike share: ${plural(stations, 'station')} within 400 m of the affected streets.`,
     parkRide: (places: string) => `Point car commuters to ${places}.`,
-    covered: 'Every closure here has a Stadtbahn stop within walking distance.',
-    title: 'Where transit needs attention',
-    info: (rail: string, share: string, per: string, year: string, day: string, days: number) =>
-      `The bar weighs closures with no Stadtbahn stop within ${rail}, plus ${share} × the weight of closures on main roads where buses run, by how disruptive they are, per ${per} residents (${year} population), from ${day} for ${days} days. The number is how many closures are far from the Stadtbahn.`,
-    latest: 'latest',
+    covered: 'Every work here has a bus or tram stop or a train station in walking distance.',
+    title: 'Works with no stop nearby',
+    info: (stop: string, station: string, near: string, severity: string, day: string, days: number) =>
+      `Works of severity ${severity}+ running from ${day} for ${days} days with no bus or tram stop within ${stop} and no train station within ${station} (OpenStreetMap). The bar counts the residents who live within ${near} of them: the 2022 census in 100 m squares, each square counted once. Distances are in a straight line, and how often buses run isn't counted.`,
     district: 'District',
-    need: 'Need per resident',
-    farFromRail: 'Far from rail',
-    byNeed: 'Districts by transit need',
-    summary: (residents: string, far: number, main: number) =>
-      `${residents} residents · ${plural(far, 'closure')} beyond walking distance of the Stadtbahn · ${plural(main, 'closure')} on main roads`,
+    need: 'Residents near them',
+    farFromRail: 'Residents',
+    byNeed: 'Districts by residents near works with no stop',
+    summary: (residents: string, cutOff: string, works: number, main: number) =>
+      `${residents} residents · ${cutOff} of them near ${plural(works, 'work')} with no stop nearby · ${plural(main, 'closure')} on main roads`,
     actions: 'Suggested actions',
-    withoutRail: 'Closures without a Stadtbahn nearby',
-    toStop: (distance: string, stop: string) => `${distance} to ${stop}`,
+    withoutRail: 'Works with no stop nearby',
+    toStop: (distance: string, stop: string) => `${distance} to the nearest bus or tram stop${stop ? ` (${stop})` : ''}`,
   },
 
   capacity: {
-    title: 'What the roads can take',
+    title: 'Road space per resident',
     info: (main: number, other: number, people: string, roads: string, day: string) =>
       `A relative model, not a traffic count: the city publishes no traffic volumes. Each district gets the lane-kilometres of its main roads (${main} lanes on main and connecting roads, ${other} on other through streets). Demand follows where people live (${people}) and where the roads are (${roads}, through traffic). The works running on ${day} take lanes off their district's roads. "Road use today" is the one assumption: how full the whole network is at the busy hour with no works. Change it to match what you know.`,
-    over: (districts: number, day: string) => `${plural(districts, 'district')} over capacity on ${day}.`,
-    noneOver: (day: string) => `No district over capacity on ${day}.`,
+    over: (districts: number) => `${plural(districts, 'district')} over capacity at the busy hour.`,
+    noneOver: 'No district over capacity at the busy hour.',
+    works: (points: ReactNode, day: string) =>
+      rich(`The works on ${day} add at most `, points, ' points to a district: the order comes from residents per km of road, not from the works.'),
+    mostAdded: 'Most added',
+    mostAddedHow: (district: string, without: string, withWorks: string) => `${district}: ${without} without works → ${withWorks} with them`,
     fullToday: (district: string, fewer: ReactNode) => rich(`${district} is full even at today's levels; it would need `, fewer, ' fewer cars to fit.'),
     room: (more: ReactNode, district: string | null) => rich('The city can take about ', more, ` more people and cars before ${district ?? 'a district'} is full.`),
     residents: 'Residents',
@@ -421,6 +446,7 @@ const en = {
     slider: 'Day shown on the map',
     valueText: (day: string, points: string) => `${day}, ${points} disruption points`,
     plansEnd: (day: string) => `Published plans end ${day}`,
+    pastMissing: 'Ended works drop out of the feed',
     pointsLine: (points: ReactNode, withChanges: boolean) => rich(points, ` points${withChanges ? ' with your changes' : ''}`),
     publishedLine: (points: ReactNode) => rich(points, ' points published'),
     bands: (high: string, medium: string, low: string) => `High ${high} · medium ${medium} · low ${low}`,
@@ -564,9 +590,9 @@ const en = {
       dates: { title: 'Best dates', about: 'How a suggested start date is scored: the overlap with clashing works, less these credits, plus the cost of moving. The lowest cost wins.' },
       access: { title: 'Access', about: 'Walking distance to the Stadtbahn and nearness to fire stations and hospitals, used by Priorities and Transit.' },
       priorities: { title: 'Priorities', about: 'How running works are ranked for finishing sooner.' },
-      transit: { title: 'Transit', about: 'Which districts need transit help, and which Stadtbahn stops should expect extra riders.' },
+      transit: { title: 'Transit', about: 'Which works have no stop in walking distance and how many people live near them, and which Stadtbahn stops should expect extra riders.' },
       programme: { title: 'Works programme', about: 'When a district\'s projects in construction in a period are marked ▲ overloaded.' },
-      capacity: { title: 'Road capacity', about: 'The Capacity tab\'s what-if model. Road use today, residents and car trips stay on that tab.' },
+      capacity: { title: 'Road capacity', about: 'The Road space tab\'s what-if model. Road use today, residents and car trips stay on that tab.' },
       impact: { title: 'Impact score', about: 'How the Construction Impact Score shares its 100 points between its four factors, and the distances and durations at which each counts.' },
     } as Record<SettingGroup, { title: string; about: string }>,
     units: {
@@ -599,17 +625,19 @@ const en = {
       'window.shiftCost': 'Cost per day moved',
       'window.holidayBonus': 'Credit per school-holiday day',
       'window.togetherCredit': 'Credit for days shared on the same stretch',
-      'reach.rail': 'Stadtbahn in walking distance',
+      'reach.stop': 'Bus or tram stop in walking distance',
+      'reach.station': 'Train station in walking distance',
       'reach.fire': 'Near a fire and rescue station',
       'reach.hospital': 'Near a hospital',
+      'priority.severityPower': 'Severity counts to the power of',
       'priority.horizon': 'Days left count up to',
       'priority.perOverlap': 'Per overlapping site',
       'priority.maxOverlaps': 'Overlapping sites count up to',
       'priority.emergency': 'Near a fire station or hospital',
-      'priority.noRail': 'No Stadtbahn in walking distance',
+      'priority.noStop': 'No stop in walking distance',
       'priority.sooner': 'Overlap saved by finishing sooner by',
       'transit.days': 'Look ahead',
-      'transit.mainRoadShare': 'Main-road closures count',
+      'transit.near': 'Residents counted within',
       'stop.minSeverity': 'Stop under pressure: closures from severity',
       'stop.radius': 'Stop under pressure: closures within',
       'overload.min': 'Overloaded from',
@@ -648,7 +676,8 @@ const en = {
       'together.radius': 'stays well below the clash distance',
       'window.togetherCredit': 'at most the overlap itself',
       'priority.emergency': 'from 1, so being near never lowers a rank',
-      'priority.noRail': 'from 1, so having no rail never lowers a rank',
+      'priority.noStop': 'from 1, so having no stop never lowers a rank',
+      'priority.severityPower': 'from 1, so a work never counts for less than its severity',
       'overload.factor': 'from 1, so the middle district itself is never overloaded',
       'capacity.through': 'below 1, so where people live always counts',
       'capacity.maxLoss': 'below 1: a district with no road left would divide by zero',
@@ -706,16 +735,10 @@ const en = {
     network: 'Network',
     networkHow: (use: string, growth: string | null, total: string, open: string, result: string) =>
       `${use}${growth ? ` × ${growth} growth` : ''} × ${total} ÷ ${open} = ${result}`,
-    eachClosure: 'Each closure',
-    eachClosureHow: (days: number) => `counts its severity × the share of the ${days} days it runs`,
-    farFromRail: 'Far from rail',
-    farFromRailHow: (closures: number, severity: string, distance: string, value: string) =>
-      `${plural(closures, 'closure')} of severity ${severity}+ over ${distance} from a Stadtbahn stop: ${value}`,
-    busRoadsHow: (closures: number, value: string, share: string) =>
-      `${plural(closures, 'full, half or one-way closure')} where buses run: ${value}, counted × ${share}`,
-    need: 'Need',
-    needHow: (uncovered: string, share: string, main: string, per: string, perResidents: string, residents: string, score: string) =>
-      `(${uncovered} + ${share} × ${main}) ÷ ${per} (per ${perResidents} of ${residents} residents) = ${score}`,
+    noStopWorksHow: (works: number, severity: string, stop: string, station: string) =>
+      `${plural(works, 'work')} of severity ${severity}+ with no bus or tram stop within ${stop} and no train station within ${station}`,
+    residentsNear: 'Residents',
+    residentsNearHow: (residents: string, near: string) => `${residents} live within ${near} of them (2022 census, each 100 m square counted once)`,
     severityOn: (kind: string, road: string, severity: string) => `${kind} on a ${road}: ${severity}`,
     timeLeft: 'Time left',
     timeLeftHow: (factor: string, days: number, horizon: number, per: number) =>
@@ -723,11 +746,14 @@ const en = {
     overlaps: 'Overlaps',
     overlapsHow: (factor: string, per: string, within: string, overlapping: number, max: number) =>
       `× ${factor}: 1 + ${per} per site within ${within} running too (${overlapping}), up to ${max} count`,
+    severityCounted: 'Severity counted',
+    severityPowerHow: (severity: string, power: string, value: string) => `${severity} to the power ${power} = ${value}`,
     fireHospital: 'Fire, hospital',
-    fireHospitalHow: (factor: string, near: boolean, fire: string, hospital: string) =>
-      `× ${factor}: ${near ? 'within' : 'none within'} ${fire} of a station or ${hospital} of a hospital`,
-    stadtbahn: 'Stadtbahn',
-    noStop: (factor: string, within: string) => `× ${factor}: no stop within ${within}`,
+    fireHospitalApplies: (factor: string, fire: string, hospital: string) => `× ${factor}: a full closure within ${fire} of a station or ${hospital} of a hospital`,
+    fireHospitalPassable: (factor: string) => `× ${factor}: fire engines and ambulances get past anything short of a full closure`,
+    fireHospitalFar: (factor: string, fire: string, hospital: string) => `× ${factor}: no station within ${fire}, no hospital within ${hospital}`,
+    stopNear: 'Stops',
+    noStop: (factor: string, stop: string, station: string) => `× ${factor}: no bus or tram stop within ${stop}, no train station within ${station}`,
     stop: (factor: string, name: string, distance: string) => `× ${factor}: ${name}, ${distance}`,
     score: 'Score',
     scoreHow: (score: string, rank: number, of: number) => `${score}: #${rank} of ${of} running`,
@@ -795,6 +821,9 @@ const en = {
     roads: 'Main roads',
     programme: 'Works programme',
     holidays: 'School holidays',
+    transitLines: 'Transit lines',
+    transitStops: 'Bus, tram and train stops',
+    population: 'Population (2022 census)',
     networkError: 'network error',
     unexpected: 'unexpected response',
     noData: 'no data',

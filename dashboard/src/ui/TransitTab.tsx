@@ -1,5 +1,5 @@
 import type { DistrictGap, StopPressure } from '../model/analysis';
-import { PER_RESIDENTS, poisNear } from '../model/analysis';
+import { poisNear } from '../model/analysis';
 import type { Poi } from '../data/sources';
 import { useStrings, whole } from '../i18n';
 import { formatDay } from '../model/days';
@@ -15,7 +15,6 @@ type Props = {
   bikes: Poi[];
   parkRide: Poi[];
   date: number;
-  residentsYear: string;
   selected: string | null;
   onSelect: (name: string | null) => void;
   onSelectSite: (id: string) => void;
@@ -31,7 +30,7 @@ function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: Distri
   const actions = [
     worst && (
       <li key="bus">
-        {t.boost(<button className="link-button" onClick={() => onSelectSite(worst.id)}>{shortTitle(worst.title)}</button>, metres(worst.rail.m), worst.rail.name)}
+        {t.boost(<button className="link-button" onClick={() => onSelectSite(worst.id)}>{shortTitle(worst.title)}</button>, worst.stop ? metres(worst.stop.m) : '–', worst.stop?.name ?? '')}
       </li>
     ),
     gap.mainRoadSites.length > 0 && (
@@ -46,17 +45,17 @@ function Actions({ gap, pressure, bikes, parkRide, onSelectSite }: { gap: Distri
   return actions.length ? <ul className="actions">{actions}</ul> : <p className="ok">{t.covered}</p>;
 }
 
-export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYear, selected, onSelect, onSelectSite }: Props) {
+export function TransitTab({ gaps, pressure, bikes, parkRide, date, selected, onSelect, onSelectSite }: Props) {
   const cfg = useSettings();
   const t = useStrings().transit;
-  const max = Math.max(...gaps.map((g) => g.score), 0.01);
+  const max = Math.max(...gaps.map((g) => g.cutOff), 1);
   const gap = gaps.find((g) => g.district === selected);
   return (
     <div className="tab-body">
       <section className="block">
         <h3>{t.title}</h3>
         <Info>
-          {t.info(metres(cfg['reach.rail']), num(cfg['transit.mainRoadShare']), whole(PER_RESIDENTS), residentsYear || t.latest, formatDay(date), cfg['transit.days'])}
+          {t.info(metres(cfg['reach.stop']), metres(cfg['reach.station']), metres(cfg['transit.near']), num(cfg['clash.minSeverity']), formatDay(date), cfg['transit.days'])}
         </Info>
         <div className="bar-head muted small" aria-hidden="true"><span>{t.district}</span><span>{t.need}</span><span>{t.farFromRail}</span></div>
         <ul className="bars" aria-label={t.byNeed}>
@@ -64,9 +63,9 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
             <li key={g.district} className={g.district === selected ? 'bar-row selected' : 'bar-row'}>
               <button className="bar-pick" onClick={() => onSelect(g.district === selected ? null : g.district)} aria-pressed={g.district === selected}>
                 <span className="bar-label">{g.district}</span>
-                <span className="bar-track"><span className="bar" style={{ width: `${(g.score / max) * 100}%` }} /></span>
+                <span className="bar-track">{g.cutOff > 0 && <span className="bar" style={{ width: `${(g.cutOff / max) * 100}%` }} />}</span>
               </button>
-              <span className="bar-value"><Derived how={transitWorking(g, cfg)}>{g.uncoveredSites.length}</Derived></span>
+              <span className="bar-value"><Derived how={transitWorking(g, cfg)}>{whole(g.cutOff)}</Derived></span>
             </li>
           ))}
         </ul>
@@ -74,7 +73,7 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
       {gap && (
         <section className="block">
           <h3>{gap.district}</h3>
-          <p className="muted">{t.summary(whole(gap.residents), gap.uncoveredSites.length, gap.mainRoadSites.length)}</p>
+          <p className="muted">{t.summary(whole(gap.residents), whole(gap.cutOff), gap.uncoveredSites.length, gap.mainRoadSites.length)}</p>
           <h4>{t.actions}</h4>
           <Actions gap={gap} pressure={pressure} bikes={bikes} parkRide={parkRide} onSelectSite={onSelectSite} />
           {gap.uncoveredSites.length > 0 && (
@@ -82,7 +81,7 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, residentsYea
               <h4>{t.withoutRail}</h4>
               <ul className="plain">
                 {gap.uncoveredSites.map((s) => (
-                  <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{t.toStop(metres(s.rail.m), s.rail.name)}</span></li>
+                  <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{s.stop && t.toStop(metres(s.stop.m), s.stop.name)}</span></li>
                 ))}
               </ul>
             </>

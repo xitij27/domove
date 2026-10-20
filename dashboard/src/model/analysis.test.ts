@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { ProgrammeProject } from '../data/sources';
 import { bestWindows, clusterConflicts, dailyLoad, findConflicts, priorities, programmeBalance, transitGaps } from './analysis';
+import { toLonLat } from './geo';
+import { preparePopulation } from './population';
 import { DEFAULT_SETTINGS } from './settings';
 import { findNeighbours } from './sites';
-import { testSite } from './testSites';
+import { ORIGIN, testSite } from './testSites';
+
+const noStop = { stop: { name: 'Far', detail: '', m: 900 }, station: null };
 
 describe('dailyLoad', () => {
   it('sums severities per day and band', () => {
@@ -105,28 +109,66 @@ describe('bestWindows', () => {
 });
 
 describe('priorities', () => {
-  it('ranks long, overlapping, car-dependent closures first and explains why', () => {
+  it('ranks long, overlapping closures with no stop nearby first and explains why', () => {
     const sites = [
-      testSite('long', 0, 0, 0, 200, { rail: { name: 'X', detail: '', m: 900 } }),
-      testSite('short', 3000, 0, 0, 20, { rail: { name: 'Y', detail: '', m: 100 } }),
-      testSite('near', 300, 0, 0, 200, { rail: { name: 'Z', detail: '', m: 100 } }),
+      testSite('long', 0, 0, 0, 200, noStop),
+      testSite('short', 3000, 0, 0, 20),
+      testSite('near', 300, 0, 0, 200),
     ];
     const [first] = priorities(sites, findNeighbours(sites), 10);
     expect(first.site.id).toBe('long');
-    expect(first.reasons).toEqual(['Full closure on a main road', '1 overlapping site within 1 km', 'No Stadtbahn within 600 m']);
+    expect(first.reasons).toEqual(['Full closure on a main road', '1 overlapping site within 1 km', 'No bus or tram stop within 400 m, no train within 1000 m']);
     expect(first.freedOverlapDays).toBe(14);
+  });
+
+  it('lets how much a work closes outweigh how long it runs', () => {
+    // a side-street closure (severity 0.3) running half a year, against a main-road closure (1) running three weeks
+    const sites = [testSite('side', 0, 0, 0, 200, { road: 'local' }), testSite('main', 5000, 0, 0, 20)];
+    expect(priorities(sites, findNeighbours(sites), 0)[0].site.id).toBe('main');
+    // with severity counted once, as before, the long side-street closure came first
+    expect(priorities(sites, findNeighbours(sites), 0, { ...DEFAULT_SETTINGS, 'priority.severityPower': 1 })[0].site.id).toBe('side');
+  });
+
+  it('counts a fire station only for works that stop fire engines', () => {
+    const station = { fire: { name: 'Wache 1', detail: '', m: 50 } };
+    const [full] = priorities([testSite('full', 0, 0, 0, 30, station)], new Map(), 0);
+    const [half] = priorities([testSite('half', 0, 0, 0, 30, { ...station, kind: 'half' })], new Map(), 0);
+    expect(full.factors.emergency).toBe(DEFAULT_SETTINGS['priority.emergency']);
+    expect(full.reasons).toContain('50 m from Wache 1');
+    expect(half.factors.emergency).toBe(1);
+    expect(half.reasons.join()).not.toContain('Wache 1');
   });
 });
 
 describe('transitGaps', () => {
-  it('weighs closures far from the Stadtbahn per resident', () => {
+  // a 100 m census square whose centre is `x`, `y` metres from the test grid's centre
+  const cell = (x: number, y: number, n: number): [number, number, number] => [...toLonLat([ORIGIN[0] + x, ORIGIN[1] + y]), n];
+  const population = preparePopulation([cell(30, 10, 120), cell(60, 10, 80), cell(1000, 0, 500)]);
+  const residents = new Map([['Eving', 40_000], ['Hörde', 57_000]]);
+
+  it('counts the residents near works with no stop, each square once', () => {
     const sites = [
-      testSite('a', 0, 0, 0, 29, { district: 'Eving', rail: { name: '', detail: '', m: 900 } }),
-      testSite('b', 0, 0, 0, 29, { district: 'Hörde', rail: { name: '', detail: '', m: 100 } }),
+      testSite('a', 0, 0, 0, 29, { district: 'Eving', ...noStop }),
+      testSite('a2', 40, 0, 0, 29, { district: 'Eving', ...noStop }), // shares both squares with a
+      testSite('b', 0, 0, 0, 29, { district: 'Hörde' }), // a bus stop 100 m away
     ];
-    const [eving, horde] = transitGaps(sites, new Map([['Eving', 40_000], ['Hörde', 57_000]]), 0);
-    expect(eving).toMatchObject({ district: 'Eving', uncovered: 1, mainRoad: 1, score: 1.5 / 4 });
-    expect(horde).toMatchObject({ uncovered: 0, mainRoad: 1 });
+    const [eving, horde] = transitGaps(sites, residents, population, 0);
+    expect(eving).toMatchObject({ district: 'Eving', cutOff: 200 });
+    expect(eving.uncoveredSites.map((s) => s.id).sort()).toEqual(['a', 'a2']);
+    expect(horde).toMatchObject({ district: 'Hörde', cutOff: 0, uncoveredSites: [] });
+    expect(horde.mainRoadSites.map((s) => s.id)).toEqual(['b']);
+  });
+
+  it('flags nothing on missing data: no population file, or no stop file', () => {
+    const [noPeople] = transitGaps([testSite('a', 0, 0, 0, 29, { district: 'Eving', ...noStop })], residents, null, 0);
+    expect(noPeople.cutOff).toBe(0);
+    const [noStops] = transitGaps([testSite('a', 0, 0, 0, 29, { district: 'Eving', stop: null })], residents, population, 0);
+    expect(noStops).toMatchObject({ cutOff: 0, uncoveredSites: [] });
+  });
+
+  it('counts a train station in walking distance as a stop', () => {
+    const [g] = transitGaps([testSite('a', 0, 0, 0, 29, { district: 'Eving', ...noStop, station: { name: 'Hbf', detail: '', m: 700 } })], residents, population, 0);
+    expect(g.uncoveredSites).toEqual([]);
   });
 });
 

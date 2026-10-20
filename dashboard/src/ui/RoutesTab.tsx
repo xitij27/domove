@@ -14,6 +14,8 @@ import { metres, minutes, shortTitle } from './format';
 
 type Place = { key: string; label: string; at: LonLat };
 type Props = {
+  /** who the role plans routes for; the first is picked to start */
+  groups: Group[];
   active: Site[];
   date: number;
   fire: Poi[];
@@ -35,7 +37,6 @@ const landmarks = (t: Strings['routes']): Place[] => [
   { key: 'l5', label: t.port, at: [7.44432, 51.52453] },
   { key: 'l6', label: 'Westfalenhütte', at: [7.49668, 51.53697] },
 ];
-const GROUP_ORDER: Group[] = ['commuter', 'logistics', 'emergency', 'cyclist', 'pedestrian'];
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function PlaceSelect({ label, value, groups, onChange, onPickOnMap }: {
@@ -70,9 +71,9 @@ function SiteList({ title, sites, onSelectSite }: { title: string; sites: Site[]
   );
 }
 
-export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, onOverlay, onPick, onSelectSite }: Props) {
+export function RoutesTab({ groups: who, active, date, fire, hospitals, parkRide, districts, onOverlay, onPick, onSelectSite }: Props) {
   const t = useStrings().routes;
-  const [group, setGroup] = useState<Group>('commuter');
+  const [group, setGroup] = useState<Group>(who[0]);
   const [from, setFrom] = useState<Place | null>(null);
   const [to, setTo] = useState<Place | null>(null);
   const [detour, setDetour] = useState<{ d: Detour; key: string; group: Group } | null>(null);
@@ -130,48 +131,6 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
   const c = coverage?.c;
   return (
     <div className="tab-body">
-      <section className="block">
-        <h3>{t.title(formatDay(date))}</h3>
-        <div className="segmented" role="radiogroup" aria-label={t.who}>
-          {GROUP_ORDER.map((g) => (
-            <button key={g} role="radio" aria-checked={group === g} className={group === g ? 'selected' : ''} onClick={() => setGroup(g)}>{t.groups[g].label}</button>
-          ))}
-        </div>
-        <p className="muted small">{t.groups[group].note}</p>
-        <PlaceSelect label={t.start} value={from} groups={groups} onChange={(p) => { setFrom(p); showEnds(p, to); }}
-          onPickOnMap={() => onPick(t.pickStart, (at) => { const p = { key: 'map', label: t.pointOnMap, at }; setFrom(p); showEnds(p, to); })} />
-        <PlaceSelect label={t.destination} value={to} groups={groups} onChange={(p) => { setTo(p); showEnds(from, p); }}
-          onPickOnMap={() => onPick(t.pickDestination, (at) => { const p = { key: 'map', label: t.pointOnMap, at }; setTo(p); showEnds(from, p); })} />
-        <button className="button primary" disabled={!from || !to || busy} onClick={compare}>{busy ? t.asking : t.compare}</button>
-        {error && <p className="error" role="alert">{error}</p>}
-        {d && (
-          <div className="result" aria-live="polite">
-            {detour.key !== routeKey && <p className="note">{t.stale}</p>}
-            <dl className="facts">
-              <dt><i className="key-line normal" />{t.normal}</dt><dd>{minutes(d.normal.seconds)} · {metres(d.normal.meters)}</dd>
-              <dt><i className="key-line aware" />{t.withWorks}</dt>
-              <dd>
-                <Derived how={[
-                  [t.normal, t.normalHow(minutes(d.normal.seconds))],
-                  [t.around, t.aroundHow(minutes(d.aware.seconds), d.avoided.length)],
-                  [t.waiting, d.slowedOnRoute.length
-                    ? `+${minutes(d.penaltyS)}: ${d.slowedOnRoute.map((s) => `${shortTitle(s.title)} ${penaltyFor(s, detour.group)} s`).join(' · ')}`
-                    : t.noWaiting],
-                  [t.withWorks, `${minutes(d.aware.seconds)} + ${minutes(d.penaltyS)} = ${minutes(d.normal.seconds + d.extraS)}`],
-                ]}>
-                  <strong>{minutes(d.normal.seconds + d.extraS)}</strong>
-                </Derived> · {metres(d.aware.meters)} {d.extraS >= 30 ? t.extra(minutes(d.extraS)) : t.noDelay}</dd>
-            </dl>
-            {d.penaltyS > 0 && <p className="muted small">{t.includes(minutes(d.penaltyS), d.slowedOnRoute.length)}</p>}
-            {d.blockedOnRoute.length > 0 && <p className="warn-text"><span aria-hidden="true">⚠</span> {t.noWayAround(d.blockedOnRoute.length)}</p>}
-            {d.limitReached && <p className="note">{t.limit}</p>}
-            <SiteList title={t.avoided} sites={d.avoided} onSelectSite={onSelectSite} />
-            <SiteList title={t.blocked} sites={d.blockedOnRoute} onSelectSite={onSelectSite} />
-            <SiteList title={t.passed} sites={d.slowedOnRoute} onSelectSite={onSelectSite} />
-          </div>
-        )}
-      </section>
-
       {group === 'emergency' && (
         <section className="block">
           <h3>{t.reach}</h3>
@@ -207,6 +166,50 @@ export function RoutesTab({ active, date, fire, hospitals, parkRide, districts, 
           )}
         </section>
       )}
+      <section className="block">
+        <h3>{t.title(formatDay(date))}</h3>
+        {who.length > 1 && (
+          <div className="segmented" role="radiogroup" aria-label={t.who}>
+            {who.map((g) => (
+              <button key={g} role="radio" aria-checked={group === g} className={group === g ? 'selected' : ''} onClick={() => setGroup(g)}>{t.groups[g].label}</button>
+            ))}
+          </div>
+        )}
+        <p className="muted small">{t.groups[group].note}</p>
+        <PlaceSelect label={t.start} value={from} groups={groups} onChange={(p) => { setFrom(p); showEnds(p, to); }}
+          onPickOnMap={() => onPick(t.pickStart, (at) => { const p = { key: 'map', label: t.pointOnMap, at }; setFrom(p); showEnds(p, to); })} />
+        <PlaceSelect label={t.destination} value={to} groups={groups} onChange={(p) => { setTo(p); showEnds(from, p); }}
+          onPickOnMap={() => onPick(t.pickDestination, (at) => { const p = { key: 'map', label: t.pointOnMap, at }; setTo(p); showEnds(from, p); })} />
+        <button className="button primary" disabled={!from || !to || busy} onClick={compare}>{busy ? t.asking : t.compare}</button>
+        {error && <p className="error" role="alert">{error}</p>}
+        {d && (
+          <div className="result" aria-live="polite">
+            {detour.key !== routeKey && <p className="note">{t.stale}</p>}
+            <dl className="facts">
+              <dt><i className="key-line normal" />{t.normal}</dt><dd>{minutes(d.normal.seconds)} · {metres(d.normal.meters)}</dd>
+              <dt><i className="key-line aware" />{t.withWorks}</dt>
+              <dd>
+                <Derived how={[
+                  [t.normal, t.normalHow(minutes(d.normal.seconds))],
+                  [t.around, t.aroundHow(minutes(d.aware.seconds), d.avoided.length)],
+                  [t.waiting, d.slowedOnRoute.length
+                    ? `+${minutes(d.penaltyS)}: ${d.slowedOnRoute.map((s) => `${shortTitle(s.title)} ${penaltyFor(s, detour.group)} s`).join(' · ')}`
+                    : t.noWaiting],
+                  [t.withWorks, `${minutes(d.aware.seconds)} + ${minutes(d.penaltyS)} = ${minutes(d.normal.seconds + d.extraS)}`],
+                ]}>
+                  <strong>{minutes(d.normal.seconds + d.extraS)}</strong>
+                </Derived> · {metres(d.aware.meters)} {d.extraS >= 30 ? t.extra(minutes(d.extraS)) : t.noDelay}</dd>
+            </dl>
+            {d.penaltyS > 0 && <p className="muted small">{t.includes(minutes(d.penaltyS), d.slowedOnRoute.length)}</p>}
+            {d.blockedOnRoute.length > 0 && <p className="warn-text"><span aria-hidden="true">⚠</span> {t.noWayAround(d.blockedOnRoute.length)}</p>}
+            {d.limitReached && <p className="note">{t.limit}</p>}
+            <SiteList title={t.avoided} sites={d.avoided} onSelectSite={onSelectSite} />
+            <SiteList title={t.blocked} sites={d.blockedOnRoute} onSelectSite={onSelectSite} />
+            <SiteList title={t.passed} sites={d.slowedOnRoute} onSelectSite={onSelectSite} />
+          </div>
+        )}
+      </section>
+
     </div>
   );
 }

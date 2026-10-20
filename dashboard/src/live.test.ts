@@ -28,7 +28,7 @@ describe.runIf(import.meta.env.LIVE)('live data', () => {
     const byName = new Map(districts.map((d) => [d.name, residents.byKey[data.districtKey(d.name)]]));
     const conflicts = findConflicts(sites, neighbours, today, today + 365);
     const clusters = clusterConflicts(conflicts);
-    const gaps = transitGaps(sites, byName, today);
+    const gaps = transitGaps(sites, byName, null, today);
     const top = priorities(sites, neighbours, today);
     const balance = programmeBalance(programme, districts.map((d) => d.name));
     const load = dailyLoad(sites, today - 30, today + 365);
@@ -40,7 +40,7 @@ describe.runIf(import.meta.env.LIVE)('live data', () => {
       compound: conflicts.filter((c) => c.type === 'compound').length, bundle: conflicts.filter((c) => c.type === 'bundle').length,
       clusters: clusters.length, biggestCluster: clusters[0]?.siteIds.length,
       topPriority: top.slice(0, 3).map((p) => `${p.site.title.slice(0, 40)} | ${p.reasons.join(' · ')}`),
-      topGaps: gaps.slice(0, 3).map((g) => `${g.district} ${g.score.toFixed(2)}`),
+      topGaps: gaps.slice(0, 3).map((g) => `${g.district} ${g.uncoveredSites.length}`),
       pressuredStops: stopsUnderPressure(sites, stops, today).slice(0, 3).map((p) => `${p.stop.name}:${p.sites.length}`),
       programme: balance.rows.length, holidays: holidays.map((h) => h.start).join(' '),
     };

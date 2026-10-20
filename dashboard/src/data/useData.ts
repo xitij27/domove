@@ -6,6 +6,9 @@ import type { District, Holiday, Poi, ProgrammeProject, RawSite, Road } from './
 export type Dataset = {
   retrievedAt: string;
   analytics: { roadsAvailable: boolean; stopsAvailable: boolean; publicLocations: Poi[] | null };
+  /** every bus and tram stop and train station, and residents per 100 m square; null when the file couldn't load */
+  network: { busTram: Poi[]; stations: Poi[] } | null;
+  population: [number, number, number][] | null;
   raw: RawSite[];
   roads: Road[];
   stops: Poi[];
@@ -15,7 +18,6 @@ export type Dataset = {
   hospitals: Poi[];
   districts: District[];
   residents: Map<string, number>;
-  residentsYear: string;
   programme: ProgrammeProject[];
   holidays: Holiday[];
 };
@@ -31,9 +33,9 @@ export async function loadDashboard(today: number): Promise<DataState> {
   const results = await Promise.allSettled([
     src.fetchSites(), src.fetchRoads(), src.fetchStops(), src.fetchBikeStations(), src.fetchParkRide(), src.fetchFireStations(),
     src.fetchHospitals(), src.fetchDistricts(), src.fetchResidents(), src.fetchProgramme(), src.fetchHolidays(isoDay(today - 30), isoDay(today + 400)),
-    src.fetchSchools(), src.fetchKindergartens(),
+    src.fetchSchools(), src.fetchKindergartens(), src.fetchTransitStops(), src.fetchPopulation(),
   ] as const);
-  const [sites, roads, stops, bikes, parkRide, fire, hospitals, districts, residents, programme, holidays, schools, kindergartens] = results;
+  const [sites, roads, stops, bikes, parkRide, fire, hospitals, districts, residents, programme, holidays, schools, kindergartens, network, population] = results;
   if (sites.status === 'rejected') return { status: 'failed', message: message(sites.reason) };
   const problems: string[] = [];
   const value = <T,>(r: PromiseSettledResult<T>, fallback: T): T => {
@@ -56,6 +58,8 @@ export async function loadDashboard(today: number): Promise<DataState> {
         publicLocations: schools.status === 'fulfilled' && kindergartens.status === 'fulfilled' && stops.status === 'fulfilled'
           ? [...schoolList, ...kindergartenList, ...stops.value] : null,
       },
+      network: value(network, null),
+      population: value(population, null),
       raw: sites.value,
       roads: value(roads, []),
       stops: value(stops, []),
@@ -65,7 +69,6 @@ export async function loadDashboard(today: number): Promise<DataState> {
       hospitals: value(hospitals, []),
       districts: districtList,
       residents: new Map(districtList.map((d) => [d.name, people.byKey[src.districtKey(d.name)] ?? 0])),
-      residentsYear: people.year,
       programme: value(programme, []),
       holidays: value(holidays, []),
     },

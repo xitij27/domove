@@ -146,6 +146,7 @@ export function Timeline({ load, published, holidays, today, date, horizon, onDa
               <text className="tick" x={x(m) + 3} y={H - 6}>{formatMonth(m)}{new Date(m * 86_400_000).getUTCMonth() === 0 ? ` ${new Date(m * 86_400_000).getUTCFullYear()}` : ''}</text>
             </g>
           ))}
+          {today > from && <text className="marker-label" x={PAD.left + 4} y={PAD.top - 6}>{t.pastMissing}</text>}
           {horizon !== null && horizon >= from && horizon <= to && (
             <g>
               <line className="horizon" x1={x(horizon)} x2={x(horizon)} y1={PAD.top - 4} y2={y(0)} />
