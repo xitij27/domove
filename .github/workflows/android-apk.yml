@@ -46,7 +46,19 @@ jobs:
 
       - run: npm ci
 
+      # The release's tag becomes the app's version, which Settings compares with GitHub's latest release.
+      # Manual runs aren't released, so they stay 0.0.0, a development build.
+      - name: Pick the release version
+        id: version
+        if: github.event_name == 'push'
+        run: |
+          last=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/||' | sort -V | tail -1)
+          IFS=. read -r major minor patch <<< "${last:-v0.0.0}"
+          echo "tag=${major}.${minor}.$((patch + 1))" >> "$GITHUB_OUTPUT"
+
       - run: npx expo prebuild --platform android --no-install
+        env:
+          DOMOVE_VERSION: ${{ steps.version.outputs.tag }}
 
       - name: Build release APK
         working-directory: mobile/android
@@ -64,9 +76,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          last=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/||' | sort -V | tail -1)
-          IFS=. read -r major minor patch <<< "${last:-v0.0.0}"
-          tag="${major}.${minor}.$((patch + 1))"
+          tag="${{ steps.version.outputs.tag }}"
           apk="domove-${tag}-arm64.apk"
           cp app-release.apk "$apk"
           gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Do.Move $tag" \

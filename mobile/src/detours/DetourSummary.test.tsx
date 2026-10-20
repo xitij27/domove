@@ -30,15 +30,12 @@ test('says it is looking, and offers a retry when it couldn\'t', async () => {
 test('shows the way picked, and lets the user pick another', async () => {
   const plan = await kaiserstrasse();
   const choose = jest.fn();
-  const open = jest.fn();
-  await render(<DetourSummary detours={{ status: 'ready', plan, scores: new Map() }} chosen={0} onChoose={choose} onRetry={noop} onOpenInGoogleMaps={open} nameOf={nameOf} theme="day" />);
+  await render(<DetourSummary detours={{ status: 'ready', plan, scores: new Map() }} chosen={0} onChoose={choose} onRetry={noop} nameOf={nameOf} theme="day" />);
   expect(screen.getByText('Recommended · 18 min (+4 min) · 10.8 km')).toBeOnTheScreen();
   expect(screen.getByText('Avoids Kaiserstraße (9/10)')).toBeOnTheScreen();
   expect(screen.getByRole('radio', { name: /^Recommended way, 18 minutes/ })).toBeChecked();
   await fireEvent.press(screen.getByRole('radio', { name: /^Direct way, 14 minutes/ }));
   expect(choose).toHaveBeenCalledWith(1);
-  await fireEvent.press(screen.getByRole('link', { name: 'Open in Google Maps' }));
-  expect(open).toHaveBeenCalled();
 });
 
 test('one way alone needs no choice', async () => {
@@ -46,16 +43,11 @@ test('one way alone needs no choice', async () => {
   await render(<DetourSummary detours={{ status: 'ready', plan, scores: new Map() }} chosen={0} onChoose={noop} onRetry={noop} nameOf={nameOf} theme="day" />);
   expect(screen.getByText('No detour needed')).toBeOnTheScreen();
   expect(screen.queryByRole('radio')).toBeNull();
-  expect(screen.getByRole('link', { name: 'Open in Google Maps' })).toBeDisabled();
-  expect(screen.getByText(/cannot preserve more than three saved stops/)).toBeOnTheScreen();
 });
 
-test('offers opening the route in Google Maps even when looking for detours failed', async () => {
+test('offers a retry when looking for detours failed', async () => {
   const retry = jest.fn();
-  const open = jest.fn();
-  await render(<DetourSummary detours={{ status: 'failed', error: 'Server unreachable' }} chosen={0} onChoose={noop} onRetry={retry} onOpenInGoogleMaps={open} nameOf={nameOf} theme="day" />);
-  expect(screen.getByRole('link', { name: 'Open in Google Maps' })).toBeEnabled();
-  await fireEvent.press(screen.getByRole('link', { name: 'Open in Google Maps' }));
-  expect(open).toHaveBeenCalled();
+  await render(<DetourSummary detours={{ status: 'failed', error: 'Server unreachable' }} chosen={0} onChoose={noop} onRetry={retry} nameOf={nameOf} theme="day" />);
+  await fireEvent.press(screen.getByRole('button'));
+  expect(retry).toHaveBeenCalled();
 });
-
