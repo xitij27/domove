@@ -27,6 +27,7 @@ The features are grouped by who uses them. The roles run across the header. Each
   A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. S-Bahn and regional trains, bike share and P+R start switched off.
 - **To do → Transit.** A "Far from the Stadtbahn" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
+- **Light by default.** The dashboard opens light whatever the system's setting. The sun/moon switch changes it, and the browser remembers the choice.
 
 ## What it answers
 
