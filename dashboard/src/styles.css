@@ -302,7 +302,12 @@ button, input, select { font: inherit; color: inherit; }
 .facts dt { color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .facts dd { margin: 0; }
 .proposed { font-weight: 650; }
-.site-title { font-size: 21px; margin-top: 10px; }
+.site-title { font-size: 21px; margin-top: 10px; margin-bottom: 0; }
+.site-subtitle { margin: 2px 0 4px; font-size: 14px; color: var(--ink-2); }
+.city-text { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+/* a site's name: the place in the link's colour, what is being done after it, quieter */
+.site-work { color: var(--muted); font-weight: 400; }
+.link-button:hover .site-work { color: var(--ink-2); }
 .slider { display: grid; gap: 4px; margin: 6px 0 4px; font-size: 13px; }
 .slider input { width: 100%; accent-color: var(--ink); }
 /* settings: a changed one is marked at its edge, so a scroll down the list shows what differs from the defaults */

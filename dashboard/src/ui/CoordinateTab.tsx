@@ -11,6 +11,8 @@ import type { Site } from '../model/sites';
 import { Derived } from './Derived';
 import { clashText, dayRange, metres, num, shiftText, shortTitle } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
+import { ownerName } from './siteNames';
 import { useSettings } from './useSettings';
 import { alignWorking, finishWorking, moveWorking } from './working';
 
@@ -71,7 +73,7 @@ function ClusterCard({ cluster, advice, open, byId, onToggle, onSelectSite, onAp
       ) : null}
       <ul className="plain sites">
         {sites.map((s) => (
-          <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{t.kinds[s.kind]}</span></li>
+          <li key={s.id}><SiteLink site={s} onSelect={onSelectSite} /> <span className="muted">{t.kinds[s.kind]}</span></li>
         ))}
       </ul>
     </li>
@@ -228,8 +230,8 @@ export function CoordinateTab(props: Props) {
             const target = Math.max(today + 1, first.start);
             return (
               <li className="card" key={`${b.a}-${b.b}`}>
-                <div><button className="link-button" title={first.title} onClick={() => props.onSelectSite(first.id)}>{shortTitle(first.title)}</button> <span className="muted">{first.owner}</span></div>
-                <div><button className="link-button" title={second.title} onClick={() => props.onSelectSite(second.id)}>{shortTitle(second.title)}</button> <span className="muted">{second.owner}</span></div>
+                <div><SiteLink site={first} onSelect={props.onSelectSite} /> <span className="muted">{ownerName(first.owner)}</span></div>
+                <div><SiteLink site={second} onSelect={props.onSelectSite} /> <span className="muted">{ownerName(second.owner)}</span></div>
                 <div className="suggestion">
                   <span><Derived how={alignWorking(first, second, target, cfg)}>{c.sameStreet(b.days)}</Derived>{c.startSecond(formatShort(target))}</span>
                   <button className="button" onClick={() => props.onShift(second.id, [target - second.baseStart, target - second.baseStart])}>{c.align}</button>

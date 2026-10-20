@@ -4,6 +4,8 @@ import { formatDay } from '../model/days';
 import type { Site } from '../model/sites';
 import { dayRange, metres } from './format';
 import { Info } from './Info';
+import { SiteName } from './SiteName';
+import { publishedTitle } from './siteNames';
 import { useSettings } from './useSettings';
 
 type Props = {
@@ -16,7 +18,11 @@ type Props = {
 export function OutlookPanel({ result, days, byId, mapFiltered, retrievedAt, scenario, onDays, onMapFilter, onSelect }: Props) {
   const cfg = useSettings();
   const t = useStrings().outlook;
-  const title = (id: string) => byId.get(id)?.title ?? id;
+  const title = (id: string) => {
+    const s = byId.get(id);
+    return s ? <SiteName site={s} /> : id;
+  };
+  const tip = (id: string) => { const s = byId.get(id); return s ? publishedTitle(s) : undefined; };
   const period = (p: ProjectEvidence) => `${p.start === null ? t.unknownStart : formatDay(p.start)} – ${p.end === null ? t.unknownEnd : formatDay(p.end)}`;
   return (
     <section className="block" aria-labelledby="outlook-title">
@@ -44,7 +50,7 @@ export function OutlookPanel({ result, days, byId, mapFiltered, retrievedAt, sce
         <ul className="plain analytics-list">
           {result.active.map((p) => (
             <li key={p.id}>
-              <button className="link-button" onClick={() => onSelect(p.id)}>{title(p.id)}</button>
+              <button className="link-button" title={tip(p.id)} onClick={() => onSelect(p.id)}>{title(p.id)}</button>
               <div className="muted small">{period(p)}{p.end === null ? t.uncertainSuffix : ''}</div>
             </li>
           ))}
@@ -56,7 +62,7 @@ export function OutlookPanel({ result, days, byId, mapFiltered, retrievedAt, sce
         <ul className="plain analytics-list">
           {result.conflicts.map((c) => (
             <li key={`${c.a}:${c.b}`}>
-              <button className="link-button" onClick={() => onSelect(c.a)}>{title(c.a)}</button> / <button className="link-button" onClick={() => onSelect(c.b)}>{title(c.b)}</button>
+              <button className="link-button" title={tip(c.a)} onClick={() => onSelect(c.a)}>{title(c.a)}</button> / <button className="link-button" title={tip(c.b)} onClick={() => onSelect(c.b)}>{title(c.b)}</button>
               <div className="muted small">{c.intersects ? t.touch : t.apart(metres(c.metres))} · {dayRange(c.from, c.to)}</div>
             </li>
           ))}
@@ -66,7 +72,7 @@ export function OutlookPanel({ result, days, byId, mapFiltered, retrievedAt, sce
         <details>
           <summary>{t.uncertain(result.uncertain.length)}</summary>
           <p className="muted small">{t.uncertainNote}</p>
-          <ul className="plain analytics-list">{result.uncertain.map((p) => <li key={p.id}><button className="link-button" onClick={() => onSelect(p.id)}>{title(p.id)}</button><div className="muted small">{period(p)}</div></li>)}</ul>
+          <ul className="plain analytics-list">{result.uncertain.map((p) => <li key={p.id}><button className="link-button" title={tip(p.id)} onClick={() => onSelect(p.id)}>{title(p.id)}</button><div className="muted small">{period(p)}</div></li>)}</ul>
         </details>
       )}
     </section>

@@ -5,6 +5,7 @@ import { formatDay } from '../model/days';
 import { Derived } from './Derived';
 import { metres, num } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
 import { useSettings } from './useSettings';
 import { freedWorking, priorityWorking } from './working';
 
@@ -28,7 +29,7 @@ export function PrioritiesTab({ priorities, date, onSelectSite }: Props) {
             <li key={p.site.id}>
               <Derived className="rank" how={priorityWorking(p, i + 1, priorities.length, cfg)}>{i + 1}</Derived>
               <div>
-                <button className="link-button" onClick={() => onSelectSite(p.site.id)}>{p.site.title}</button>
+                <SiteLink site={p.site} onSelect={onSelectSite} />
                 <div className="muted">
                   {p.site.district} · {p.site.openEnded ? t.noEndDate : t.until(formatDay(p.site.end))}{p.site.owner ? ` · ${p.site.owner}` : ''}
                 </div>

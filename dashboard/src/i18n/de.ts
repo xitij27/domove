@@ -33,6 +33,10 @@ const de: Strings = {
   },
   roads: { main: 'Hauptstraße', secondary: 'Durchgangsstraße', local: 'Anliegerstraße' },
   bands: { high: 'Hohe Störung', medium: 'Mittlere Störung', low: 'Geringe Störung' },
+  siteName: {
+    asPublished: (title) => `Text der Stadt: ${title}`,
+    cityText: 'Text der Stadt',
+  },
 
   app: {
     loading: 'Dortmunds Baustellen und offene Daten werden geladen …',

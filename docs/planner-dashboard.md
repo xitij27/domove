@@ -51,6 +51,15 @@ Numbers are stated in things a planner can count. A clash is another serious sit
 
 Every figure the dashboard works out is underlined dotted. Hover, focus or tap it to see how it was worked out, with that figure's own numbers: the shares behind a district's road load, the factors behind a priority rank, which works a clash counts and for how many days, the cost a suggested date is chosen by. The working is built in `src/ui/working.ts` from the same results and settings the model uses.
 
+### Site names
+
+The city writes each site's title as place, work and closure, with "-", "/", "//", "///" or "_" between them, short forms and typos: "Spissenagelstraße - Arbeiten an den Wasserleitungen // Vollsperrung". The dashboard names a site **place · work** instead, "Spissenagelstraße · Water pipes", in every list, the map's popups and the site panel. The closure is left out of the name because the chips and popups already give it ("Full closure").
+
+- **In English** the work is named from a list of the feed's terms, typos and short forms included: "KVP" (Kampfmittelverdachtspunkt) reads "Wartime bomb check", "Notmaßnahme Wasserrohrbruch" "Emergency: burst water main". A work the list doesn't know keeps the city's words as they are. The city's offices are named in English too ("Privatmaßnahme" reads "Private works", "StA 66 - Tiefbauamt" "Civil engineering office (StA 66)"); companies and agencies keep their names.
+- **In German** the work is the city's own words, without the slashes and the closure.
+- **The city's text** is never lost: hover or focus a site's name for it, and the site panel lists it under the site's facts. The CSV export keeps it too.
+- The split is in `src/model/siteName.ts` (with the feed's real titles as tests), the English terms in `src/i18n/feedTerms.ts`. **To name a new kind of work**, add a pattern to `WORK` and its English to `WORK_EN`.
+
 ### Scenarios
 
 Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and a yellow-tinted bar above the views counts the clashes and the busiest day's points, published → yours. The bar only appears once something differs from the published plans. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
