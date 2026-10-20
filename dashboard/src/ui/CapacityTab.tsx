@@ -3,8 +3,9 @@ import { DEFAULT_PARAMS, LOAD_SCALE } from '../model/capacity';
 import type { CapacityResult, Params } from '../model/capacity';
 import { formatDay } from '../model/days';
 import { Derived } from './Derived';
-import { pct, shortTitle, signed } from './format';
+import { pct, signed } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
 import { Slider } from './Slider';
 import { useSettings } from './useSettings';
 import { citywideWorking, loadWorking, roomWorking, worksShareWorking } from './working';
@@ -84,7 +85,7 @@ export function CapacityTab({ result, params, date, selected, onParams, onSelect
               <h4>{t.worksOn(formatDay(date))}</h4>
               <ul className="plain">
                 {row.sites.map((s) => (
-                  <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button></li>
+                  <li key={s.id}><SiteLink site={s} onSelect={onSelectSite} /></li>
                 ))}
               </ul>
             </>

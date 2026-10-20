@@ -1,5 +1,6 @@
 import { decimal, getLanguage, strings } from '../i18n';
 import { formatDay, formatShort } from '../model/days';
+import { placeOf } from './siteNames';
 
 export const metres = (m: number): string => (!Number.isFinite(m) ? '–' : m >= 1000 ? `${decimal(m / 1000, 1)} km` : `${Math.round(m / 10) * 10} m`);
 export const minutes = (s: number): string => `${decimal(s / 60, 1)} min`;
@@ -16,7 +17,7 @@ const year = (day: number) => new Date(day * 86_400_000).getUTCFullYear();
 export const dayRange = (a: number, b: number): string =>
   a === b ? formatDay(a) : `${year(a) === year(b) ? formatShort(a) : formatDay(a)} – ${formatDay(b)}`;
 /** The street part of a feed title: "Stettiner Straße - Errichtung … // Vollsperrung" → "Stettiner Straße". */
-export const shortTitle = (title: string): string => title.split(/ - | \/\/ /)[0].trim() || title;
+export const shortTitle = (title: string): string => placeOf(title);
 /** "47 days later", "12 days earlier". */
 export const shiftText = (days: number): string => (days === 0 ? strings().format.publishedDates : strings().format.shift(days));
 /** Clashes in plain numbers: "3 sites on 40 days", or "none". */

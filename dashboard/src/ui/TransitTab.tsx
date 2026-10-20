@@ -6,6 +6,7 @@ import { formatDay } from '../model/days';
 import { Derived } from './Derived';
 import { metres, num, shortTitle } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
 import { useSettings } from './useSettings';
 import { transitWorking } from './working';
 
@@ -81,7 +82,7 @@ export function TransitTab({ gaps, pressure, bikes, parkRide, date, selected, on
               <h4>{t.withoutRail}</h4>
               <ul className="plain">
                 {gap.uncoveredSites.map((s) => (
-                  <li key={s.id}><button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button> <span className="muted">{s.stop && t.toStop(metres(s.stop.m), s.stop.name)}</span></li>
+                  <li key={s.id}><SiteLink site={s} onSelect={onSelectSite} /> <span className="muted">{s.stop && t.toStop(metres(s.stop.m), s.stop.name)}</span></li>
                 ))}
               </ul>
             </>

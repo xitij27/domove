@@ -6,6 +6,8 @@ import { useStrings } from '../i18n';
 import { Derived } from './Derived';
 import { clashText, dayRange, metres, shiftText } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
+import { ownerName, placeOf, publishedTitle, siteName } from './siteNames';
 import { useSettings } from './useSettings';
 import { clashWorking, freedWorking, moveWorking, priorityWorking, severityWorking } from './working';
 
@@ -36,7 +38,7 @@ function MiniGantt({ site, others, date }: { site: Site; others: Site[]; date: n
     <div className="gantt" role="list">
       {rows.map((s) => (
         <div className="gantt-row" role="listitem" key={s.id}>
-          <span className={s.id === site.id ? 'gantt-label current' : 'gantt-label'} title={s.title}>{s.title}</span>
+          <span className={s.id === site.id ? 'gantt-label current' : 'gantt-label'} title={publishedTitle(s) ?? s.title}>{s.hypothetical ? s.title : placeOf(s.title)}</span>
           <span className="gantt-track">
             <span
               className={`gantt-bar ${s.band}${s.id === site.id ? ' current' : ''}`}
@@ -56,6 +58,8 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
   const cfg = useSettings();
   const t = useStrings();
   const s = t.site;
+  const name = siteName(site);
+  const cityText = t.siteName.cityText;
   const started = site.baseStart <= today && !site.hypothetical;
   const moved = shift?.[0] ?? 0;
   const earlier = shift?.[1] ?? 0;
@@ -67,7 +71,8 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg>
         {s.back}
       </button>
-      <h2 className="site-title">{site.title}</h2>
+      <h2 className="site-title">{name.place}</h2>
+      {name.work && <p className="site-subtitle" lang={name.german ? 'de' : undefined}>{name.work}</p>}
       <div className="chips">
         <Derived className={`chip band ${site.band}`} how={severityWorking(site, cfg)}><i className="swatch" />{t.bands[site.band]}</Derived>
         <span className="chip">{t.kinds[site.kind]}</span>
@@ -77,10 +82,11 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
         {site.hypothetical && <span className="chip">{s.proposed}</span>}
       </div>
       <dl className="facts">
-        <dt>{s.owner}</dt><dd>{site.hypothetical ? s.proposedHere : site.owner || '–'}</dd>
+        <dt>{s.owner}</dt><dd>{site.hypothetical ? s.proposedHere : ownerName(site.owner) || '–'}</dd>
         <dt>{s.district}</dt><dd>{site.district || '–'}</dd>
         <dt>{site.hypothetical ? s.dates : s.published}</dt><dd>{site.openEnded ? s.since(formatDay(site.baseStart)) : dayRange(site.baseStart, site.baseEnd)}</dd>
         {(moved !== 0 || earlier !== 0) && <><dt>{s.proposed}</dt><dd className="proposed">{dayRange(site.start, site.end)}</dd></>}
+        {!site.hypothetical && <><dt>{cityText}</dt><dd className="city-text" lang="de">{site.title}</dd></>}
       </dl>
 
       {plan && !started && (
@@ -121,7 +127,7 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
         <section className="block">
           <h3>{s.finishSooner}</h3>
           {site.openEnded ? (
-            <p className="muted">{s.noEnd(site.owner)}</p>
+            <p className="muted">{s.noEnd(ownerName(site.owner))}</p>
           ) : (
             <label className="slider">
               <span>{earlier === 0 ? s.endsAsPublished(formatDay(site.baseEnd)) : s.ends(shiftText(earlier), formatDay(site.end))}</span>
@@ -152,7 +158,7 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
               if (!other) return null;
               return (
                 <li key={other.id}>
-                  <button className="link-button" onClick={() => onSelect(other.id)}>{other.title}</button>
+                  <SiteLink site={other} onSelect={onSelect} />
                   <div className="muted">
                     {c.type === 'bundle' ? s.sameStretch(metres(c.m), c.days) : s.away(metres(c.m), c.days, dayRange(c.from, c.to))}
                   </div>

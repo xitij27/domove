@@ -4,6 +4,7 @@ import type { TrafficContext } from '../model/trafficContext';
 import type { Site } from '../model/sites';
 import { dayRange, metres } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
 import { useSettings } from './useSettings';
 
 export function TrafficContextPanel({ context, evidence, byId, onSelect, scenario = false }: {
@@ -29,7 +30,7 @@ export function TrafficContextPanel({ context, evidence, byId, onSelect, scenari
             <li key={`${s.name}:${i}`}>{t.stop(s.name, metres(s.m), s.detail)}</li>
           ))}</ul>}
           {!!context.nearby.length && <ul className="plain analytics-list">{context.nearby.map((p) => (
-            <li key={p.id}><button className="link-button" onClick={() => onSelect(p.id)}>{byId.get(p.id)?.title ?? p.id}</button><div className="muted small">{t.between(metres(p.metres), dayRange(p.from, p.to))}</div></li>
+            <li key={p.id}>{byId.has(p.id) ? <SiteLink site={byId.get(p.id)!} onSelect={onSelect} /> : <button className="link-button" onClick={() => onSelect(p.id)}>{p.id}</button>}<div className="muted small">{t.between(metres(p.metres), dayRange(p.from, p.to))}</div></li>
           ))}</ul>}
           <details>
             <summary>{t.sources}</summary>

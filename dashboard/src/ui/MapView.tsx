@@ -16,6 +16,7 @@ import { dayRange } from './format';
 import { PALETTES } from './theme';
 import type { Palette, Theme } from './theme';
 import { useSettings } from './useSettings';
+import { ownerName, siteName } from './siteNames';
 import { severityText } from './working';
 
 // The bundled build can't find the worker next to its own chunk, so point it there.
@@ -332,7 +333,9 @@ export function MapView(props: Props) {
       const road = `${t.kinds[s.kind]} · ${t.roads[s.road]}${s.roadName ? ` (${s.roadName})` : ''}`;
       const p = props.outlookProjects?.find((p) => p.id === s.id);
       const dates = p ? `${p.start === null ? t.map.unknownStart : formatDay(p.start)} – ${p.end === null ? t.map.unknownEnd : formatDay(p.end)}` : dayRange(s.start, s.end);
-      popup.setLngLat(e.lngLat).setDOMContent(popupContent(s.title, [road, t.map.severity(severityText(s, cfg), s.band), `${s.hypothetical ? t.map.proposed : s.owner} · ${dates}`])).addTo(map);
+      const name = siteName(s);
+      const lines = [name.work, road, t.map.severity(severityText(s, cfg), s.band), `${s.hypothetical ? t.map.proposed : ownerName(s.owner)} · ${dates}`];
+      popup.setLngLat(e.lngLat).setDOMContent(popupContent(name.place, lines.filter(Boolean))).addTo(map);
     } else if (poi) {
       popup.setLngLat(e.lngLat).setDOMContent(popupContent(String(poi.properties.name), [String(poi.properties.detail)].filter(Boolean))).addTo(map);
     } else if (line) {

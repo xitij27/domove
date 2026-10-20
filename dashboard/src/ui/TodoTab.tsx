@@ -10,6 +10,7 @@ import type { Site } from '../model/sites';
 import { Derived } from './Derived';
 import { clashText, dayRange, metres, shiftText, shortTitle } from './format';
 import { Info } from './Info';
+import { SiteLink } from './SiteName';
 import { useSettings } from './useSettings';
 import { alignWorking, finishWorking, moveWorking, transitWorking } from './working';
 
@@ -33,7 +34,7 @@ export function TodoTab({ todo, byId, horizon, onSelectSite, onShift, onOpenDist
   const cfg = useSettings();
   const t = useStrings().todo;
   const site = (s: Site) => (
-    <button className="link-button" title={s.title} onClick={() => onSelectSite(s.id)}>{shortTitle(s.title)}</button>
+    <SiteLink site={s} onSelect={onSelectSite} />
   );
   // each row: what it's about, the action, its numbers in plain terms, and the one button
   const row = (item: Todo): [string, ReactNode, ReactNode, ReactNode, ReactNode] => {

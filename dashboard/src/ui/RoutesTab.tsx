@@ -11,6 +11,7 @@ import type { Coverage, Detour, Group } from '../routing/valhalla';
 import type { MapOverlay } from './MapView';
 import { Derived } from './Derived';
 import { metres, minutes, shortTitle } from './format';
+import { SiteLink } from './SiteName';
 
 type Place = { key: string; label: string; at: LonLat };
 type Props = {
@@ -66,7 +67,7 @@ function SiteList({ title, sites, onSelectSite }: { title: string; sites: Site[]
   return (
     <>
       <h4>{title}</h4>
-      <ul className="plain">{sites.map((s) => <li key={s.id}><button className="link-button" onClick={() => onSelectSite(s.id)}>{s.title}</button></li>)}</ul>
+      <ul className="plain">{sites.map((s) => <li key={s.id}><SiteLink site={s} onSelect={onSelectSite} /></li>)}</ul>
     </>
   );
 }
