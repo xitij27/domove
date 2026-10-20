@@ -15,7 +15,9 @@ import { berlinToday, buildEvidence, outlook, potentialConflicts, validLonLat } 
 import { impactAssessment } from './model/impact';
 import type { ImpactTarget } from './model/impact';
 import type { OutlookDays } from './model/outlook';
+import { blocksBlueLight } from './model/closures';
 import { bboxOf, shapeOf, toLonLat, toXY } from './model/geo';
+import { preparePopulation } from './model/population';
 import type { BBox, LonLat } from './model/geo';
 import { DEFAULT_PARAMS, laneKm, LOAD_SCALE, roadKm, simulate } from './model/capacity';
 import { applyShifts, changeCount, EMPTY_SCENARIO, hypotheticalInput, scenarioCsv } from './model/scenario';
@@ -156,7 +158,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     () => simulate(sites, roadLaneKm, data.residents, date, capacityParams, cfg),
     [sites, roadLaneKm, data.residents, date, capacityParams, cfg],
   );
-  const gaps = useMemo(() => transitGaps(sites, data.residents, date, cfg), [sites, data.residents, date, cfg]);
+  const population = useMemo(() => (data.population ? preparePopulation(data.population) : null), [data.population]);
+  const gaps = useMemo(() => transitGaps(sites, data.residents, population, date, cfg), [sites, data.residents, population, date, cfg]);
   const pressure = useMemo(() => stopsUnderPressure(sites, data.stops, date, cfg), [sites, data.stops, date, cfg]);
   const todo = useMemo(() => todoList(clusters, advice, bundles, byId, gaps, today), [clusters, advice, bundles, byId, gaps, today]);
   const balance = useMemo(
@@ -312,7 +315,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     return numbers;
   }, [tab, ranked, todo]);
   const districtValues = useMemo(() => {
-    if (tab === 'transit') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: gaps.find((g) => g.district === d.name)?.score ?? 0 }));
+    if (tab === 'transit') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: gaps.find((g) => g.district === d.name)?.cutOff || null }));
     if (tab === 'capacity') return data.districts.map((d) => ({ name: d.name, geometry: d.geometry, value: capacityResult.districts.find((r) => r.district === d.name)?.load ?? null }));
     return [];
   }, [tab, data.districts, gaps, capacityResult]);
@@ -340,7 +343,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     const s = t.stats;
     const at = load[date - from];
     const inBand = (b: Band) => active.filter((site) => site.band === b).length;
-    const closed = active.filter((site) => site.kinds.includes('full'));
+    const closed = active.filter((site) => blocksBlueLight(site.kinds));
     return {
       active: {
         value: String(active.length), label: s.active,
@@ -573,7 +576,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
                 onSelect={selectDistrict} onSelectSite={selectSite} />
             </div>
             <div hidden={!!selected || settingsOpen || tab !== 'transit'}>
-              <TransitTab gaps={gaps} pressure={pressure} bikes={data.bikes} parkRide={data.parkRide} date={date} residentsYear={data.residentsYear}
+              <TransitTab gaps={gaps} pressure={pressure} bikes={data.bikes} parkRide={data.parkRide} date={date}
                 selected={district} onSelect={selectDistrict} onSelectSite={selectSite} />
             </div>
             {MODES[mode].groups.length > 0 && <div hidden={!!selected || settingsOpen || tab !== 'routes'}>

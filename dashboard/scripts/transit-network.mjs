@@ -1,11 +1,13 @@
-// Builds public/transit-lines.json from OpenStreetMap: Dortmund's Stadtbahn lines in DSW21's colours, S-Bahn and
-// regional trains, and local buses as one feature per street with the lines that use it. Rerun after a timetable
-// change (usually December): `npm run transit-lines`. Data © OpenStreetMap contributors, ODbL: the file is a
-// derived database, so it stays under the ODbL and needs the attribution the dashboard shows.
+// Builds Dortmund's public transport from OpenStreetMap: public/transit-lines.json (the Stadtbahn lines in DSW21's
+// colours, S-Bahn and regional trains, and local buses as one feature per street with the lines that use it) and
+// public/transit-stops.json (every bus, tram and train stop, for the walking distances the scores use). Rerun after a
+// timetable change (usually December): `npm run transit-network`. Data © OpenStreetMap contributors, ODbL: both files
+// are derived databases, so they stay under the ODbL and need the attribution the dashboard shows.
 import { writeFile } from 'node:fs/promises';
 import { bboxClip, simplify } from '@turf/turf';
 
 const OUT = new URL('../public/transit-lines.json', import.meta.url);
+const STOPS_OUT = new URL('../public/transit-stops.json', import.meta.url);
 const QUERY = `[out:json][timeout:180];
 area["name"="Dortmund"]["boundary"="administrative"]["admin_level"="6"]->.a;
 relation["type"="route"]["route"~"^(tram|bus|train)$"](area.a);
@@ -32,13 +34,16 @@ function pieces(rel) {
   });
 }
 
-const res = await fetch('https://overpass-api.de/api/interpreter', {
-  method: 'POST',
-  headers: { 'User-Agent': 'domove-dashboard (+https://github.com/xitij27/domove)', 'Content-Type': 'application/x-www-form-urlencoded' },
-  body: new URLSearchParams({ data: QUERY }),
-});
-if (!res.ok) throw new Error(`Overpass: HTTP ${res.status}`);
-const { elements } = await res.json();
+async function overpass(query) {
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'User-Agent': 'domove-dashboard (+https://github.com/xitij27/domove)', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ data: query }),
+  });
+  if (!res.ok) throw new Error(`Overpass: HTTP ${res.status}`);
+  return (await res.json()).elements;
+}
+const elements = await overpass(QUERY);
 
 const lines = new Map(); // `${kind}:${ref}` → one feature per Stadtbahn or train line, both directions merged
 const streets = new Map(); // way piece → the bus lines that use it
@@ -87,3 +92,34 @@ await writeFile(OUT, JSON.stringify({
   features,
 }));
 console.log(`${count('stadtbahn')} Stadtbahn lines, ${count('train')} train lines, ${count('bus')} bus street pieces → ${OUT.pathname}`);
+
+// Every stop in the same box as the lines, so a work near the city limit still finds the stop across it.
+const stopElements = await overpass(`[out:json][timeout:120];
+(
+  node["highway"="bus_stop"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+  node["public_transport"="platform"]["bus"="yes"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+  node["railway"="tram_stop"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+  node["public_transport"="stop_position"]["tram"="yes"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+  nwr["railway"~"^(station|halt)$"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+  nwr["public_transport"="station"]["train"="yes"](${BOX[1]},${BOX[0]},${BOX[3]},${BOX[2]});
+);
+out tags center;`);
+/** Stadtbahn stations are often tagged as railway stations of the light-rail or subway kind; they count as tram stops. */
+function stopKind(t) {
+  if (t.railway === 'tram_stop' || (t.public_transport === 'stop_position' && t.tram === 'yes') || ['light_rail', 'subway', 'tram'].includes(t.station)) return 'tram';
+  if (t.railway === 'station' || t.railway === 'halt' || (t.public_transport === 'station' && t.train === 'yes')) return 'rail';
+  return 'bus';
+}
+const stops = stopElements.flatMap((e) => {
+  const lon = e.lon ?? e.center?.lon;
+  const lat = e.lat ?? e.center?.lat;
+  return typeof lon === 'number' && typeof lat === 'number' ? [[...round([lon, lat]), stopKind(e.tags ?? {}), e.tags?.name ?? '']] : [];
+});
+const stopCount = (kind) => stops.filter((s) => s[2] === kind).length;
+if (stopCount('bus') < 1000 || stopCount('tram') < 100 || stopCount('rail') < 20) throw new Error('Overpass returned too few stops; keeping the old file');
+await writeFile(STOPS_OUT, JSON.stringify({
+  generated: new Date().toISOString().slice(0, 10),
+  attribution: '© OpenStreetMap contributors, ODbL',
+  stops,
+}));
+console.log(`${stopCount('bus')} bus, ${stopCount('tram')} tram and ${stopCount('rail')} train stops → ${STOPS_OUT.pathname}`);

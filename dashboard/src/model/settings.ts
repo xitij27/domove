@@ -59,19 +59,25 @@ const TABLE = {
   'window.holidayBonus': { group: 'dates', value: 0.1, min: 0, max: 0.5, step: 0.01, unit: 'timesSeverity' },
   'window.togetherCredit': { group: 'dates', value: 0.5, min: 0, max: 1, step: 0.05, unit: 'timesOverlap' },
 
-  'reach.rail': metres('access', 600, 200, 1500),
+  // walking distance to a bus or tram stop, and the further one people walk to a train
+  'reach.stop': metres('access', 400, 100, 1000),
+  'reach.station': metres('access', 1000, 300, 3000),
   'reach.fire': metres('access', 500, 100, 2000),
   'reach.hospital': metres('access', 300, 100, 2000),
 
+  // severity to this power: at 2 a full closure on a main road (1) outweighs one on a side street (0.3) eleven times,
+  // so time left and nearby works no longer outrank how much a work closes
+  'priority.severityPower': { group: 'priorities', value: 2, min: 1, max: 3, step: 0.5 },
   'priority.horizon': { group: 'priorities', value: 180, min: 30, max: 365, step: 5, unit: 'days' },
   'priority.perOverlap': { group: 'priorities', value: 0.5, min: 0, max: 2, step: 0.1, unit: 'timesExtra' },
   'priority.maxOverlaps': { group: 'priorities', value: 6, min: 1, max: 20, step: 1, unit: 'sites' },
   'priority.emergency': { group: 'priorities', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'times' },
-  'priority.noRail': { group: 'priorities', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'times' },
+  'priority.noStop': { group: 'priorities', value: 1.5, min: 1, max: 3, step: 0.1, unit: 'times' },
   'priority.sooner': { group: 'priorities', value: 14, min: 1, max: 60, step: 1, unit: 'days' },
 
   'transit.days': { group: 'transit', value: 30, min: 7, max: 90, step: 1, unit: 'days' },
-  'transit.mainRoadShare': { group: 'transit', value: 0.5, min: 0, max: 1, step: 0.05, unit: 'times' },
+  // residents this close to a work with no stop nearby count as needing another way to travel
+  'transit.near': metres('transit', 300, 100, 800),
   'stop.minSeverity': { group: 'transit', value: 0.5, min: 0.1, max: 1, step: 0.05 },
   'stop.radius': metres('transit', 500, 100, 1500),
 

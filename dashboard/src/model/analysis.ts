@@ -4,16 +4,19 @@ import { PERIODS } from '../data/sources';
 import type { PeriodKey, Poi, ProgrammeProject } from '../data/sources';
 import { strings } from '../i18n';
 import type { Strings } from '../i18n';
+import { blocksBlueLight } from './closures';
 import { overlapDays } from './days';
 import { pointShapeDist, toXY } from './geo';
+import { cellsNear, residentsOf } from './population';
+import type { Population } from './population';
 import { DEFAULT_SETTINGS } from './settings';
 import type { Settings } from './settings';
+import { servedByTransit } from './sites';
 import type { Neighbour, Site } from './sites';
 
 /** A priority's time factor is days left over this many: a month of works counts 1. */
 export const PER_DAYS = 30;
 /** Transit need is per this many residents. */
-export const PER_RESIDENTS = 10_000;
 
 export const isActive = (s: Site, day: number): boolean => s.start <= day && day <= s.end;
 export type DayRange = [number, number];
@@ -260,14 +263,14 @@ export function todoList(
     const [first, second] = [byId.get(b.a), byId.get(b.b)].sort((x, y) => (x?.start ?? 0) - (y?.start ?? 0));
     return first && second ? [{ kind: 'align', first, second, start: Math.max(today + 1, first.start), days: b.days }] : [];
   });
-  const transit = gaps.filter((g) => g.score > 0).map((gap): Todo => ({ kind: 'transit', gap }));
+  const transit = gaps.filter((g) => g.cutOff > 0).map((gap): Todo => ({ kind: 'transit', gap }));
   return [...moves, ...aligns, ...finish, ...transit];
 }
 
 export type Priority = {
   site: Site; score: number; remaining: number; overlapping: number; overlapDays: number; freedOverlapDays: number; reasons: string[];
-  /** score = severity × time × overlap × emergency × rail */
-  factors: { time: number; overlap: number; emergency: number; rail: number };
+  /** score = severity^power × time × overlap × emergency × no stop */
+  factors: { severity: number; time: number; overlap: number; emergency: number; stop: number };
 };
 
 /** Running works ranked by how much finishing them sooner would help, with the reasons in `t`'s language. */
@@ -290,23 +293,26 @@ export function priorities(sites: Site[], neighbours: Map<string, Neighbour[]>, 
         sharedDays += now;
         freedOverlapDays += now - overlapDays(day, s.end - earlier, o.start, o.end);
       }
-      const nearFire = s.fire.m <= cfg['reach.fire'];
-      const nearHospital = s.hospital.m <= cfg['reach.hospital'];
-      const noRail = s.rail.m > cfg['reach.rail'];
+      // only a work that stops a fire engine slows one down; the routes use the same rule
+      const blocking = blocksBlueLight(s.kinds);
+      const nearFire = blocking && s.fire.m <= cfg['reach.fire'];
+      const nearHospital = blocking && s.hospital.m <= cfg['reach.hospital'];
+      const noStop = !servedByTransit(s, cfg);
       const factors = {
+        severity: s.severity ** cfg['priority.severityPower'],
         time: remaining / PER_DAYS,
         overlap: 1 + cfg['priority.perOverlap'] * Math.min(overlapping, cfg['priority.maxOverlaps']),
         emergency: nearFire || nearHospital ? cfg['priority.emergency'] : 1,
-        rail: noRail ? cfg['priority.noRail'] : 1,
+        stop: noStop ? cfg['priority.noStop'] : 1,
       };
-      const score = s.severity * factors.time * factors.overlap * factors.emergency * factors.rail;
+      const score = factors.severity * factors.time * factors.overlap * factors.emergency * factors.stop;
       const p = t.priorities;
       const reasons = [
         p.onRoad(t.kinds[s.kind], t.roads[s.road], s.roadName),
         overlapping ? p.overlapping(overlapping, cfg['clash.radius'] / 1000) : '',
         nearFire ? p.from(Math.round(s.fire.m), s.fire.name) : '',
         nearHospital ? p.from(Math.round(s.hospital.m), s.hospital.name) : '',
-        noRail ? p.noRail(cfg['reach.rail']) : '',
+        noStop ? p.noStop(cfg['reach.stop'], cfg['reach.station']) : '',
         s.openEnded ? p.noEnd : '',
         s.start < day - 365 ? p.since(new Date(s.start * 86_400_000).getUTCFullYear()) : '',
       ].filter(Boolean);
@@ -317,52 +323,46 @@ export function priorities(sites: Site[], neighbours: Map<string, Neighbour[]>, 
 
 export type DistrictGap = {
   district: string;
+  /** the district's residents (city register), for scale */
   residents: number;
-  exposure: number;
-  uncovered: number;
-  mainRoad: number;
-  /** (uncovered + half the main-road closures) per 10,000 residents */
-  score: number;
+  /** residents living within transit.near of a work with no stop nearby, each 100 m square counted once */
+  cutOff: number;
+  /** works in the window, from clash.minSeverity, with no bus or tram stop or train station in walking distance */
   uncoveredSites: Site[];
+  /** closures on main roads, where buses run: the diversions to agree with the operator */
   mainRoadSites: Site[];
 };
 
 const BUS_PROXY_KINDS = new Set(['full', 'half', 'carriageway', 'one_way']);
 
 /**
- * Per district over the window: disruption with no Stadtbahn stop in walking distance, and closures on main roads,
- * where buses run (there's no open bus-stop data), per 10,000 residents.
+ * Per district over the window: the works with no bus or tram stop or train station in walking distance, and how many
+ * people live near them (2022 census). Without the population file the count stays 0, so nothing is flagged on missing data.
  */
-export function transitGaps(sites: Site[], residents: Map<string, number>, from: number, cfg: Settings = DEFAULT_SETTINGS): DistrictGap[] {
-  const days = cfg['transit.days'];
-  const to = from + days - 1;
-  const byDistrict = new Map<string, DistrictGap>();
+export function transitGaps(
+  sites: Site[], residents: Map<string, number>, population: Population | null, from: number, cfg: Settings = DEFAULT_SETTINGS,
+): DistrictGap[] {
+  const to = from + cfg['transit.days'] - 1;
+  const byDistrict = new Map<string, DistrictGap & { cells: Set<number> }>();
   for (const s of sites) {
-    const d = overlapDays(s.start, s.end, from, to);
-    if (!d || !s.district) continue;
-    const gap = byDistrict.get(s.district) ?? {
-      district: s.district, residents: residents.get(s.district) ?? 0, exposure: 0, uncovered: 0, mainRoad: 0, score: 0, uncoveredSites: [], mainRoadSites: [],
-    };
-    const w = (s.severity * d) / days;
-    gap.exposure += w;
-    if (s.rail.m > cfg['reach.rail'] && s.severity >= cfg['clash.minSeverity']) {
-      gap.uncovered += w;
+    if (!s.district || !overlapDays(s.start, s.end, from, to)) continue;
+    const gap = byDistrict.get(s.district)
+      ?? { district: s.district, residents: residents.get(s.district) ?? 0, cutOff: 0, uncoveredSites: [], mainRoadSites: [], cells: new Set<number>() };
+    if (s.severity >= cfg['clash.minSeverity'] && !servedByTransit(s, cfg)) {
       gap.uncoveredSites.push(s);
+      if (population) for (const i of cellsNear(s.shape, cfg['transit.near'], population)) gap.cells.add(i);
     }
-    if (s.road === 'main' && s.kinds.some((k) => BUS_PROXY_KINDS.has(k))) {
-      gap.mainRoad += w;
-      gap.mainRoadSites.push(s);
-    }
+    if (s.road === 'main' && s.kinds.some((k) => BUS_PROXY_KINDS.has(k))) gap.mainRoadSites.push(s);
     byDistrict.set(s.district, gap);
   }
   return [...byDistrict.values()]
-    .map((g) => ({
+    .map(({ cells, ...g }) => ({
       ...g,
-      score: g.residents ? (g.uncovered + cfg['transit.mainRoadShare'] * g.mainRoad) / (g.residents / PER_RESIDENTS) : 0,
+      cutOff: population ? residentsOf(cells, population) : 0,
       uncoveredSites: g.uncoveredSites.sort((x, y) => y.severity - x.severity),
       mainRoadSites: g.mainRoadSites.sort((x, y) => y.severity - x.severity),
     }))
-    .sort((x, y) => y.score - x.score);
+    .sort((x, y) => y.cutOff - x.cutOff || y.uncoveredSites.length - x.uncoveredSites.length);
 }
 
 export type StopPressure = { stop: Poi; sites: Site[] };

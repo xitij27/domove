@@ -8,7 +8,7 @@ const start = toDay('2026-11-02');
 const scenario: Scenario = {
   shifts: { a: [14, 14], b: [0, -10] },
   added: [{ id: 'h1', name: 'Kanal Hörde', kind: 'full', center: [7.49, 51.48], radius: 40, start, days: 30 }],
-  settings: { 'reach.rail': 800, 'weight.half': 0.45 },
+  settings: { 'reach.stop': 800, 'weight.half': 0.45 },
 };
 
 describe('scenario link', () => {
@@ -26,9 +26,9 @@ describe('scenario link', () => {
         { ...scenario.added[0], center: [13.4, 52.5] },
         { ...scenario.added[0], id: 'fine', name: '  ' },
       ],
-      settings: { 'reach.rail': 800, 'reach.fire': 99_999, 'capacity.maxLoss': 1, 'weight.full': 0.5, 'band.high': '0.7', nope: 1, toString: 1 },
+      settings: { 'reach.stop': 800, 'reach.fire': 99_999, 'capacity.maxLoss': 1, 'weight.full': 0.5, 'band.high': '0.7', nope: 1, toString: 1 },
     }));
-    expect(decodeScenario(evil)).toEqual({ shifts: { ok: [1, 1] }, added: [{ ...scenario.added[0], id: 'fine', name: 'Proposed project' }], settings: { 'reach.rail': 800 } });
+    expect(decodeScenario(evil)).toEqual({ shifts: { ok: [1, 1] }, added: [{ ...scenario.added[0], id: 'fine', name: 'Proposed project' }], settings: { 'reach.stop': 800 } });
     expect(decodeScenario('not base64 at all!')).toEqual({ shifts: {}, added: [], settings: {} });
     expect(decodeScenario(btoa('null'))).toEqual({ shifts: {}, added: [], settings: {} });
   });

@@ -1,6 +1,6 @@
 // The first view: every action the other views suggest, one line each, numbered like the map.
 import type { ReactNode } from 'react';
-import { useStrings } from '../i18n';
+import { useStrings, whole } from '../i18n';
 import type { Strings } from '../i18n';
 import type { Todo } from '../model/analysis';
 import { formatDay, formatShort } from '../model/days';
@@ -26,7 +26,7 @@ const sections = (cfg: Settings, t: Strings['todo']): [Todo['kind'], string, str
   ['move', t.move, t.moveAbout(metres(cfg['clash.radius']))],
   ['align', t.align, t.alignAbout],
   ['finish', t.finish, t.finishAbout],
-  ['transit', t.transit, t.transitAbout(metres(cfg['reach.rail']), cfg['transit.days'])],
+  ['transit', t.transit, t.transitAbout(metres(cfg['reach.stop']), metres(cfg['reach.station']), metres(cfg['transit.near']), cfg['transit.days'])],
 ];
 
 export function TodoTab({ todo, byId, horizon, onSelectSite, onShift, onOpenDistrict }: Props) {
@@ -69,7 +69,7 @@ export function TodoTab({ todo, byId, horizon, onSelectSite, onShift, onOpenDist
       case 'transit':
         return [
           `t${item.gap.district}`, <strong>{item.gap.district}</strong>,
-          <Derived how={transitWorking(item.gap, cfg)}>{t.farFromRail(item.gap.uncoveredSites.length)}</Derived>,
+          <Derived how={transitWorking(item.gap, cfg)}>{t.cutOff(whole(item.gap.cutOff), item.gap.uncoveredSites.length)}</Derived>,
           item.gap.mainRoadSites.length ? t.onMainRoads(item.gap.mainRoadSites.length) : '',
           <button className="button" onClick={() => onOpenDistrict(item.gap.district)}>{t.open}</button>,
         ];

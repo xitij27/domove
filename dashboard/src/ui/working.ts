@@ -1,7 +1,7 @@
 // The working behind each figure the dashboard derives, from the numbers and the settings the model used for it,
 // in the dashboard's language.
 import { decimal, strings, whole } from '../i18n';
-import { PER_DAYS, PER_RESIDENTS } from '../model/analysis';
+import { PER_DAYS } from '../model/analysis';
 import type { DistrictGap, Priority, WindowOption } from '../model/analysis';
 import type { ImpactAssessment } from '../model/impact';
 import type { CapacityResult, DistrictLoad, Params } from '../model/capacity';
@@ -79,10 +79,8 @@ export function citywideWorking(r: CapacityResult, p: Params): Working {
 export const transitWorking = (g: DistrictGap, cfg: Settings): Working => {
   const w = strings().working;
   return [
-    [w.eachClosure, w.eachClosureHow(cfg['transit.days'])],
-    [w.farFromRail, w.farFromRailHow(g.uncoveredSites.length, num(cfg['clash.minSeverity']), metres(cfg['reach.rail']), num(g.uncovered))],
-    [w.mainRoads, w.busRoadsHow(g.mainRoadSites.length, num(g.mainRoad), num(cfg['transit.mainRoadShare']))],
-    [w.need, w.needHow(num(g.uncovered), num(cfg['transit.mainRoadShare']), num(g.mainRoad), num(g.residents / PER_RESIDENTS, 1), whole(PER_RESIDENTS), whole(g.residents), num(g.score))],
+    [w.counted, w.noStopWorksHow(g.uncoveredSites.length, num(cfg['clash.minSeverity']), metres(cfg['reach.stop']), metres(cfg['reach.station']))],
+    [w.residentsNear, w.residentsNearHow(whole(g.cutOff), metres(cfg['transit.near']))],
   ];
 };
 
@@ -90,12 +88,17 @@ export function priorityWorking(p: Priority, rank: number, of: number, cfg: Sett
   const t = strings();
   const w = t.working;
   const { site: s, factors: f } = p;
+  const near = s.fire.m <= cfg['reach.fire'] || s.hospital.m <= cfg['reach.hospital'];
+  // the stop that keeps a work off the "no stop" list: the bus or tram stop, else the station
+  const by = s.stop && s.stop.m <= cfg['reach.stop'] ? s.stop : s.station && s.station.m <= cfg['reach.station'] ? s.station : null;
   return [
     [w.severity, w.severityOn(t.kinds[s.kind], t.roads[s.road], severityText(s, cfg))],
+    [w.severityCounted, w.severityPowerHow(num(s.severity), num(cfg['priority.severityPower']), num(f.severity))],
     [w.timeLeft, w.timeLeftHow(num(f.time), p.remaining, cfg['priority.horizon'], PER_DAYS)],
     [w.overlaps, w.overlapsHow(num(f.overlap), num(cfg['priority.perOverlap']), km(cfg), p.overlapping, cfg['priority.maxOverlaps'])],
-    [w.fireHospital, w.fireHospitalHow(num(f.emergency), f.emergency > 1, metres(cfg['reach.fire']), metres(cfg['reach.hospital']))],
-    [w.stadtbahn, s.rail.m > cfg['reach.rail'] ? w.noStop(num(f.rail), metres(cfg['reach.rail'])) : w.stop(num(f.rail), s.rail.name, metres(s.rail.m))],
+    [w.fireHospital, f.emergency > 1 ? w.fireHospitalApplies(num(f.emergency), metres(cfg['reach.fire']), metres(cfg['reach.hospital']))
+      : near ? w.fireHospitalPassable(num(f.emergency)) : w.fireHospitalFar(num(f.emergency), metres(cfg['reach.fire']), metres(cfg['reach.hospital']))],
+    [w.stopNear, f.stop > 1 || !by ? w.noStop(num(f.stop), metres(cfg['reach.stop']), metres(cfg['reach.station'])) : w.stop(num(f.stop), by.name || '–', metres(by.m))],
     [w.score, w.scoreHow(num(p.score, 1), rank, of)],
   ];
 }

@@ -168,6 +168,8 @@ export function SitePanel({ site, plan, byId, conflicts, priority, advice, shift
         <Info>{s.waysInfo}</Info>
         <dl className="facts">
           <dt>{s.stadtbahn}</dt><dd>{site.rail.name ? `${site.rail.name} (${site.rail.detail || s.stop}), ${metres(site.rail.m)}` : '–'}</dd>
+          {site.stop && <><dt>{s.busTram}</dt><dd>{[site.stop.name, metres(site.stop.m)].filter(Boolean).join(', ')}</dd></>}
+          {site.station && <><dt>{s.station}</dt><dd>{[site.station.name, metres(site.station.m)].filter(Boolean).join(', ')}</dd></>}
           <dt>{s.fire}</dt><dd>{site.fire.name ? `${site.fire.name}, ${metres(site.fire.m)}` : '–'}</dd>
           <dt>{s.hospital}</dt><dd>{site.hospital.name ? `${site.hospital.name}, ${metres(site.hospital.m)}` : '–'}</dd>
         </dl>
