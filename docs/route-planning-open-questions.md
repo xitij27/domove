@@ -147,7 +147,7 @@ The plan stores nothing from a search unless the user saves the route. But `/api
 
 ## 10. What does "Open in Google Maps" hand over?
 
-**Decision:** no hand-off. The app shows our own turn-by-turn steps instead of opening Google Maps, because Google may still lead through a closure. #4's issue text needs to change accordingly. **Decided by:** xitij27, 16 Oct 2026.
+**Decision:** hand off to Google Maps, with via-points that keep Google on our way around the closures. The app does no navigation itself: no in-app turn-by-turn steps and no follow mode. **Decided by:** xitij27, 21 Oct 2026. This replaces the decision of 16 Oct 2026 (no hand-off, our own steps instead).
 
 In #4, tapping the notification should show the detour in Google Maps. But Google Maps doesn't know our closures and plans its own path between the points we hand over, and a link carries only a few via-points, so Google may still lead through a closure between two of them.
 

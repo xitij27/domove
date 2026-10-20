@@ -6,7 +6,7 @@ import { File, Paths } from 'expo-file-system';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Compass, { type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
-import { useFollowUser, useHasGyroscope, useLocationGranted } from './src/maps/location';
+import { useHasGyroscope, useLocationGranted } from './src/maps/location';
 import { CASING_COLORS, LINE_COLORS } from './src/maps/routeOverlay';
 import { signOf, SIGNS } from './src/maps/signs';
 import { fetchSites, type Site, type Status } from './src/sites';
@@ -175,7 +175,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   // Not state: the map reports it on every frame of a turn, and only the compass needs it.
   const heading = useRef(new Animated.Value(0)).current;
   const map = useRef<MapHandle>(null);
-  const [located, askLocation] = useLocationGranted();
+  const located = useLocationGranted();
   const gyroscope = useHasGyroscope();
   const [gyroWarned, setGyroWarned] = useState(false);
   const quiz = useQuiz();
@@ -251,41 +251,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
     : routeRatings.value ? highOnRoute(routeRatings.value.values()) : 0;
   const nameOf = useCallback((siteId: string) => siteName(sites.find((s) => s.id === siteId)?.title), [sites]);
 
-  // Start turns the shown route's map into a navigation view, as in Google Maps: the camera follows the user,
-  // tilted and turned the way they go, until Exit. It pauses while a place is chosen, which has the map to itself.
-  const [started, setStarted] = useState(false);
-  const navigating = started && !!onRoute;
-  // Moving the map while navigating leaves the camera where the user put it, until they re-centre.
-  const [following, setFollowing] = useState(true);
-  const stopFollowing = useCallback(() => setFollowing(false), []);
-  useFollowUser(map, route && navigating && following ? route.mode : null);
-
-  const start = () => {
-    const go = () => { setStarted(true); setFollowing(true); };
-    if (located) {
-      go();
-      return;
-    }
-    askLocation().then((p) => {
-      if (p.granted) go();
-      else if (!p.canAskAgain) {
-        Alert.alert(t.app.locationOff, t.app.locationOffBody, [
-          { text: t.app.notNow, style: 'cancel' },
-          { text: t.app.openSettings, onPress: () => { Linking.openSettings(); } },
-        ]);
-      }
-    }, () => {});
-  };
-
-  // Added after the route's own handler, so back exits navigation before it closes the route.
-  useEffect(() => {
-    if (!navigating) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setStarted(false); return true; });
-    return () => subscription.remove();
-  }, [navigating]);
-
-  // The quiz keeps its place while it is closed, and steps aside while choosing a place or navigating.
-  const quizShown = quizOpen && !picking && !navigating;
+  // The quiz keeps its place while it is closed, and steps aside while choosing a place.
+  const quizShown = quizOpen && !picking;
   useEffect(() => {
     if (!quizShown) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setQuizOpen(false); return true; });
@@ -302,8 +269,6 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
     selectSite(scene.site ? run.site : null);
     setForecastOpen(!!scene.forecast);
     setQuizOpen(!!scene.quiz);
-    if (scene.navigate) start();
-    else setStarted(false);
   };
   const showStep = (run: DemoRun, step: number) => {
     const { scene } = STEPS[step];
@@ -359,12 +324,11 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   // Keeps a route clear of the chips along the top, the controls on the right and the route card at the bottom.
   const routePadding = useMemo(() => ({ top: insets.top + 56, right: 72, bottom: 170, left: 24 }), [insets.top]);
 
-  // A newly shown route starts without a site card, as the open one may be off its way, and without navigating.
+  // A newly shown route starts without a site card, as the open one may be off its way.
   const [cardRoute, setCardRoute] = useState(route);
   if (route !== cardRoute) {
     setCardRoute(route);
     if (route) setSelected(null);
-    setStarted(false);
   }
 
   // A tapped construction alert opens its site's card, once the sites have loaded.
@@ -399,8 +363,6 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
         onPickAlternative={onRoute?.chooseAlternative}
         onCenterChange={picking ? setCenter : undefined}
         showUser={located}
-        navigating={navigating}
-        onUserMove={navigating && following ? stopFollowing : undefined}
       />
 
       <View style={[styles.overlay, { top: insets.top + 8 }]}>
@@ -420,9 +382,9 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
             </FadeTo>
           ))}
           <Fade>{loading && <ActivityIndicator color={palette.muted} style={[styles.chip, surface]} />}</Fade>
-          {/* the other map would open elsewhere than the pin, or than the user it follows */}
+          {/* the other map would open elsewhere than the pin */}
           <Fade style={styles.switch}>
-            {MapboxSitesMap && GOOGLE_OK && !picking && !navigating && (
+            {MapboxSitesMap && GOOGLE_OK && !picking && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t.app.mapProvider(mapboxOn ? 'Mapbox' : 'Google')}
@@ -434,17 +396,16 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
               </Pressable>
             )}
           </Fade>
-          {/* at the row's end, after the map switch; out of the way while a place is chosen or the user navigates */}
-          <Fade>{!picking && !navigating && <LanguageToggle theme={theme} />}</Fade>
+          {/* at the row's end, after the map switch; out of the way while a place is chosen */}
+          <Fade>{!picking && <LanguageToggle theme={theme} />}</Fade>
         </View>
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
-        {/* while navigating, north stays up until the user re-centres */}
-        <Compass heading={heading} theme={theme} onPress={() => { if (navigating) setFollowing(false); map.current?.pointNorth(); }} />
+        <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
         {/* choosing a place has the map to itself */}
         <Fade>{!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}</Fade>
         {/* last of the round controls, so it sits under the weather */}
-        <Fade>{!picking && !navigating && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}</Fade>
+        <Fade>{!picking && <QuizButton open={quizOpen} theme={theme} onPress={() => setQuizOpen(!quizOpen)} />}</Fade>
         <Fade>{!picking && <DemoButton running={!!demo} busy={demoBusy} theme={theme} onPress={demo ? endDemo : startDemo} />}</Fade>
       </View>
 
@@ -470,14 +431,6 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
 
       {/* lifts the cards over the keyboard while a quiz answer is typed */}
       <KeyboardAvoidingView behavior="padding" style={styles.bottom}>
-        <Reveal space={CARD_GAP}>
-          {navigating && !following && (
-            <Pressable accessibilityRole="button" accessibilityHint={t.app.recentreHint} onPress={() => setFollowing(true)} style={[styles.chip, surface, styles.recentre]}>
-              <MaterialIcons name="navigation" size={18} color={LINE_COLORS[theme]} />
-              <Text style={{ color: palette.text }}>{t.app.recentre}</Text>
-            </Pressable>
-          )}
-        </Reveal>
 
         <Reveal space={CARD_GAP}>
           {error && !picking && (
@@ -584,55 +537,43 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
                     </Text>
                   </View>
                 )}
-                {navigating ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityHint={t.app.exitHint}
-                    onPress={() => setStarted(false)}
-                    style={[styles.navButton, { backgroundColor: palette.status.current }]}
-                  >
-                    <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.exit}</Text>
-                  </Pressable>
-                ) : (
-                  <>
-                    {/* white or near-black on the route's blue, as the line's casing is */}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityHint={t.app.startHint}
-                      onPress={start}
-                      style={[styles.navButton, { backgroundColor: LINE_COLORS[theme] }]}
-                    >
-                      <MaterialIcons name="navigation" size={18} color={CASING_COLORS[theme]} />
-                      <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.start}</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={t.app.closeRoute}
-                      hitSlop={8}
-                      onPress={onCloseRoute}
-                      style={styles.routeClose}
-                    >
-                      <MaterialIcons name="close" size={22} color={palette.muted} />
-                    </Pressable>
-                  </>
-                )}
+                {/* The app does no navigation itself: Google Maps takes the way shown from here.
+                    White or near-black on the route's blue, as the line's casing is. */}
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={t.detours.openInGoogleMaps}
+                  accessibilityState={{ disabled: !googleMapsUrl }}
+                  disabled={!googleMapsUrl}
+                  onPress={openInGoogleMaps}
+                  style={[styles.navButton, { backgroundColor: LINE_COLORS[theme], opacity: googleMapsUrl ? 1 : 0.55 }]}
+                >
+                  <MaterialIcons name="open-in-new" size={18} color={CASING_COLORS[theme]} />
+                  <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.googleMaps}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t.app.closeRoute}
+                  hitSlop={8}
+                  onPress={onCloseRoute}
+                  style={styles.routeClose}
+                >
+                  <MaterialIcons name="close" size={22} color={palette.muted} />
+                </Pressable>
               </View>
-              {/* The way around construction and the others to pick; picked before leaving, so out of the way while navigating. */}
+              {!googleMapsUrl && <Text style={[styles.googleStops, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
+              {/* The way around construction and the others to pick. */}
               <Reveal space={8} clip>
-                {!navigating && (
-                  <DetourSummary
-                    detours={onRoute.detours}
-                    chosen={onRoute.chosen}
-                    onChoose={onRoute.choose}
-                    onRetry={onRoute.retryDetours}
-                    onOpenInGoogleMaps={googleMapsUrl ? openInGoogleMaps : undefined}
-                    nameOf={nameOf}
-                    theme={theme}
-                  />
-                )}
+                <DetourSummary
+                  detours={onRoute.detours}
+                  chosen={onRoute.chosen}
+                  onChoose={onRoute.choose}
+                  onRetry={onRoute.retryDetours}
+                  nameOf={nameOf}
+                  theme={theme}
+                />
               </Reveal>
-              {/* The route's alerts, next to the sites they are about; set before leaving, so out of the way while navigating. */}
-              <Reveal space={4} clip>{alerts && !navigating && <RouteAlerts alerts={alerts} theme={theme} />}</Reveal>
+              {/* The route's alerts, next to the sites they are about. */}
+              <Reveal space={4} clip>{alerts && <RouteAlerts alerts={alerts} theme={theme} />}</Reveal>
             </View>
           )}
         </Reveal>
@@ -711,7 +652,7 @@ const styles = StyleSheet.create({
   routeClose: { padding: 4 },
   navButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   navText: { fontSize: 15, fontWeight: '600' },
-  recentre: { alignSelf: 'flex-start', paddingVertical: 10 },
+  googleStops: { fontSize: 11, marginTop: 6 },
   title: { fontSize: 16, fontWeight: '600' },
   crash: { backgroundColor: '#111', paddingHorizontal: 16, gap: 8 },
   crashTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },

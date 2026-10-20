@@ -6,7 +6,6 @@ import type { Site } from '../sites';
 export type Scene = {
   route?: boolean;
   site?: boolean;
-  navigate?: boolean;
   forecast?: boolean;
   quiz?: boolean;
   /** Which way along the route to show, once the ways around construction are found; the recommended one (0) if left out. */
@@ -15,7 +14,7 @@ export type Scene = {
   action?: 'alerts' | 'send';
 };
 
-export type DemoStepId = 'sites' | 'site' | 'route' | 'ways' | 'another' | 'alerts' | 'alert' | 'opened' | 'navigation' | 'weather' | 'quiz';
+export type DemoStepId = 'sites' | 'site' | 'route' | 'ways' | 'another' | 'alerts' | 'alert' | 'opened' | 'google' | 'weather' | 'quiz';
 /** A step's title and text are in the i18n strings, under its id. */
 export type DemoStep = { id: DemoStepId; scene: Scene };
 
@@ -32,7 +31,7 @@ export const STEPS: DemoStep[] = [
   { id: 'alerts', scene: { route: true, site: true, action: 'alerts' } },
   { id: 'alert', scene: { route: true, site: true, action: 'send' } },
   { id: 'opened', scene: { route: true, site: true } },
-  { id: 'navigation', scene: { route: true, navigate: true } },
+  { id: 'google', scene: { route: true } },
   { id: 'weather', scene: { route: true, forecast: true } },
   { id: 'quiz', scene: { route: true, quiz: true } },
 ];
