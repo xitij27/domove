@@ -27,7 +27,7 @@ The features are grouped by who uses them. The roles run across the header. Each
   A chip per Stadtbahn line (U41–U49) picks out that line: the map frames its route and fades the rest, and a second click brings them back. Stadtbahn stops are drawn small at city zoom so the lines read first. S-Bahn and regional trains, bike share and P+R start switched off.
 - **To do → Transit.** A "Far from the Stadtbahn" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
-- **A wider side panel.** Drag the panel's left edge to make it wider or narrower, between 320 px and 960 px, always leaving the map 360 px. Or focus the edge (Tab) and use the arrow keys, Shift for bigger steps. A double-click puts it back to 420 px. The browser remembers the width. On phones the panel sits under the map and keeps the full width.
+- **A wider side panel.** Drag the panel's left edge, marked by a small grip at mid-height, to make it wider or narrower, between 320 px and 960 px, always leaving the map 360 px. Or focus the edge (Tab) and use the arrow keys, Shift for bigger steps. A double-click puts it back to 420 px. The browser remembers the width. On phones the panel sits under the map and keeps the full width.
 - **Light by default.** The dashboard opens light whatever the system's setting. The sun/moon switch changes it, and the browser remembers the choice.
 
 ## What it answers
