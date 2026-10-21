@@ -5,7 +5,7 @@ const bridge: RouteObstacle = { routeId: 'r1', siteId: 's1', siteTitle: 'Bridge'
 const school: RouteObstacle = { routeId: 'r2', siteId: 's2', siteTitle: 'Park', destination: 'School', startsOn: '2026-10-30', endsOn: null };
 const week = { preference: 'ONE_WEEK_BEFORE', notificationTime: '09:00' } as const;
 
-function setup(allowed = true, routeLink = jest.fn(async (routeId: string) => `https://www.google.com/maps/dir/?api=1&origin=${routeId}&destination=work`)) {
+function setup(allowed = true, routeLink = jest.fn(async (routeId: string) => ({ url: `https://www.google.com/maps/dir/?api=1&origin=${routeId}&destination=work`, detourMinutes: 0 }))) {
   let file: string | null = null;
   const storage = { read: () => file, write: (value: string) => { file = value; } };
   const clock = { now: new Date(2026, 9, 16, 8) };
@@ -50,6 +50,13 @@ test('only routes with alerts on get a reminder, and only once across syncs and 
     routeId: 'r1', siteId: 's1', googleMapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=r1&destination=work',
   });
   expect(ctx.routeLink).toHaveBeenCalledWith('r1');
+});
+
+test('the reminder says how much longer the way around takes', async () => {
+  const ctx = setup(true, jest.fn(async (_routeId: string) => ({ url: 'https://www.google.com/maps/dir/?api=1&origin=a&destination=b', detourMinutes: 4 })));
+  await ctx.service.setSettings('r1', week);
+  await ctx.service.sync([bridge]);
+  expect(ctx.scheduled[0].payload.body).toContain('The way around it takes 4 min longer.');
 });
 
 test('changing the setting moves the reminder and disabling cancels it', async () => {

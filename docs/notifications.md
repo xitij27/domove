@@ -33,18 +33,18 @@ Disabled, its pending reminder is cancelled. If the obstacle check fails
 (offline, backend down), the reminders scheduled last time stay as they are.
 
 The alert reads: "There is a Construction Site at *site* on your Route to
-*destination*. Tap to open the route in Google Maps." Tapping it opens Google Maps
+*destination*. The way around it takes 4 min longer. Tap to open the route in Google Maps."
+The detour sentence is left out when no detour is needed, or when Google can't
+keep all of the route's saved stops (the link then follows the original route).
+Tapping it opens Google Maps
 with the alternative route (avoiding the construction site via waypoints), or the
 original route when no detour is needed (Issue #55).
 
-The route card on the map also includes an **Open in Google Maps** button on the
-detour summary row to forward to the selected alternative route or original route.
+The route card on the map also has a blue **Google Maps** button under the route's
+name, which opens the way shown (the selected alternative or the original route).
 
 ## Not yet
 
-- **Detour time in notification text.** Issue #4 asks for "Take a detour of __ minutes"
-  in the alert text. Until then the alert notifies about the closure and hands off
-  the computed detour route directly to Google Maps.
 - **Alert times while a route is open.** The alerts row reads the phone's
   reminders when the route opens and after each change, not again when the app
   re-checks obstacles on returning to the foreground; reopen the route to see

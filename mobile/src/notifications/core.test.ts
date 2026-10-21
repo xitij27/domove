@@ -41,6 +41,15 @@ test('the message says when future work starts and that tapping opens Google Map
     'There is a Construction Site at Hohe Straße on your Route. Tap to open the route in Google Maps.');
 });
 
+test('the message says how much longer the way around takes, when it does', () => {
+  expect(notificationContent(obstacle, now, 4).body).toBe(
+    'There will be a Construction Site at Hohe Straße on your Route to TU Dortmund from 30/10/2026. The way around it takes 4 min longer. Tap to open the route in Google Maps.');
+  expect(notificationContent(obstacle, now, 0).body).not.toMatch(/longer/);
+  setLanguage('de', false);
+  expect(notificationContent(obstacle, now, 4).body).toContain('Der Weg drumherum dauert 4 Min. länger.');
+  setLanguage('en', false);
+});
+
 test('the message is in the app\'s language', () => {
   setLanguage('de', false);
   try {
