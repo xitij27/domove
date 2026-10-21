@@ -1,4 +1,5 @@
 # Runs the app's and the planner dashboard's unit tests, and the route database tests, on every pull request.
+# Each job runs only when its own folder changed (or this workflow did), so a README-only change runs none.
 name: Checks
 
 on:
@@ -16,7 +17,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mobile: ${{ steps.diff.outputs.mobile }}
+      dashboard: ${{ steps.diff.outputs.dashboard }}
+      database: ${{ steps.diff.outputs.database }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Skipped jobs count as passed for required checks, so a filter here cannot block a pull request.
+      - name: Find which parts changed
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          case "$EVENT" in
+            pull_request) range="origin/$BASE_REF...HEAD" ;;
+            push) range="$BEFORE..HEAD" ;;
+            *) range="" ;;
+          esac
+          if [ -n "$range" ] && files=$(git diff --name-only "$range" 2>/dev/null); then
+            echo "$files"
+          else
+            files=".github/workflows/checks.yml" # manual run, new branch or unknown base: run everything
+          fi
+          for part in mobile:mobile dashboard:dashboard database:backend/supabase; do
+            name=${part%%:*}; dir=${part#*:}
+            if echo "$files" | grep -qE "^($dir/|\.github/workflows/checks\.yml$)"; then
+              echo "$name=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$name=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
   mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -37,6 +79,8 @@ jobs:
       - run: npm run lint
 
   dashboard:
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -58,6 +102,8 @@ jobs:
       - run: npm run build
 
   database:
+    needs: changes
+    if: needs.changes.outputs.database == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

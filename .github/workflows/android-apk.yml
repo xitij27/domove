@@ -6,6 +6,9 @@ on:
   push:
     branches:
       - main
+    paths: # a change that leaves the app alone must not publish a release
+      - mobile/**
+      - .github/workflows/android-apk.yml
   workflow_dispatch:
 
 permissions:
