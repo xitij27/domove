@@ -218,6 +218,7 @@ const en = {
     compassNorth: 'Compass: map points north',
     compassTurned: (degrees: number) => `Compass: map turned ${degrees}° from north`,
     compassHint: 'Turns the map back to north',
+    locate: 'Show where I am',
     start: 'Start',
     stop: (n: number) => `Stop ${n}`,
     destination: 'Destination',

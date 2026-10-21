@@ -218,6 +218,7 @@ const de: Strings = {
     compassNorth: 'Kompass: Karte zeigt nach Norden',
     compassTurned: (degrees) => `Kompass: Karte um ${degrees}° aus Norden gedreht`,
     compassHint: 'Dreht die Karte zurück nach Norden',
+    locate: 'Zeigen, wo ich bin',
     start: 'Start',
     stop: (n) => `Stopp ${n}`,
     destination: 'Ziel',

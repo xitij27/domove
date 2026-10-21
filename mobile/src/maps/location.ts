@@ -12,6 +12,12 @@ export function useLocationGranted() {
   return granted;
 }
 
+/** Where the user is now: the last known fix if the phone has one, as a fresh one can take seconds. */
+export async function currentCoordinate(): Promise<Coordinate> {
+  const { coords } = (await Location.getLastKnownPositionAsync()) ?? (await Location.getCurrentPositionAsync());
+  return { latitude: coords.latitude, longitude: coords.longitude };
+}
+
 /** Without a gyroscope the facing direction comes from the magnetometer alone, which is jumpy; null until known. */
 export function useHasGyroscope() {
   const [has, setHas] = useState<boolean | null>(null);
