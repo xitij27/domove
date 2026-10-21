@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatDay, toDay } from '../model/days';
 import { reviewPriority } from '../model/impact';
 import { EMPTY_SCENARIO, scenarioCsv } from '../model/scenario';
 import { clashText, num } from '../ui/format';
-import { getLanguage, setLanguage } from '.';
+import { getLanguage, initialLanguage, setLanguage } from '.';
 import de from './de';
 import en from './en';
 
@@ -11,12 +11,25 @@ import en from './en';
 const shape = (words: object): unknown =>
   Object.fromEntries(Object.entries(words).map(([key, value]) => [key, value && typeof value === 'object' && !Array.isArray(value) ? shape(value) : typeof value]));
 
-afterEach(() => setLanguage('en', false));
+afterEach(() => {
+  setLanguage('en', false);
+  vi.unstubAllGlobals();
+});
 
 describe('languages', () => {
   it('has every English word in German too', () => {
     expect(shape(de)).toEqual(shape(en));
     expect(de.csv.header).toHaveLength(en.csv.header.length);
+  });
+
+  it('opens in German on a first visit, whatever the browser is set to, and in the language picked last after', () => {
+    const browser = (saved: string | null) => ({ localStorage: { getItem: () => saved }, navigator: { language: 'en-US' } });
+    vi.stubGlobal('window', browser(null));
+    expect(initialLanguage()).toBe('de');
+    vi.stubGlobal('window', browser('en'));
+    expect(initialLanguage()).toBe('en');
+    vi.stubGlobal('window', { localStorage: { getItem: () => { throw new Error('blocked'); } } });
+    expect(initialLanguage()).toBe('de');
   });
 
   it('starts in English outside a browser', () => {

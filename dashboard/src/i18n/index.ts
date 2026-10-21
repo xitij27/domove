@@ -5,7 +5,8 @@ import type { Strings } from './en';
 
 export type { Strings };
 export type Language = 'en' | 'de';
-export const LANGUAGES: readonly Language[] = ['en', 'de'];
+/** In the switch's order: German first, as the dashboard starts in it. */
+export const LANGUAGES: readonly Language[] = ['de', 'en'];
 /** Each language's name in itself, as the switch reads it out. */
 export const LANGUAGE_NAMES: Record<Language, string> = { en: 'English', de: 'Deutsch' };
 
@@ -14,8 +15,8 @@ const LOCALES: Record<Language, string> = { en: 'en-GB', de: 'de-DE' };
 const STORAGE_KEY = 'domove-dashboard-language';
 const isLanguage = (value: unknown): value is Language => value === 'en' || value === 'de';
 
-/** The language picked last, else German for a browser set to German, else English. Outside a browser (the tests), English. */
-function initialLanguage(): Language {
+/** The language picked last, else German, the city's language. Outside a browser (the tests), English. */
+export function initialLanguage(): Language {
   if (typeof window === 'undefined') return 'en';
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -23,7 +24,7 @@ function initialLanguage(): Language {
   } catch {
     // storage blocked: fall back to the browser's language
   }
-  return window.navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en';
+  return 'de';
 }
 
 let current: Language = initialLanguage();

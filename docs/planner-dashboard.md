@@ -28,7 +28,7 @@ The features are grouped by who uses them. The roles run across the header. Each
 - **To do → Transit.** A "Far from the Stadtbahn" item's **Open** switches to the Transit role with that district selected.
 - **On a phone** the roles form a row of four under the logo.
 - **A wider side panel.** Drag the panel's left edge, marked by a small grip at mid-height, to make it wider or narrower, between 320 px and 960 px, always leaving the map 360 px. Or focus the edge (Tab) and use the arrow keys, Shift for bigger steps. A double-click puts it back to 420 px. The browser remembers the width. On phones the panel sits under the map and keeps the full width.
-- **Light by default.** The dashboard opens light whatever the system's setting. The sun/moon switch changes it, and the browser remembers the choice.
+- **German and light by default.** The dashboard opens in German and light, whatever the browser's language and the system's dark setting. Both are changed in the toolbar at the top right, one capsule with the settings gear: **DE | EN**, where a dark plate slides under the language in use, and one sun/moon button, whose sun draws in its rays and turns into a crescent. The browser remembers both.
 
 ## What it answers
 
