@@ -47,7 +47,7 @@ The dashboard answers the city's question rather than one person's: across Dortm
 - **Emergency** (fire and ambulance) has **Routes**: how far a chosen fire and rescue station reaches in 5–12 minutes with and without the day's full closures, and routes for blue-light vehicles. It also has **Outlook**, and shows the fire stations and hospitals on the map.
 - **Transit** (buses, trams and bikes) has **Transit** (how many people live near works that have no bus, tram or train stop in walking distance, from the 2022 census, and which Stadtbahn stops sit beside two or more works) and **Routes** for cyclists and pedestrians. Its map draws the Stadtbahn lines in their own colours, the S-Bahn and regional trains, and the bus lines (wider where more lines share a street), with stops, bike-share stations and P+R sites. Each can be switched on or off, and a chip per Stadtbahn line picks out its route.
 
-Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). It is in English or German: the **EN | DE** buttons next to the light/dark switch change it, and the browser remembers the choice, as it does the role. More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+Every view follows one chosen day, and numbers are given in things you can count ("clashes with 6 sites on 60 days"). It opens in German and light, whatever the browser's settings. The **DE | EN** switch and the sun/moon button, in the toolbar at the top right beside the settings gear, change them, and the browser remembers both, as it does the role. More: [docs/planner-dashboard.md](docs/planner-dashboard.md).
 
 ## How it works, in plain words
 
