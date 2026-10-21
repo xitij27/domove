@@ -32,15 +32,19 @@ export function reminderDate(obstacle: RouteObstacle, settings: RouteNotificatio
   return end && date.getTime() > end.getTime() ? null : date;
 }
 
-/** Wording for an alert that hands the route to Google Maps when tapped, in the app's language. */
-export function notificationContent(obstacle: RouteObstacle, now = new Date()) {
+/**
+ * Wording for an alert that hands the route to Google Maps when tapped, in the app's language. `detourMinutes` is how
+ * much longer the way around the construction takes; it is mentioned only when above 0.
+ */
+export function notificationContent(obstacle: RouteObstacle, now = new Date(), detourMinutes = 0) {
   const t = strings().alerts;
   const start = localDate(obstacle.startsOn, '00:00');
+  const what = start && start.getTime() > now.getTime()
+    ? t.bodyFuture(obstacle.siteTitle, obstacle.destination, start.toLocaleDateString(locale()))
+    : t.bodyNow(obstacle.siteTitle, obstacle.destination);
   return {
     title: t.title,
-    body: start && start.getTime() > now.getTime()
-      ? t.bodyFuture(obstacle.siteTitle, obstacle.destination, start.toLocaleDateString(locale()))
-      : t.bodyNow(obstacle.siteTitle, obstacle.destination),
+    body: [what, ...(detourMinutes > 0 ? [t.detour(detourMinutes)] : []), t.tap].join(' '),
   };
 }
 

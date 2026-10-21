@@ -2,7 +2,7 @@
 
 Design and build · a 0–10 impact rating for each construction site, and how a route uses it to pick another path · 17 Oct 2026
 
-> **Status:** the rating and the way the app explains it are built: see [section 3](#3-how-it-is-built) and [section 4](#4-being-transparent-about-the-scores). The app finds another path as [section 2](#2-from-ratings-to-another-path) describes and shows it on the route map ([In the app](#in-the-app)). Notifications about it (#25) are next.
+> **Status:** the rating and the way the app explains it are built: see [section 3](#3-how-it-is-built) and [section 4](#4-being-transparent-about-the-scores). The app finds another path as [section 2](#2-from-ratings-to-another-path) describes and shows it on the route map ([In the app](#in-the-app)). Alerts about it (#25) open that way in Google Maps and say how much longer it takes; see [notifications.md](notifications.md).
 
 Today a site counts as being on a route when its area comes within 30 m of the path, and every site counts the same. The route card says "Car · 3 construction sites on the way", whether the three are a closed motorway ramp or scaffolding on a residential street. This page proposes two things:
 

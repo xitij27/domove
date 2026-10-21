@@ -401,8 +401,10 @@ const de: Strings = {
     title: 'Baustelle auf deiner Route',
     testTitle: '[TEST] Baustelle auf deiner Route',
     bodyFuture: (site, destination, date) =>
-      `Ab ${date} gibt es auf ${route(destination)} eine Baustelle: ${site}. Tippe, um die Route in Google Maps zu öffnen.`,
-    bodyNow: (site, destination) => `Auf ${route(destination)} gibt es eine Baustelle: ${site}. Tippe, um die Route in Google Maps zu öffnen.`,
+      `Ab ${date} gibt es auf ${route(destination)} eine Baustelle: ${site}.`,
+    bodyNow: (site, destination) => `Auf ${route(destination)} gibt es eine Baustelle: ${site}.`,
+    detour: (minutes) => `Der Weg drumherum dauert ${minutes} Min. länger.`,
+    tap: 'Tippe, um die Route in Google Maps zu öffnen.',
     channel: 'Baustellen-Erinnerungen',
     blocked: 'Benachrichtigungen sind für diese App in den Handy-Einstellungen ausgeschaltet, deshalb wurde keine Erinnerung geplant.',
     openFailed: 'Öffne die gespeicherte Route, um den berechneten Weg zu sehen.',

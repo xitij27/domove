@@ -7,7 +7,8 @@ import { notificationContent } from './core';
 import { notificationRouteLink } from './link';
 import { fetchObstacles } from './obstacles';
 import type { RouteObstacle } from './model';
-import { createNotificationService, type NotificationDriver } from './service';
+import { createNotificationService, type NotificationDriver, type RouteLink } from './service';
+import { extraMinutes } from '../detours/text';
 import { planTrip } from '../detours/trip';
 import { strings, subscribeLanguage } from '../i18n';
 import { routesRepository } from '../routes/api';
@@ -57,12 +58,15 @@ export const constructionNotifications = createNotificationService({
     }
   },
   write: (value) => settingsFile().writeSync(value),
-}, notificationDriver, undefined, notificationGoogleMapsUrl);
+}, notificationDriver, undefined, planRouteLink);
 
 let routesCache: { at: number; value: Promise<SavedRoute[]> } | null = null;
 
-/** Plans the same construction-aware route as the map; if that fails, Google still gets the original saved trip. */
-async function notificationGoogleMapsUrl(routeId: string): Promise<string | null> {
+/**
+ * Plans the same construction-aware route as the map; if that fails, Google still gets the original saved trip.
+ * The detour's extra minutes count only when the link really follows the detour.
+ */
+async function planRouteLink(routeId: string): Promise<RouteLink> {
   const now = Date.now();
   if (!routesCache || now - routesCache.at > 60_000) {
     const value = routesRepository.list();
@@ -71,13 +75,16 @@ async function notificationGoogleMapsUrl(routeId: string): Promise<string | null
     value.catch(() => { if (routesCache === entry) routesCache = null; });
   }
   const route = (await routesCache.value).find((item) => item.id === routeId);
-  if (!route) return null;
+  if (!route) return { url: null, detourMinutes: 0 };
   try {
     const { plan } = await planTrip(route);
-    return googleMapsDirectionsUrl(route, plan.options[0], plan.direct) ?? googleMapsDirectionsUrl(route);
+    const way = plan.options[0];
+    const detour = googleMapsDirectionsUrl(route, way, plan.direct);
+    if (detour) return { url: detour, detourMinutes: extraMinutes(plan, way) };
   } catch {
-    return googleMapsDirectionsUrl(route);
+    // the original trip below
   }
+  return { url: googleMapsDirectionsUrl(route), detourMinutes: 0 };
 }
 
 async function syncObstacles() {
@@ -154,8 +161,8 @@ export async function sendDevelopmentTestAlert(routeId: string): Promise<void> {
 /** An obstacle's alert in a few seconds, worded as its reminder; for the test button and the demo. */
 export async function sendAlertSoon(obstacle: RouteObstacle, seconds: number, title?: string): Promise<void> {
   if (!await notificationDriver.permission(true)) throw new Error(strings().alerts.allow);
-  const content = notificationContent(obstacle);
-  const googleMapsUrl = await notificationGoogleMapsUrl(obstacle.routeId);
+  const { url: googleMapsUrl, detourMinutes } = await planRouteLink(obstacle.routeId);
+  const content = notificationContent(obstacle, new Date(), detourMinutes);
   await Notifications.scheduleNotificationAsync({
     // No signature, so the reminder sync leaves it alone.
     content: { ...content, title: title ?? content.title, data: { routeId: obstacle.routeId, siteId: obstacle.siteId, googleMapsUrl } },

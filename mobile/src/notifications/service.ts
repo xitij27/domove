@@ -21,7 +21,11 @@ export type NotificationDriver = {
   schedule: (date: Date, payload: ReminderPayload) => Promise<string>;
   cancel: (id: string) => Promise<void>;
 };
+/** Where a tap on the alert goes, and how many minutes longer the way around the construction takes. */
+export type RouteLink = { url: string | null; detourMinutes: number };
 export type TextStorage = { read: () => string | null; write: (value: string) => void };
+
+const NO_LINK: RouteLink = { url: null, detourMinutes: 0 };
 
 function readState(raw: string | null): StoredState {
   const state: StoredState = { settings: {}, obstacles: [], due: {} };
@@ -41,7 +45,7 @@ export function createNotificationService(
   storage: TextStorage,
   driver: NotificationDriver,
   now: () => Date = () => new Date(),
-  routeLink: (routeId: string) => Promise<string | null> = async () => null,
+  routeLink: (routeId: string) => Promise<RouteLink> = async () => ({ url: null, detourMinutes: 0 }),
 ) {
   let tail: Promise<unknown> = Promise.resolve();
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -55,7 +59,7 @@ export function createNotificationService(
   async function reconcile(state: StoredState, requestPermission: boolean): Promise<string | null> {
     const time = now();
     const due: StoredState['due'] = {};
-    const planned: { date: Date; key: string; obstacle: RouteObstacle; content: ReturnType<typeof notificationContent> }[] = [];
+    const planned: { date: Date; key: string; obstacle: RouteObstacle }[] = [];
     for (const obstacle of state.obstacles) {
       const key = obstacleKey(obstacle);
       if (state.due[key] !== undefined && state.due[key] <= time.getTime()) {
@@ -64,19 +68,19 @@ export function createNotificationService(
       }
       const date = reminderDate(obstacle, state.settings[obstacle.routeId] ?? DEFAULT_SETTINGS, time);
       if (!date) continue;
-      const content = notificationContent(obstacle, time);
-      planned.push({ date, key, obstacle, content });
+      planned.push({ date, key, obstacle });
     }
     const allowed = planned.length > 0 && await driver.permission(requestPermission);
-    const links = new Map<string, string | null>();
+    const links = new Map<string, RouteLink>();
     if (allowed) {
       await Promise.all([...new Set(planned.map(({ obstacle }) => obstacle.routeId))].map(async (routeId) => {
-        links.set(routeId, await routeLink(routeId).catch(() => null));
+        links.set(routeId, await routeLink(routeId).catch(() => NO_LINK));
       }));
     }
     const wanted = new Map<string, { date: Date; key: string; payload: ReminderPayload }>();
-    for (const { date, key, obstacle, content } of planned) {
-      const googleMapsUrl = links.get(obstacle.routeId) ?? null;
+    for (const { date, key, obstacle } of planned) {
+      const { url: googleMapsUrl, detourMinutes } = links.get(obstacle.routeId) ?? NO_LINK;
+      const content = notificationContent(obstacle, time, detourMinutes);
       const signature = JSON.stringify([key, date.getTime(), content.body, googleMapsUrl]);
       wanted.set(signature, { date, key, payload: {
         ...content, routeId: obstacle.routeId, siteId: obstacle.siteId, signature, googleMapsUrl,

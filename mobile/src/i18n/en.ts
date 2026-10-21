@@ -407,9 +407,11 @@ const en = {
     title: 'Construction on your route',
     testTitle: '[TEST] Construction on your route',
     bodyFuture: (site: string, destination: string | null, date: string) =>
-      `There will be a Construction Site at ${site} on ${route(destination)} from ${date}. Tap to open the route in Google Maps.`,
+      `There will be a Construction Site at ${site} on ${route(destination)} from ${date}.`,
     bodyNow: (site: string, destination: string | null) =>
-      `There is a Construction Site at ${site} on ${route(destination)}. Tap to open the route in Google Maps.`,
+      `There is a Construction Site at ${site} on ${route(destination)}.`,
+    detour: (minutes: number) => `The way around it takes ${minutes} min longer.`,
+    tap: 'Tap to open the route in Google Maps.',
     channel: 'Construction reminders',
     blocked: 'Notifications are turned off for this app in your phone settings, so no alert was scheduled.',
     openFailed: 'Open the saved route to view the calculated way.',
