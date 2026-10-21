@@ -260,11 +260,13 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     if (boxes.length) setFocus({ bounds: toBounds(boxes) });
   };
   // a setting back at its default leaves the scenario, so the link stays short and the count says what really differs
-  const setSetting = (key: SettingKey, value: number) => {
-    const next: Partial<Settings> = { ...scenario.settings, [key]: value };
-    if (value === DEFAULT_SETTINGS[key]) delete next[key];
+  /** Several settings at once, such as the impact shares a divider moves between; a value back at its default drops out. */
+  const setSettings = (changes: Partial<Settings>) => {
+    const next: Partial<Settings> = { ...scenario.settings, ...changes };
+    for (const [key, value] of Object.entries(changes) as [SettingKey, number][]) if (value === DEFAULT_SETTINGS[key]) delete next[key];
     setScenario({ ...scenario, settings: next });
   };
+  const setSetting = (key: SettingKey, value: number) => setSettings({ [key]: value });
   const settingsChanged = Object.keys(scenario.settings).length;
   const setShift = (id: string, shift: Shift | null) => {
     const shifts = { ...scenario.shifts };
@@ -521,7 +523,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           </div>
           <div className="panel-body" ref={panelBody}>
             {settingsOpen && (
-              <SettingsPanel settings={settings} sites={active} day={formatDay(date)} changed={settingsChanged} onChange={setSetting}
+              <SettingsPanel settings={settings} sites={active} day={formatDay(date)} changed={settingsChanged} onChange={setSetting} onChangeMany={setSettings}
                 onReset={() => setScenario({ ...scenario, settings: {} })} onBack={() => setSettingsOpen(false)} />
             )}
             {selected && !settingsOpen && (

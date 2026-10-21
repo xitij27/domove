@@ -9,7 +9,7 @@ import { DEFAULT_SETTINGS, SETTINGS } from '../model/settings';
 import type { SettingKey, Settings } from '../model/settings';
 import type { RoadClass, Site } from '../model/sites';
 import { num } from './format';
-import { Slider } from './Slider';
+import { Ruler } from './Ruler';
 
 type Pick_ = { kind: ClosureKind } | { road: RoadClass } | 'bands' | null;
 type Props = { settings: Settings; sites: Pick<Site, 'kinds' | 'road'>[]; day: string; onChange: (key: SettingKey, value: number) => void };
@@ -99,20 +99,10 @@ export function SeverityGrid({ settings, sites, day, onChange }: Props) {
             <strong>{title}</strong>
             <button type="button" className="link-button" onClick={() => setPicked(null)}>{g.done}</button>
           </div>
-          {keys.map((k) => {
-            const s = SETTINGS[k];
-            const why = t.settings.why[k];
-            if (s.min === s.max) return <p className="muted small" key={k}>{num(s.value)}: {why}</p>;
-            return (
-              <div key={k}>
-                <Slider label={t.settings.labels[k]} value={settings[k]} min={s.min} max={s.max} step={s.step} text={num(settings[k])} onChange={(v) => onChange(k, v)} />
-                <p className="muted small">
-                  {num(s.min)} – {num(s.max)}{why ? `: ${why}` : ''}
-                  {isChanged(k) && <>{t.settings.default(num(s.value))}<button className="link-button" onClick={() => onChange(k, s.value)}>{t.settings.reset}</button></>}
-                </p>
-              </div>
-            );
-          })}
+          {SETTINGS[keys[0]].min === SETTINGS[keys[0]].max
+            ? <p className="muted small">{num(SETTINGS[keys[0]].value)}: {t.settings.why[keys[0]]}</p>
+            : <Ruler key={keys.join()} kind={picked === 'bands' ? 'severity' : 'plain'} title={picked === 'bands' ? 'severityBands' : 'weight'}
+              keys={keys} settings={settings} onChange={onChange} />}
         </div>
       )}
       {!picked && <p className="muted small">{g.hint}</p>}

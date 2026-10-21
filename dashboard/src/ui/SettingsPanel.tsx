@@ -1,13 +1,14 @@
 // Every weight and threshold behind the figures, each held between limits that keep its formula meaningful.
 // One fold per group, so the panel opens on Severity's table rather than on sixty sliders.
 import { useStrings } from '../i18n';
-import type { Strings } from '../i18n';
 import { DEFAULT_SETTINGS, SETTING_KEYS, SETTINGS } from '../model/settings';
 import type { SettingKey, Settings } from '../model/settings';
 import type { Site } from '../model/sites';
-import { num } from './format';
+import { Ruler } from './Ruler';
 import { SeverityGrid } from './SeverityGrid';
-import { Slider } from './Slider';
+import { LAYOUT } from './settingsLayout';
+import { ShareBar } from './ShareBar';
+import { Steppers } from './Steppers';
 
 type Props = {
   settings: Settings;
@@ -16,17 +17,14 @@ type Props = {
   day: string;
   changed: number;
   onChange: (key: SettingKey, value: number) => void;
+  onChangeMany: (changes: Partial<Settings>) => void;
   onReset: () => void;
   onBack: () => void;
 };
 
 const GROUPS = [...new Set(SETTING_KEYS.map((k) => SETTINGS[k].group))];
-const show = (t: Strings['settings'], key: SettingKey, v: number) => {
-  const unit = SETTINGS[key].unit;
-  return `${num(v)}${unit ? ` ${t.units[unit]}` : ''}`;
-};
 
-export function SettingsPanel({ settings, sites, day, changed, onChange, onReset, onBack }: Props) {
+export function SettingsPanel({ settings, sites, day, changed, onChange, onChangeMany, onReset, onBack }: Props) {
   const t = useStrings().settings;
   return (
     <div className="site-panel">
@@ -51,22 +49,11 @@ export function SettingsPanel({ settings, sites, day, changed, onChange, onReset
             </span>
             <span className="muted small">{t.groups[group].about}</span>
           </summary>
-          {group === 'severity' ? <SeverityGrid settings={settings} sites={sites} day={day} onChange={onChange} /> : keys.map((k) => {
-            const s = SETTINGS[k];
-            const label = t.labels[k];
-            const why = t.why[k];
-            if (s.min === s.max) return <p className="setting-fixed" key={k}>{label}: <strong>{show(t, k, s.value)}</strong> <span className="muted small">({why})</span></p>;
-            const isChanged = settings[k] !== DEFAULT_SETTINGS[k];
-            return (
-              <div className={isChanged ? 'setting changed' : 'setting'} key={k}>
-                <Slider label={label} value={settings[k]} min={s.min} max={s.max} step={s.step} text={show(t, k, settings[k])} onChange={(v) => onChange(k, v)} />
-                <p className="muted small">
-                  {show(t, k, s.min)} – {show(t, k, s.max)}{why ? `: ${why}` : ''}
-                  {isChanged && <>{t.default(show(t, k, s.value))}<button className="link-button" onClick={() => onChange(k, s.value)}>{t.reset}</button></>}
-                </p>
-              </div>
-            );
-          })}
+          {LAYOUT[group].map((c, i) =>
+            c.type === 'table' ? <SeverityGrid key={i} settings={settings} sites={sites} day={day} onChange={onChange} />
+              : c.type === 'ruler' ? <Ruler key={i} kind={c.kind} title={c.title} keys={c.keys} settings={settings} onChange={onChange} />
+                : c.type === 'shares' ? <ShareBar key={i} keys={c.keys} settings={settings} onChangeMany={onChangeMany} />
+                  : <Steppers key={i} keys={c.keys} settings={settings} onChange={onChange} />)}
         </details>
         );
       })}

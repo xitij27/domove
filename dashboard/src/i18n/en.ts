@@ -5,6 +5,7 @@ import type { PeriodKey } from '../data/sources';
 import type { ClosureKind } from '../model/closures';
 import type { FactorKey } from '../model/impact';
 import type { Band, SettingGroup, SettingKey, SettingUnit } from '../model/settings';
+import type { RulerTitle } from '../ui/settingsLayout';
 import type { RoadClass } from '../model/sites';
 import type { Group } from '../routing/valhalla';
 import type { Mode } from '../ui/modes';
@@ -591,6 +592,24 @@ const en = {
     default: (value: string) => ` · default ${value} `,
     reset: 'Reset',
     groupChanged: (n: number) => `${n} changed`,
+    controls: {
+      titles: {
+        distances: 'Distances', durations: 'Durations', severityFrom: 'Severity from', bands: 'Review priority bands',
+        costs: 'Cost and credit per day', credit: 'Credit for days on the same stretch', boosts: 'Boosts to a rank',
+        perOverlap: 'Extra per overlapping site', factor: 'Compared with the middle district', shares: 'Shares', zone: 'Work zone', severityBands: 'Bands', weight: 'Weight',
+      } as Record<RulerTitle, string>,
+      pick: 'Pick a name to move its marker.',
+      walk: (min: number) => `≈ ${min} min on foot`,
+      weeks: (n: number) => `≈ ${n} weeks`,
+      months: (n: number) => `≈ ${n} months`,
+      ticksDays: { 1: '1 day', 7: '1 wk', 14: '2 wk', 30: '1 mo', 90: '3 mo', 180: '6 mo', 365: '1 yr' } as Record<number, string>,
+      less: (label: string) => `Less: ${label}`,
+      more: (label: string) => `More: ${label}`,
+      shares: 'The four shares of the score, always 100 together. Drag a divider to move points from one to the next.',
+      shareShort: { 'impact.S': 'Restriction', 'impact.E': 'Places nearby', 'impact.C': 'Works at once', 'impact.D': 'Duration' } as Partial<Record<SettingKey, string>>,
+      divider: (a: string, b: string) => `Between ${a} and ${b}`,
+      zones: { low: 'Low', medium: 'Medium', high: 'High', veryHigh: 'Very high' },
+    },
     grid: {
       intro: "Each cell is its row's weight × its road's. A full closure on a main road is 1, the most a site can be; the number in a cell's corner is how many of the chosen day's sites are there.",
       closes: 'What it closes',
