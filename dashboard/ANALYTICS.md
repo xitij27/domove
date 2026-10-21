@@ -18,7 +18,7 @@ Before this change the Planner already provided the map, daily timeline, date na
 
 ## Disruption Points are unchanged
 
-`weigh` in `model/sites.ts` computes `severity = weight.<kind> × road.<road>` from Settings (`model/settings.ts`). `dailyLoad` in `model/analysis.ts` sums severity for every site active on a day; the header and timeline show this daily sum. By default restriction weights are full closure 1, half closure 0.5, etc.; road weights are main 1, through 0.6, other 0.3. These are planning assumptions, not measured traffic.
+`weigh` in `model/sites.ts` computes `severity = weight.<kind> × road.<road>` from Settings (`model/settings.ts`). `dailyLoad` in `model/analysis.ts` sums severity for every site active on a day, and counts those sites per band; the header shows the daily sum, and the timeline draws the counts per band and reads out the sum for the day it points at. By default restriction weights are full closure 1, half closure 0.5, etc.; road weights are main 1, through 0.6, other 0.3. These are planning assumptions, not measured traffic.
 
 Duration determines the days on which each site contributes. The daily sum has no exposure or conflict multiplier. Concurrent sites each contribute their own points; pair relationships do not add an extra daily penalty. Capacity analysis is a separate module and is not an input to this sum. Existing coordination clashes use their own 50 m–1 km distance/severity rules, and existing finish-first priorities use another formula.
 

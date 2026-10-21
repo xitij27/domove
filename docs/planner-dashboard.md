@@ -46,7 +46,9 @@ The features are grouped by who uses them. The roles run across the header. Each
 | How do commuters, logistics, emergency services, cyclists and pedestrians get around on a given day? | **Routes** (Traffic: commuters, logistics · Emergency · Transit: cyclists, pedestrians) | the router, around that day's closures for that group |
 | What do the closures do to a fire station's reach? | **Routes** · Emergency reach (Emergency) | reach without and with the day's full closures |
 
-Every view follows the chosen day: the arrows above the role's figures (a week at a time), a click or drag on the timeline, or the arrow keys on it (a day; PgUp/PgDn a week; Home is today). The map is the same map in every view, with the view's and the role's layers on top.
+Every view follows the chosen day: the arrows above the role's figures (a week at a time), a click, tap or drag on the timeline, or the arrow keys on it (a day; PgUp/PgDn a week; Home is today). The map is the same map in every view, with the view's and the role's layers on top.
+
+**The timeline** counts the construction sites running each day, stacked by how much each disrupts: high at the bottom, then medium and low, in the map's colours, with the levels the Severity settings set. It shows only the days the city's data speaks for: from today to four weeks after the last published start, further when the chosen day or a moved work lies later, and back to a chosen day before today. Days after the published plans end are shaded "Not yet published" and their bars faded, as only the works already announced count there; days before today are faded too, as the feed drops ended works. The line above the chart reads out the day under the pointer, else the chosen day: its sites, by level, and its disruption points. The tallest bar carries its count, the note under the chart names the busiest day and where the data stops, and **Weekly table** lists each week's busiest day with its sites, high-disruption sites and points. On a phone the chart sits under the day arrows, with the stacked page; a tap or a sideways drag picks a day, and an up-or-down swipe scrolls the page.
 
 Numbers are stated in things a planner can count. A clash is another serious site within 1 km running on the same days, so a suggestion reads "clashes 6 sites on 60 days → 2 sites on 9 days". Disruption is in points: 1 point is a full closure on a main road, and lighter restrictions and side streets count less. Each section's (i) holds its rules; lists are never cut short.
 
@@ -63,7 +65,7 @@ The city writes each site's title as place, work and closure, with "-", "/", "//
 
 ### Scenarios
 
-Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then shows it against the published plans in grey, and a yellow-tinted bar above the views counts the clashes and the busiest day's points, published → yours. The bar only appears once something differs from the published plans. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
+Moving works (planned sites move; running sites can finish sooner) and adding proposed projects makes a scenario. The timeline then draws the published plans' daily site count as a grey line over the scenario's bars, and a yellow-tinted bar above the views counts the clashes and the busiest day's points, published → yours. The bar only appears once something differs from the published plans. The scenario lives in the link only (`#s=…`), so reloading keeps it and **Copy link** shares it. **Export CSV** writes the changes for a coordination meeting: semicolons and a byte-order mark, as German Excel expects, and a feed title starting with `=`, `+`, `-` or `@` is quoted so it can't run as a formula.
 
 ## How it scores
 
@@ -128,8 +130,8 @@ The city's data is under Datenlizenz Deutschland – Zero 2.0. OpenStreetMap (ba
 
 ## Limits
 
-- **Published plans reach about four weeks ahead** (16 Nov on 17 Oct). After that, load looks low only because later works aren't announced; the timeline marks the date, and suggestions past it say so.
-- **The feed forgets ended works.** None of the city's sites is kept once it ends, so earlier days look quieter than they were. The timeline says so at its left edge, and disruption points aren't compared with a "usual" level until there's history to compare with. The database keeps that history from 20 Oct 2026 in `construction_site_history`.
+- **Published plans reach about four weeks ahead** (16 Nov on 17 Oct). After that, load looks low only because later works aren't announced; the timeline shades the days after it, and suggestions past it say so.
+- **The feed forgets ended works.** None of the city's sites is kept once it ends, so earlier days look quieter than they were. So the timeline starts at today and fades the earlier days when one is chosen, and disruption points aren't compared with a "usual" level until there's history to compare with. The database keeps that history from 20 Oct 2026 in `construction_site_history`.
 - **A stop nearby isn't a bus that comes often.** "No stop nearby" measures straight-line distance to any stop; how often buses run there, and walking routes, aren't counted. On 20 Oct 2026 it left 39 residents near works with no stop: 24 in Hörde (Syburg), 15 in Innenstadt-Nord. Before 20 Oct the view counted only works far from the Stadtbahn, which put Hörde first although 96.8 % of its residents live within 400 m of a bus or tram stop.
 - **Bus routes aren't in the figures.** Closures on main roads stand in for bus diversions, and "stops beside 2+ works" counts the city's Stadtbahn stops. The bus lines on the Transit map come from OpenStreetMap but don't feed any figure yet.
 - **The restriction comes from the title.** A site whose title names nothing counts as minor until #12's `closures_override` exists.
