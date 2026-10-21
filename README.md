@@ -22,7 +22,7 @@ This project turns the city's list into answers to those questions.
 | Who | What they use | What it does for them |
 |---|---|---|
 | People who live in or travel through Dortmund, on foot, by bike or by car | the **mobile app** (Android) | shows the works on their own routes, rates them, suggests a way around and reminds them before work starts |
-| The city: road works planners, traffic police and control, fire and ambulance, and the bus and tram operator | the **planner dashboard**, a website: <https://domove-dashboard-sigma.vercel.app>, with one role for each | planners: where works pile up and what to move or do together · traffic: where the works hurt most and the detours · fire and ambulance: what the day's closures do to each station's reach · transit: which districts and stops the works cut off |
+| The city: road works planners, traffic police and control, fire and ambulance, and the bus and tram operator | the **planner dashboard**, a website: <https://domove-dashboard-beta.vercel.app>, with one role for each | planners: where works pile up and what to move or do together · traffic: where the works hurt most and the detours · fire and ambulance: what the day's closures do to each station's reach · transit: which districts and stops the works cut off |
 
 ## What the mobile app does
 
@@ -171,7 +171,7 @@ Each site's card shows an impact score from 0 to 10 for the way you travel, with
 
 ## Planner dashboard (`dashboard/`)
 
-Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city on the same data, with a role each for planning, traffic, emergency services and transit: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, what the day's closures do to fire stations' reach, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each role and view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).
+Live: <https://domove-dashboard-beta.vercel.app>. A website for the city on the same data, with a role each for planning, traffic, emergency services and transit: spread construction works out so the city never feels shut all at once, see which districts need public-transport attention, which running sites to finish first, what the day's closures do to fire stations' reach, and how commuters, logistics, emergency services, cyclists and pedestrians get around on a given day. What each role and view answers and how it scores: [docs/planner-dashboard.md](docs/planner-dashboard.md).
 
 1. Copy `dashboard/.env.example` to `dashboard/.env` (gitignored) and set `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`: the same public values as the app's `EXPO_PUBLIC_SUPABASE_*`.
 2. `cd dashboard && npm ci && npm run dev`, then open the printed URL.

@@ -1,6 +1,6 @@
 # Planner dashboard
 
-Website for the city's planners, traffic authority, fire and ambulance, and transit operator · `dashboard/` · live at <https://domove-dashboard-sigma.vercel.app> · 17 Oct 2026, roles added 19 Oct 2026
+Website for the city's planners, traffic authority, fire and ambulance, and transit operator · `dashboard/` · live at <https://domove-dashboard-beta.vercel.app> · 17 Oct 2026, roles added 19 Oct 2026
 
 The app answers one resident's question: which works are on my route? The dashboard answers the city's: across Dortmund and the coming year, are works stacking up so that a neighbourhood loses every way around? It reads the same `construction_sites` table as the app, plus the city's open data, and runs everything in the browser. There is no backend change.
 
