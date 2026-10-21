@@ -524,7 +524,8 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
         <Reveal space={CARD_GAP}>
           {route && onRoute && (
             <View style={[styles.card, styles.routeCard, surface]}>
-              <View style={styles.routeHead}>
+              {/* the name gets the card's whole width, so it wraps only where it must; ✕ sits by its first line */}
+              <View style={styles.routeTop}>
                 {onRoute.error ? (
                   <Pressable accessibilityRole="button" onPress={onRoute.retry} style={styles.routeText}>
                     <Text style={[styles.title, { color: palette.text }]}>{route.name}</Text>
@@ -539,29 +540,29 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
                     </Text>
                   </View>
                 )}
-                {/* The app does no navigation itself: Google Maps takes the way shown from here.
-                    White or near-black on the route's blue, as the line's casing is. */}
-                <Pressable
-                  accessibilityRole="link"
-                  accessibilityLabel={t.detours.openInGoogleMaps}
-                  accessibilityState={{ disabled: !googleMapsUrl }}
-                  disabled={!googleMapsUrl}
-                  onPress={openInGoogleMaps}
-                  style={[styles.navButton, { backgroundColor: LINE_COLORS[theme], opacity: googleMapsUrl ? 1 : 0.55 }]}
-                >
-                  <MaterialIcons name="open-in-new" size={18} color={CASING_COLORS[theme]} />
-                  <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.googleMaps}</Text>
-                </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t.app.closeRoute}
                   hitSlop={8}
                   onPress={onCloseRoute}
-                  style={styles.routeClose}
+                  style={[styles.routeClose, styles.routeCloseTop]}
                 >
                   <MaterialIcons name="close" size={22} color={palette.muted} />
                 </Pressable>
               </View>
+              {/* The app does no navigation itself: Google Maps takes the way shown from here.
+                  White or near-black on the route's blue, as the line's casing is. */}
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={t.detours.openInGoogleMaps}
+                accessibilityState={{ disabled: !googleMapsUrl }}
+                disabled={!googleMapsUrl}
+                onPress={openInGoogleMaps}
+                style={[styles.navButton, { backgroundColor: LINE_COLORS[theme], opacity: googleMapsUrl ? 1 : 0.55 }]}
+              >
+                <MaterialIcons name="open-in-new" size={18} color={CASING_COLORS[theme]} />
+                <Text style={[styles.navText, { color: CASING_COLORS[theme] }]}>{t.app.googleMaps}</Text>
+              </Pressable>
               {!googleMapsUrl && <Text style={[styles.googleStops, { color: palette.muted }]}>{t.detours.googleStops}</Text>}
               {/* The way around construction and the others to pick. */}
               <Reveal space={8} clip>
@@ -654,7 +655,11 @@ const styles = StyleSheet.create({
   siteSign: { width: 24, height: 24 },
   routeText: { flex: 1, gap: 4 },
   routeClose: { padding: 4 },
-  navButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  routeTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  // the icon's padding pulled back, so the ✕ lines up with the name's first line and the card's right edge
+  routeCloseTop: { marginTop: -4, marginRight: -4 },
+  // across the card, under the name
+  navButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, marginTop: 12 },
   navText: { fontSize: 15, fontWeight: '600' },
   googleStops: { fontSize: 11, marginTop: 6 },
   title: { fontSize: 16, fontWeight: '600' },
