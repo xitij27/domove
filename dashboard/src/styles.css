@@ -16,6 +16,9 @@
   --selection: #f5c400;
   --good: #006300;
   --warn-bg: #fff4d6;
+  /* Settings groups: one hue each, so a ruler, its thumb and its fold read as one group's */
+  --g-clashes: #c43d63; --g-dates: #a87c00; --g-access: #0f8a80; --g-priorities: #6450c8;
+  --g-transit: #2f8a3a; --g-programme: #5a6b80; --g-capacity: #2b6cb8; --g-impact: #a8409f;
   --sev-high: #a8360f;
   --sev-medium: #eb6834;
   --sev-low: #ef9a66;
@@ -56,6 +59,8 @@
   --selection: #ffd84d;
   --good: #0ca30c;
   --warn-bg: #3a2f12;
+  --g-clashes: #ec7a98; --g-dates: #e0b84a; --g-access: #4cc4b8; --g-priorities: #a394f2;
+  --g-transit: #6cc46f; --g-programme: #9aaabf; --g-capacity: #6aa3e6; --g-impact: #d77ccf;
   --sev-high: #f39a6b;
   --sev-medium: #d95926;
   --sev-low: #9a3c14;
@@ -354,7 +359,26 @@ button, input, select { font: inherit; color: inherit; }
 .slider { display: grid; gap: 4px; margin: 6px 0 4px; font-size: 13px; }
 .slider input { width: 100%; accent-color: var(--ink); }
 /* settings: one fold per group, its title and what it is about always in view */
-.setting-group { border-top: 1px solid var(--border); padding: 10px 0; }
+.setting-group { border-top: 1px solid var(--border); border-left: 3px solid transparent; padding: 10px 0 10px 10px; margin-left: -13px; transition: border-color var(--fast) var(--ease); }
+.setting-group[open] { border-left-color: var(--g); }
+.setting-group[data-group="severity"] { --g: var(--ink); }
+.setting-group[data-group="severity"][open] { border-image: linear-gradient(var(--sev-low), var(--sev-medium), var(--sev-high)) 1; border-top: 0; border-right: 0; border-bottom: 0; }
+.setting-group[data-group="clashes"] { --g: var(--g-clashes); }
+.setting-group[data-group="dates"] { --g: var(--g-dates); }
+.setting-group[data-group="access"] { --g: var(--g-access); }
+.setting-group[data-group="priorities"] { --g: var(--g-priorities); }
+.setting-group[data-group="transit"] { --g: var(--g-transit); }
+.setting-group[data-group="programme"] { --g: var(--g-programme); }
+.setting-group[data-group="capacity"] { --g: var(--g-capacity); }
+.setting-group[data-group="impact"] { --g: var(--g-impact); }
+.group-swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g); align-self: center; }
+.setting-group[data-group="severity"] .group-swatch { background: linear-gradient(90deg, var(--sev-low), var(--sev-medium), var(--sev-high)); }
+/* a ruler's track says what kind of scale it is: distances fade in towards "further", durations step in calendar
+   blocks between their ticks (set inline), factors and costs are hatched; severity and points show their bands */
+.ruler.kind-m .ruler-track { background: linear-gradient(90deg, color-mix(in srgb, var(--g) 5%, var(--surface-2)), color-mix(in srgb, var(--g) 48%, var(--surface))); }
+.ruler.kind-plain .ruler-track {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--g) 26%, var(--surface)) 0 3px, color-mix(in srgb, var(--g) 8%, var(--surface)) 3px 7px);
+}
 .setting-group:last-of-type { border-bottom: 1px solid var(--border); }
 .setting-group > summary { display: grid; gap: 2px; cursor: pointer; list-style: none; padding-right: 22px; position: relative; }
 .setting-group > summary::-webkit-details-marker { display: none; }
@@ -428,7 +452,7 @@ thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
 .ruler-zone.medium { background: color-mix(in srgb, var(--sev-medium) 30%, var(--surface)); }
 .ruler-zone.high { background: color-mix(in srgb, var(--sev-high) 30%, var(--surface)); }
 .ruler-zone.veryHigh { background: color-mix(in srgb, var(--sev-high) 52%, var(--surface)); }
-.ruler-allowed { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 20%, transparent); transition: left var(--fast) var(--ease), width var(--fast) var(--ease); }
+.ruler-allowed { position: absolute; top: -2px; bottom: -2px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--g, var(--ink)); transition: left var(--fast) var(--ease), width var(--fast) var(--ease); }
 .ruler-mark { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--muted); box-shadow: 0 0 0 2px var(--surface); }
 .ruler-mark.picked { visibility: hidden; }
 .ruler-input {
@@ -437,8 +461,8 @@ thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
 }
 .ruler-input::-webkit-slider-runnable-track { height: 18px; background: transparent; }
 .ruler-input::-moz-range-track { height: 18px; background: transparent; }
-.ruler-input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--surface); background: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
-.ruler-input::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--surface); background: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.ruler-input::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--surface); background: var(--g, var(--ink)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.ruler-input::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--surface); background: var(--g, var(--ink)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
 .ruler-input:focus { outline: none; }
 .ruler-input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
 .ruler-input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent); }
@@ -452,7 +476,7 @@ thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
   background: none; color: var(--ink-2); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
 }
 .ruler-legend button:hover { background: var(--surface-2); color: var(--ink); }
-.ruler-legend button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); box-shadow: inset 2px 0 0 var(--ink); }
+.ruler-legend button[aria-pressed="true"] { background: color-mix(in srgb, var(--g, var(--ink)) 10%, var(--surface)); color: var(--ink); box-shadow: inset 3px 0 0 var(--g, var(--ink)); }
 .ruler-legend button.changed .ruler-legend-label::after, .steppers li.changed .stepper-label::before {
   content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 5px; border-radius: 50%; background: var(--accent); vertical-align: 2px;
 }
@@ -464,9 +488,10 @@ thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
 .steppers li { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
 .steppers li.changed .stepper-label::before { margin: 0 6px 0 0; }
 .stepper { display: inline-flex; flex: none; align-items: center; border: 1px solid var(--border); border-radius: 16px; }
-.steppers li.changed .stepper { border-color: var(--accent); }
+.steppers li.changed .stepper { border-color: var(--g, var(--accent)); }
+.stepper output { color: var(--ink); }
 .stepper button { width: 30px; height: 28px; padding: 0; border: 0; border-radius: 16px; background: none; color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; }
-.stepper button:hover:not(:disabled) { background: var(--surface-2); }
+.stepper button:hover:not(:disabled) { background: color-mix(in srgb, var(--g, var(--ink)) 14%, var(--surface)); }
 .stepper button:disabled { color: var(--muted); opacity: 0.45; cursor: default; }
 .stepper output { min-width: 66px; text-align: center; font-variant-numeric: tabular-nums; }
 
@@ -478,10 +503,11 @@ thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
 .share-name { overflow: hidden; text-overflow: ellipsis; }
 .share-part:first-child { border-radius: 8px 0 0 8px; }
 .share-part:nth-child(4) { border-radius: 0 8px 8px 0; }
-.p0 { background: color-mix(in srgb, var(--seq-1) 38%, var(--surface)); }
-.p1 { background: color-mix(in srgb, var(--seq-2) 30%, var(--surface)); }
-.p2 { background: color-mix(in srgb, var(--seq-3) 24%, var(--surface)); }
-.p3 { background: color-mix(in srgb, var(--seq-4) 18%, var(--surface)); }
+/* the four shares: one hue, from its strongest to its faintest, so the parts read in order */
+.p0 { background: color-mix(in srgb, var(--g, var(--seq-1)) 58%, var(--surface)); }
+.p1 { background: color-mix(in srgb, var(--g, var(--seq-2)) 40%, var(--surface)); }
+.p2 { background: color-mix(in srgb, var(--g, var(--seq-3)) 25%, var(--surface)); }
+.p3 { background: color-mix(in srgb, var(--g, var(--seq-4)) 12%, var(--surface)); }
 .share-divider { position: absolute; top: -4px; bottom: -4px; width: 16px; margin-left: -8px; cursor: col-resize; touch-action: none; }
 .share-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: 7px; width: 2px; background: var(--surface); }
 .share-divider::after {

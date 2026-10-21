@@ -13,6 +13,13 @@ import { hintFor, settingText, tickText } from './settingText';
 
 type Props = { kind: RulerKind; title: RulerTitle; keys: SettingKey[]; settings: Settings; onChange: (key: SettingKey, value: number) => void };
 
+/** Durations' track: blocks that alternate between two tints of the group's hue at each tick, like weeks on a calendar. */
+function calendarBlocks(stops: number[]): string {
+  const edges = [0, ...stops.filter((p) => p > 0 && p < 100), 100];
+  const tint = (i: number) => `color-mix(in srgb, var(--g) ${i % 2 ? 30 : 12}%, var(--surface))`;
+  return `linear-gradient(90deg, ${edges.slice(1).map((to, i) => `${tint(i)} ${edges[i]}% ${to}%`).join(', ')})`;
+}
+
 // half the thumb's width: the input reaches this far past its range so the thumb's centre sits on the value
 const THUMB = 9;
 const STEPS = 1000;
@@ -48,13 +55,13 @@ export function Ruler({ kind, title, keys, settings, onChange }: Props) {
       : [];
 
   return (
-    <div className={zones.length ? 'ruler zoned' : 'ruler'}>
+    <div className={`ruler kind-${kind}${zones.length ? ' zoned' : ''}`}>
       <div className="ruler-head">
         <h4>{c.titles[title]}</h4>
         {keys.length > 1 && <span className="muted small">{c.pick}</span>}
       </div>
       <div className="ruler-scale">
-        <div className="ruler-track">
+        <div className="ruler-track" style={kind === 'days' ? { background: calendarBlocks(ticks(kind, scale).map(at)) } : undefined}>
           {zones.map(([zone, from, to]) => (
             <span key={zone} className={`ruler-zone ${zone}`} style={{ left: `${at(from)}%`, width: `${at(to) - at(from)}%` }}>
               {kind === 'points' ? c.zones[zone] : t.bands[zone as 'low' | 'medium' | 'high']}

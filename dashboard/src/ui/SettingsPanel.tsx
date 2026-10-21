@@ -41,9 +41,10 @@ export function SettingsPanel({ settings, sites, day, changed, onChange, onChang
         const keys = SETTING_KEYS.filter((k) => SETTINGS[k].group === group);
         const changedHere = keys.filter((k) => settings[k] !== DEFAULT_SETTINGS[k]).length;
         return (
-        <details className="setting-group" key={group} open={group === 'severity'}>
+        <details className="setting-group" data-group={group} key={group} open={group === 'severity'}>
           <summary>
             <span className="setting-group-title">
+              <i className="group-swatch" aria-hidden="true" />
               <h3>{t.groups[group].title}</h3>
               {changedHere > 0 && <span className="setting-group-changed">{t.groupChanged(changedHere)}</span>}
             </span>
