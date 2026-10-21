@@ -77,6 +77,68 @@ Everything runs on free services, and there is no server of our own to keep runn
 | `dashboard/` | the planners' website |
 | `backend/` | the database (Supabase, a hosted Postgres) that collects the sites, finds them on routes and scores them, plus a small web API |
 | `docs/` | how each part is designed, in more detail |
+| `.github/` | the automatic checks and the Android APK build (see below) |
+
+### Layout
+
+```
+domove/
+├── mobile/                      Android app (React Native, Expo)
+│   ├── App.tsx, index.ts        entry points
+│   ├── app.config.ts            Expo and native config
+│   ├── plugins/                 config plugins (crash log, Gradle memory)
+│   ├── scripts/render-signs.py  draws the map's traffic signs
+│   └── src/
+│       ├── demo/                the guided demo
+│       ├── detours/             ways around a route (planner, API, summary card)
+│       ├── i18n/                English and German texts
+│       ├── maps/                Google and Mapbox maps, compass, signs
+│       ├── notifications/       reminders before work starts
+│       ├── quiz/                the city quiz (English and German)
+│       ├── ratings/             impact score and "How scores work"
+│       ├── routes/              saved routes: form, place picker, API
+│       ├── settings/            language, updates
+│       ├── updates/             in-app update from GitHub releases
+│       ├── weather/             weather now and forecast
+│       └── sites.ts, theme.ts, motion.tsx
+├── dashboard/                   planner website (Vite, React)
+│   ├── public/                  population and transit data files, logo
+│   ├── scripts/                 build the population and transit data files
+│   ├── ANALYTICS.md             how the dashboard's numbers are worked out
+│   └── src/
+│       ├── data/                loads city, holiday and Supabase data
+│       ├── i18n/                English and German texts
+│       ├── model/               the analysis: clashes, impact, closures,
+│       │                        capacity, outlook, what-if projects, settings
+│       ├── routing/             routes around the day's closures
+│       └── ui/                  role views (To do, Coordinate, Priorities,
+│                                Road space, Routes, Transit, Outlook), map,
+│                                Settings with the severity table
+├── backend/
+│   ├── api/sites.ts             Vercel Function: GET /api/sites
+│   └── supabase/
+│       ├── migrations/          database schema and functions, in order
+│       └── tests/               database tests and a REST check for routes
+├── docs/                        design notes (see below)
+├── .github/workflows/           checks.yml (tests on every pull request),
+│                                android-apk.yml (release APK)
+└── Do.Move presentation.pdf     project slides
+```
+
+### Documents in `docs/`
+
+| File | About |
+|---|---|
+| [planner-dashboard.md](docs/planner-dashboard.md) | what each dashboard role and view answers, and how it scores |
+| [site-rating-and-detours.md](docs/site-rating-and-detours.md) | the impact score and the ways around |
+| [routes.md](docs/routes.md) | saved routes: model, API, setup, tests |
+| [map-signs.md](docs/map-signs.md) | what each traffic sign on the map means |
+| [notifications.md](docs/notifications.md) | reminders |
+| [app-updates.md](docs/app-updates.md) | updating the app from inside |
+| [android-launch-crash.md](docs/android-launch-crash.md) | fixing a release APK that crashes at launch |
+| [darmstadt.md](docs/darmstadt.md) | research for adding a second city |
+| [dortmund-data-check.md](docs/dortmund-data-check.md) | a check of the city's open data |
+| [route-planning-open-questions.md](docs/route-planning-open-questions.md), [routes-database-todo.md](docs/routes-database-todo.md), [traffic-and-open-data-ideas.md](docs/traffic-and-open-data-ideas.md) | open questions, to-dos and ideas |
 
 The rest of this page is for developers who want to run or change the project.
 
@@ -116,7 +178,7 @@ Live: <https://domove-dashboard-sigma.vercel.app>. A website for the city on the
 
 Everything else it reads (city open data, school holidays, the FOSSGIS router and OpenFreeMap tiles) is free and needs no key.
 
-Checks: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`. `LIVE=1 npx vitest run src/live.test.ts` runs the whole analysis against today's real data.
+Checks: `npm test -- --run`, `npx tsc --noEmit`, `npm run lint`, `npm run build`. `LIVE=1 npx vitest run src/live.test.ts` runs the whole analysis against today's real data. `node scripts/population.mjs` and `node scripts/transit-network.mjs` rebuild `public/population.json` and the `public/transit-*.json` files.
 
 Deploy: a Vercel project (free Hobby plan) with **Root Directory** `dashboard` and the two `VITE_SUPABASE_*` variables; Vercel detects Vite. From the folder, `npx vercel@latest deploy --prod` uploads the local code.
 
@@ -142,7 +204,9 @@ Apply a new migration by pasting the file from `backend/supabase/migrations/` in
 
 A small Vercel Function, `GET /api/sites?status=current|planned`, serves the table with a 5-minute edge cache. Vercel Hobby (free) is enough; the hourly sync stays in `pg_cron` because Hobby cron jobs only run daily.
 
-Deploy: import the repo in Vercel, set **Root Directory** to `backend`, and add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (see `backend/.env.example`). Check with `cd backend && npm run typecheck`.
+Deploy: import the repo in Vercel, set **Root Directory** to `backend`, and add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (see `backend/.env.example`). Check with `cd backend && npm run typecheck`. Database tests live in `backend/supabase/tests/` and run with `supabase test db`.
+
+The **Checks** workflow (`.github/workflows/checks.yml`) runs the app's and dashboard's tests, type check, lint and build, plus the database tests, on every pull request and push to `main`.
 
 ## SQL Tables
 
