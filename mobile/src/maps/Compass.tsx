@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { strings, useStrings } from '../i18n';
 import type { Coordinate } from '../routes/model';
@@ -59,6 +60,23 @@ export default function Compass({ heading, theme, onPress }: {
         <View style={[styles.north, { borderBottomColor: palette.north }]} />
         <View style={[styles.south, { borderTopColor: palette.muted }]} />
       </Animated.View>
+    </Pressable>
+  );
+}
+
+/** Moves the map's middle to where the user is. */
+export function LocateButton({ theme, onPress }: { theme: MapTheme; onPress: () => void }) {
+  const palette = PALETTES[theme];
+  const t = useStrings();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t.map.locate}
+      onPress={onPress}
+      android_ripple={{ color: palette.border, borderless: true, radius: SIZE / 2 }}
+      style={[styles.compass, styles.rose, { backgroundColor: palette.surface, borderColor: palette.border }]}
+    >
+      <MaterialIcons name="my-location" size={24} color={palette.muted} />
     </Pressable>
   );
 }

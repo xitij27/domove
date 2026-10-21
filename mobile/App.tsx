@@ -4,9 +4,9 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { StatusBar } from 'expo-status-bar';
 import { File, Paths } from 'expo-file-system';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import Compass, { type MapHandle } from './src/maps/Compass';
+import Compass, { LocateButton, type MapHandle } from './src/maps/Compass';
 import GoogleSitesMap from './src/maps/GoogleSitesMap';
-import { useHasGyroscope, useLocationGranted } from './src/maps/location';
+import { currentCoordinate, useHasGyroscope, useLocationGranted } from './src/maps/location';
 import { CASING_COLORS, LINE_COLORS } from './src/maps/routeOverlay';
 import { signOf, SIGNS } from './src/maps/signs';
 import { fetchSites, type Site, type Status } from './src/sites';
@@ -177,6 +177,13 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
   const heading = useRef(new Animated.Value(0)).current;
   const map = useRef<MapHandle>(null);
   const located = useLocationGranted();
+  const centerOnUser = useCallback(() => {
+    currentCoordinate().then((at) => map.current?.zoomTo(at), () => {}); // no fix yet: the map stays where it is
+  }, []);
+  // The map opens on Dortmund and moves to the user once they allow their location.
+  useEffect(() => {
+    if (located) centerOnUser();
+  }, [located, centerOnUser]);
   const gyroscope = useHasGyroscope();
   const [gyroWarned, setGyroWarned] = useState(false);
   const quiz = useQuiz();
@@ -402,6 +409,7 @@ const RadarMap = memo(function RadarMap({ route, onShowRoute, onCloseRoute, pick
 
         <ThemeToggle theme={theme} onChange={changeTheme} />
         <Compass heading={heading} theme={theme} onPress={() => map.current?.pointNorth()} />
+        <Fade>{located && !picking && <LocateButton theme={theme} onPress={centerOnUser} />}</Fade>
         {/* choosing a place has the map to itself */}
         <Fade>{!picking && <WeatherButton weather={weather} failed={weatherFailed} open={forecastOpen} theme={theme} onPress={toggleForecast} />}</Fade>
         {/* last of the round controls, so it sits under the weather */}

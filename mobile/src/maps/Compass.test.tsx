@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Animated } from 'react-native';
 import Compass, { compassLabel } from './Compass';
 
+jest.mock('@expo/vector-icons/MaterialIcons', () => 'MaterialIcons');
+
 test('says how far the map is turned from north, either way', () => {
   expect(compassLabel(0)).toBe('Compass: map points north');
   expect(compassLabel(40.4)).toBe('Compass: map turned 40° from north');
