@@ -5,6 +5,7 @@ import type { PeriodKey } from '../data/sources';
 import type { ClosureKind } from '../model/closures';
 import type { FactorKey } from '../model/impact';
 import type { Band, SettingGroup, SettingKey, SettingUnit } from '../model/settings';
+import type { RulerTitle } from '../ui/settingsLayout';
 import type { RoadClass } from '../model/sites';
 import type { Group } from '../routing/valhalla';
 import type { Mode } from '../ui/modes';
@@ -590,8 +591,40 @@ const en = {
     resetAll: 'Reset all to defaults',
     default: (value: string) => ` · default ${value} `,
     reset: 'Reset',
+    groupChanged: (n: number) => `${n} changed`,
+    controls: {
+      titles: {
+        distances: 'Distances', durations: 'Durations', severityFrom: 'Severity from', bands: 'Review priority bands',
+        costs: 'Cost and credit per day', credit: 'Credit for days on the same stretch', boosts: 'Boosts to a rank',
+        perOverlap: 'Extra per overlapping site', factor: 'Compared with the middle district', shares: 'Shares', zone: 'Work zone', severityBands: 'Bands', weight: 'Weight',
+      } as Record<RulerTitle, string>,
+      pick: 'Pick a name to move its marker.',
+      walk: (min: number) => `≈ ${min} min on foot`,
+      weeks: (n: number) => `≈ ${n} weeks`,
+      months: (n: number) => `≈ ${n} months`,
+      ticksDays: { 1: '1 day', 7: '1 wk', 14: '2 wk', 30: '1 mo', 90: '3 mo', 180: '6 mo', 365: '1 yr' } as Record<number, string>,
+      less: (label: string) => `Less: ${label}`,
+      more: (label: string) => `More: ${label}`,
+      shares: 'The four shares of the score, always 100 together. Drag a divider to move points from one to the next.',
+      shareShort: { 'impact.S': 'Restriction', 'impact.E': 'Places nearby', 'impact.C': 'Works at once', 'impact.D': 'Duration' } as Partial<Record<SettingKey, string>>,
+      divider: (a: string, b: string) => `Between ${a} and ${b}`,
+      zones: { low: 'Low', medium: 'Medium', high: 'High', veryHigh: 'Very high' },
+    },
+    grid: {
+      intro: "Each cell is its row's weight × its road's. A full closure on a main road is 1, the most a site can be; the number in a cell's corner is how many of the chosen day's sites are there.",
+      closes: 'What it closes',
+      hint: 'Pick a row, a road or the scale to change its weight; the table follows as you drag.',
+      weight: (value: string) => `× ${value}`,
+      cellTitle: (kind: string, road: string, severity: string, band: string, sites: number) =>
+        `${kind} on a ${road}: ${severity}, ${band.toLowerCase()} · ${plural(sites, 'site')} on the chosen day`,
+      scale: 'Bands',
+      scaleTitle: 'Where medium and high disruption start',
+      counts: (day: string, high: number, medium: number, low: number) => `On ${day}: ${high} high, ${medium} medium and ${low} low.`,
+      defaults: (high: number, medium: number, low: number) => ` With the defaults: ${high}, ${medium} and ${low}.`,
+      done: 'Done',
+    },
     groups: {
-      severity: { title: 'Severity', about: 'Every score starts from a site\'s severity: restriction weight × road weight. A full closure on a main road is 1 disruption point, so those two stay fixed and no other weight goes above 1.' },
+      severity: { title: 'Severity', about: "What it closes × the road it's on: the figure every score starts from, and the high, medium and low bands." },
       clashes: { title: 'Clashes', about: 'Which works count as clashing, and which are on the same stretch and better done together. Drives the clash count, the To do moves and the Coordinate tab.' },
       dates: { title: 'Best dates', about: 'How a suggested start date is scored: the overlap with clashing works, less these credits, plus the cost of moving. The lowest cost wins.' },
       access: { title: 'Access', about: 'Walking distance to light rail and nearness to fire stations and hospitals, used by Priorities and Transit.' },
