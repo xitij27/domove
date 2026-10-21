@@ -481,7 +481,8 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
         </section>
         <aside className="panel">
           <PanelResizer width={panelWidth} onWidth={setPanelWidth} />
-          <div className="panel-head">
+          {/* Settings takes the whole panel: the day, the figures and the views come back with Back */}
+          <div className="panel-head" hidden={settingsOpen}>
             <div className="date-control" aria-label={t.app.dayShown}>
               <button className="icon-button" aria-label={t.app.weekEarlier} onClick={() => setDate(clampDate(date - 7))}>‹</button>
               <span className="date-value">{formatDay(date)}{date === today ? t.app.todaySuffix : ''}</span>
