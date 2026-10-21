@@ -354,6 +354,67 @@ button, input, select { font: inherit; color: inherit; }
 .slider { display: grid; gap: 4px; margin: 6px 0 4px; font-size: 13px; }
 .slider input { width: 100%; accent-color: var(--ink); }
 /* settings: a changed one is marked at its edge, so a scroll down the list shows what differs from the defaults */
+/* settings: one fold per group, its title and what it is about always in view */
+.setting-group { border-top: 1px solid var(--border); padding: 10px 0; }
+.setting-group:last-of-type { border-bottom: 1px solid var(--border); }
+.setting-group > summary { display: grid; gap: 2px; cursor: pointer; list-style: none; padding-right: 22px; position: relative; }
+.setting-group > summary::-webkit-details-marker { display: none; }
+.setting-group > summary::after {
+  content: ''; position: absolute; right: 4px; top: 6px; width: 7px; height: 7px; border-right: 1.75px solid var(--muted); border-bottom: 1.75px solid var(--muted);
+  transform: rotate(45deg); transition: transform var(--fast) var(--ease);
+}
+.setting-group[open] > summary::after { transform: rotate(-135deg); top: 9px; }
+.setting-group[open] > summary { margin-bottom: 10px; }
+.setting-group-title { display: flex; align-items: baseline; gap: 8px; }
+.setting-group-title h3 { margin: 0; }
+.setting-group-changed { font-size: 12px; color: var(--accent-ink); }
+
+/* severity: the table of what a site closes × its road */
+.severity-grid { width: calc(100% + 6px); border-collapse: separate; border-spacing: 3px; margin: 8px -3px 4px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.severity-grid th { font-weight: 400; text-align: left; vertical-align: bottom; }
+.severity-grid thead th:first-child { width: 38%; }
+.sg-corner { font-size: 12px; color: var(--muted); padding: 0 4px 4px; }
+.sg-pick {
+  display: flex; width: 100%; align-items: baseline; justify-content: space-between; gap: 6px; padding: 4px 6px; border: 0; border-radius: 6px;
+  background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; line-height: 1.2;
+}
+thead .sg-pick { display: grid; gap: 1px; justify-content: stretch; }
+.sg-pick:hover { background: var(--surface-2); }
+.sg-pick[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.sg-pick.changed > span:first-child::after { content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 5px; border-radius: 50%; background: var(--accent); vertical-align: 2px; }
+.sg-weight { font-size: 12px; color: var(--muted); }
+.sg-pick[aria-pressed="true"] .sg-weight { color: inherit; opacity: 0.75; }
+.sg-cell {
+  position: relative; height: 30px; padding: 0 6px; border-radius: 6px; text-align: right; font-size: 13px;
+  transition: background-color var(--fast) var(--ease), opacity var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+.sg-cell.high { background: color-mix(in srgb, var(--sev-high) 34%, var(--surface)); }
+.sg-cell.medium { background: color-mix(in srgb, var(--sev-medium) 30%, var(--surface)); }
+.sg-cell.low { background: color-mix(in srgb, var(--sev-low) 22%, var(--surface)); }
+.sg-count {
+  position: absolute; left: 5px; top: 50%; transform: translateY(-50%); min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px;
+  background: var(--surface); color: var(--ink-2); font-size: 10.5px; line-height: 16px; text-align: center;
+}
+/* a row or a road picked: its cells stand out, the rest step back */
+.severity-grid.focused .sg-cell:not(.lit) { opacity: 0.4; }
+.sg-cell.lit { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.sg-scale { display: block; width: 100%; margin: 10px 0 18px; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; position: relative; }
+.sg-zones { display: flex; height: 26px; border-radius: 6px; overflow: hidden; outline: 1.5px solid transparent; outline-offset: 2px; transition: outline-color var(--fast) var(--ease); }
+.sg-scale:hover .sg-zones, .sg-scale[aria-pressed="true"] .sg-zones { outline-color: var(--ink); }
+.sg-zone { display: flex; align-items: center; min-width: 0; padding: 0 7px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; color: var(--ink); transition: width var(--fast) var(--ease); }
+.sg-zone.low { background: color-mix(in srgb, var(--sev-low) 22%, var(--surface)); }
+.sg-zone.medium { background: color-mix(in srgb, var(--sev-medium) 30%, var(--surface)); }
+.sg-zone.high { flex: 1; background: color-mix(in srgb, var(--sev-high) 34%, var(--surface)); }
+.sg-ticks { position: absolute; left: 0; right: 0; top: 30px; height: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sg-ticks span { position: absolute; transform: translateX(-50%); }
+.sg-ticks span:first-child { transform: none; }
+.sg-ticks span:last-child { transform: translateX(-100%); }
+.sg-scale.changed .sg-ticks span:nth-child(2), .sg-scale.changed .sg-ticks span:nth-child(3) { color: var(--accent-ink); }
+.sg-editor { margin: 4px 0 8px; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+.sg-editor-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.sg-editor p { margin: 2px 0 6px; }
+.sg-counts { margin: 6px 0 0; font-size: 13px; }
+
 .setting { padding-left: 8px; border-left: 2px solid transparent; margin-bottom: 8px; }
 .setting.changed { border-left-color: var(--accent); }
 .setting p, .setting-fixed { margin: 0; }

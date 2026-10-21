@@ -521,7 +521,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           </div>
           <div className="panel-body" ref={panelBody}>
             {settingsOpen && (
-              <SettingsPanel settings={settings} changed={settingsChanged} onChange={setSetting}
+              <SettingsPanel settings={settings} sites={active} day={formatDay(date)} changed={settingsChanged} onChange={setSetting}
                 onReset={() => setScenario({ ...scenario, settings: {} })} onBack={() => setSettingsOpen(false)} />
             )}
             {selected && !settingsOpen && (

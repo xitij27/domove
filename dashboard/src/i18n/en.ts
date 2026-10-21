@@ -590,8 +590,22 @@ const en = {
     resetAll: 'Reset all to defaults',
     default: (value: string) => ` · default ${value} `,
     reset: 'Reset',
+    groupChanged: (n: number) => `${n} changed`,
+    grid: {
+      intro: "Each cell is its row's weight × its road's. A full closure on a main road is 1, the most a site can be; the number in a cell's corner is how many of the chosen day's sites are there.",
+      closes: 'What it closes',
+      hint: 'Pick a row, a road or the scale to change its weight; the table follows as you drag.',
+      weight: (value: string) => `× ${value}`,
+      cellTitle: (kind: string, road: string, severity: string, band: string, sites: number) =>
+        `${kind} on a ${road}: ${severity}, ${band.toLowerCase()} · ${plural(sites, 'site')} on the chosen day`,
+      scale: 'Bands',
+      scaleTitle: 'Where medium and high disruption start',
+      counts: (day: string, high: number, medium: number, low: number) => `On ${day}: ${high} high, ${medium} medium and ${low} low.`,
+      defaults: (high: number, medium: number, low: number) => ` With the defaults: ${high}, ${medium} and ${low}.`,
+      done: 'Done',
+    },
     groups: {
-      severity: { title: 'Severity', about: 'Every score starts from a site\'s severity: restriction weight × road weight. A full closure on a main road is 1 disruption point, so those two stay fixed and no other weight goes above 1.' },
+      severity: { title: 'Severity', about: "What it closes × the road it's on: the figure every score starts from, and the high, medium and low bands." },
       clashes: { title: 'Clashes', about: 'Which works count as clashing, and which are on the same stretch and better done together. Drives the clash count, the To do moves and the Coordinate tab.' },
       dates: { title: 'Best dates', about: 'How a suggested start date is scored: the overlap with clashing works, less these credits, plus the cost of moving. The lowest cost wins.' },
       access: { title: 'Access', about: 'Walking distance to light rail and nearness to fire stations and hospitals, used by Priorities and Transit.' },

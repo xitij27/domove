@@ -576,8 +576,22 @@ const de: Strings = {
     resetAll: 'Alle auf Standard zurücksetzen',
     default: (value) => ` · Standard ${value} `,
     reset: 'Zurücksetzen',
+    groupChanged: (n) => `${n} geändert`,
+    grid: {
+      intro: 'Jede Zelle ist das Gewicht ihrer Zeile × das ihrer Straßenart. Eine Vollsperrung einer Hauptstraße ist 1, das Höchste; die Zahl in der Ecke einer Zelle sagt, wie viele Baustellen des gewählten Tages dort liegen.',
+      closes: 'Was gesperrt ist',
+      hint: 'Eine Zeile, eine Straßenart oder die Skala wählen, um ihr Gewicht zu ändern; die Tabelle folgt beim Ziehen.',
+      weight: (value) => `× ${value}`,
+      cellTitle: (kind, road, severity, band, sites) =>
+        `${kind}, ${road}: ${severity}, ${band} · ${plural(sites, 'Baustelle', 'Baustellen')} am gewählten Tag`,
+      scale: 'Stufen',
+      scaleTitle: 'Wo mittlere und hohe Störung beginnen',
+      counts: (day, high, medium, low) => `Am ${day}: ${high} hoch, ${medium} mittel und ${low} gering.`,
+      defaults: (high, medium, low) => ` Mit den Standardwerten: ${high}, ${medium} und ${low}.`,
+      done: 'Fertig',
+    },
     groups: {
-      severity: { title: 'Schwere', about: 'Jeder Wert beginnt mit der Schwere einer Baustelle: Einschränkungsgewicht × Straßengewicht. Eine Vollsperrung auf einer Hauptstraße ist 1 Störungspunkt, daher bleiben diese beiden fest und kein anderes Gewicht liegt über 1.' },
+      severity: { title: 'Schwere', about: "Was gesperrt ist × die Straße: die Zahl, mit der jeder Wert beginnt, und die Stufen hoch, mittel und gering." },
       clashes: { title: 'Konflikte', about: 'Welche Arbeiten als Konflikt zählen und welche auf demselben Abschnitt liegen und besser gemeinsam ausgeführt werden. Bestimmt die Zahl der Konflikte, die Verschiebungen in den Aufgaben und den Tab „Koordinieren“.' },
       dates: { title: 'Beste Termine', about: 'Wie ein vorgeschlagener Starttermin bewertet wird: die Überschneidung mit konfliktbehafteten Arbeiten, abzüglich dieser Gutschriften, plus die Kosten der Verschiebung. Die niedrigsten Kosten gewinnen.' },
       access: { title: 'Erreichbarkeit', about: 'Gehweite zur Stadtbahn und Nähe zu Feuerwachen und Krankenhäusern, genutzt von „Prioritäten“ und „ÖPNV“.' },

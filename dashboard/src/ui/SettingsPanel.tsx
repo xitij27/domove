@@ -1,14 +1,19 @@
 // Every weight and threshold behind the figures, each held between limits that keep its formula meaningful.
+// One fold per group, so the panel opens on Severity's table rather than on sixty sliders.
 import { useStrings } from '../i18n';
 import type { Strings } from '../i18n';
 import { DEFAULT_SETTINGS, SETTING_KEYS, SETTINGS } from '../model/settings';
 import type { SettingKey, Settings } from '../model/settings';
+import type { Site } from '../model/sites';
 import { num } from './format';
-import { Info } from './Info';
+import { SeverityGrid } from './SeverityGrid';
 import { Slider } from './Slider';
 
 type Props = {
   settings: Settings;
+  /** the chosen day's sites, counted in Severity's table */
+  sites: Site[];
+  day: string;
   changed: number;
   onChange: (key: SettingKey, value: number) => void;
   onReset: () => void;
@@ -21,7 +26,7 @@ const show = (t: Strings['settings'], key: SettingKey, v: number) => {
   return `${num(v)}${unit ? ` ${t.units[unit]}` : ''}`;
 };
 
-export function SettingsPanel({ settings, changed, onChange, onReset, onBack }: Props) {
+export function SettingsPanel({ settings, sites, day, changed, onChange, onReset, onBack }: Props) {
   const t = useStrings().settings;
   return (
     <div className="site-panel">
@@ -34,11 +39,19 @@ export function SettingsPanel({ settings, changed, onChange, onReset, onBack }: 
       {changed > 0 && (
         <p className="settings-changed">{t.changed(changed)} <button className="button" onClick={onReset}>{t.resetAll}</button></p>
       )}
-      {GROUPS.map((group) => (
-        <section className="block" key={group}>
-          <h3>{t.groups[group].title}</h3>
-          <Info>{t.groups[group].about}</Info>
-          {SETTING_KEYS.filter((k) => SETTINGS[k].group === group).map((k) => {
+      {GROUPS.map((group) => {
+        const keys = SETTING_KEYS.filter((k) => SETTINGS[k].group === group);
+        const changedHere = keys.filter((k) => settings[k] !== DEFAULT_SETTINGS[k]).length;
+        return (
+        <details className="setting-group" key={group} open={group === 'severity'}>
+          <summary>
+            <span className="setting-group-title">
+              <h3>{t.groups[group].title}</h3>
+              {changedHere > 0 && <span className="setting-group-changed">{t.groupChanged(changedHere)}</span>}
+            </span>
+            <span className="muted small">{t.groups[group].about}</span>
+          </summary>
+          {group === 'severity' ? <SeverityGrid settings={settings} sites={sites} day={day} onChange={onChange} /> : keys.map((k) => {
             const s = SETTINGS[k];
             const label = t.labels[k];
             const why = t.why[k];
@@ -54,8 +67,9 @@ export function SettingsPanel({ settings, changed, onChange, onReset, onBack }: 
               </div>
             );
           })}
-        </section>
-      ))}
+        </details>
+        );
+      })}
     </div>
   );
 }
