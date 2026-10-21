@@ -55,6 +55,7 @@ import { savedWidth } from './ui/panelWidth';
 import { saveTransitLayers, savedTransitLayers } from './ui/transitLayers';
 import type { TransitLayer } from './ui/transitLayers';
 import { TransitLayersCard } from './ui/TransitLayersCard';
+import { useMedia } from './ui/useMedia';
 import { useScenario } from './ui/useScenario';
 import { SettingsContext } from './ui/useSettings';
 
@@ -84,6 +85,8 @@ const toBounds = (boxes: BBox[]): MapFocus['bounds'] => {
 
 function Planner({ data, problems, today }: { data: Dataset; problems: string[]; today: number }) {
   const theme = useTheme();
+  // phones stack the page: the day chart moves up under the day picker it works with
+  const narrow = useMedia('(max-width: 960px)');
   // the model's reasons and the figures' working are worked out in memos below, each given `t` so a new language redoes them
   const t = useStrings();
   const language = useLanguage();
@@ -420,6 +423,11 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const clampDate = (d: number) => Math.min(to, Math.max(from, d));
+  const moved = useMemo(() => sites.filter((s) => s.hypothetical || scenario.shifts[s.id]).map((s) => s.start), [sites, scenario.shifts]);
+  const timeline = (
+    <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} moved={moved}
+      onDate={setDate} outlookPeriod={outlookPeriod} narrow={narrow} />
+  );
   const near = draft ? nearestRoad(draft, ctx) : null;
   const draftPlace = draft ? (near && near.m <= 40 ? t.app.onRoad(near.name) : t.app.at(draft[1].toFixed(4), draft[0].toFixed(4))) : '';
 
@@ -489,6 +497,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
               <button className="icon-button" aria-label={t.app.weekLater} onClick={() => setDate(clampDate(date + 7))}>›</button>
               {date !== today && <button className="link-button" onClick={() => setDate(today)}>{t.app.today}</button>}
             </div>
+            {narrow && timeline}
             <Summary items={stats} />
             {(changes > 0 || settingsChanged > 0) && (
               <div className="scenario">
@@ -584,7 +593,7 @@ function Planner({ data, problems, today }: { data: Dataset; problems: string[];
           </div>
         </aside>
       </div>
-      <Timeline load={load} published={publishedLoad} holidays={holidays} today={today} date={date} horizon={horizon} onDate={setDate} outlookPeriod={outlookPeriod} />
+      {!narrow && timeline}
       <footer className="footer muted">{t.app.footer}</footer>
     </div>
     </SettingsContext>

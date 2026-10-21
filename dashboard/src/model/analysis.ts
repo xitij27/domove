@@ -21,12 +21,14 @@ export const PER_DAYS = 30;
 export const isActive = (s: Site, day: number): boolean => s.start <= day && day <= s.end;
 export type DayRange = [number, number];
 
-export type LoadPoint = { day: number; total: number; high: number; medium: number; low: number };
+export type BandCount = { high: number; medium: number; low: number; total: number };
+export type LoadPoint = { day: number; total: number; high: number; medium: number; low: number; count: BandCount };
 
-/** Summed severity of the active sites per day, split by band. */
+/** Summed severity of the active sites per day, split by band, and how many sites run in each band. */
 export function dailyLoad(sites: Site[], from: number, to: number): LoadPoint[] {
   const n = to - from + 1;
   const diff = { high: new Float64Array(n + 1), medium: new Float64Array(n + 1), low: new Float64Array(n + 1) };
+  const sitesDiff = { high: new Int32Array(n + 1), medium: new Int32Array(n + 1), low: new Int32Array(n + 1) };
   for (const s of sites) {
     const a = Math.max(s.start, from);
     const b = Math.min(s.end, to);
@@ -34,14 +36,20 @@ export function dailyLoad(sites: Site[], from: number, to: number): LoadPoint[] 
     const band = diff[s.band];
     band[a - from] += s.severity;
     band[b - from + 1] -= s.severity;
+    sitesDiff[s.band][a - from] += 1;
+    sitesDiff[s.band][b - from + 1] -= 1;
   }
   const out: LoadPoint[] = [];
   let [high, medium, low] = [0, 0, 0];
+  const count = { high: 0, medium: 0, low: 0 };
   for (let i = 0; i < n; i++) {
     high += diff.high[i];
     medium += diff.medium[i];
     low += diff.low[i];
-    out.push({ day: from + i, total: high + medium + low, high, medium, low });
+    count.high += sitesDiff.high[i];
+    count.medium += sitesDiff.medium[i];
+    count.low += sitesDiff.low[i];
+    out.push({ day: from + i, total: high + medium + low, high, medium, low, count: { ...count, total: count.high + count.medium + count.low } });
   }
   return out;
 }

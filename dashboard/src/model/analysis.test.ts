@@ -15,6 +15,12 @@ describe('dailyLoad', () => {
     expect(load.map((p) => p.total)).toEqual([1, 1, 1.15, 0.15]);
     expect(load[2]).toMatchObject({ high: 1, low: 0.15 });
   });
+
+  it('counts the sites running each day, by band', () => {
+    const load = dailyLoad([testSite('a', 0, 0, 10, 12), testSite('b', 0, 0, 12, 20, { kind: 'half', road: 'local' })], 10, 13);
+    expect(load.map((p) => p.count.total)).toEqual([1, 1, 2, 1]);
+    expect(load[2].count).toEqual({ high: 1, medium: 0, low: 1, total: 2 });
+  });
 });
 
 describe('conflicts', () => {

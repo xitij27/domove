@@ -22,8 +22,6 @@
   --sev-high: #a8360f;
   --sev-medium: #eb6834;
   --sev-low: #ef9a66;
-  --load: #eb6834;
-  --load-wash: rgba(235, 104, 52, 0.1);
   --seq-0: #b7d3f6;
   --seq-1: #86b6ef;
   --seq-2: #5598e7;
@@ -64,8 +62,6 @@
   --sev-high: #f39a6b;
   --sev-medium: #d95926;
   --sev-low: #9a3c14;
-  --load: #d95926;
-  --load-wash: rgba(217, 89, 38, 0.14);
   --seq-0: #104281;
   --seq-1: #1c5cab;
   --seq-2: #2a78d6;
@@ -132,7 +128,6 @@ button, input, select { font: inherit; color: inherit; }
 .button:active:not(:disabled), .icon-button:active, .segmented button:active, .heat-cell:active:not(:disabled) { transform: scale(0.96); }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @keyframes fade { from { opacity: 0; } }
-@keyframes draw { from { stroke-dashoffset: 1; } }
 @keyframes grow { from { transform: scaleX(0); } }
 @keyframes breathe { 50% { opacity: 0.55; transform: scale(0.97); } }
 
@@ -317,7 +312,6 @@ button, input, select { font: inherit; color: inherit; }
 .key-line.bundle { border-top: 2.5px dashed var(--accent); }
 .key-line.normal { border-top: 4px solid var(--muted); }
 .key-line.aware { border-top: 3px solid var(--accent); }
-.key-line.load { border-top-color: var(--load); }
 .key-line.published { border-top-color: var(--muted); }
 .ramp { display: inline-block; width: 60px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--seq-0), var(--seq-2), var(--seq-4)); flex: none; }
 .glyph { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.25px solid var(--ink); font-size: 9px; font-weight: 600; flex: none; }
@@ -591,41 +585,54 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
 .place-label { font-size: 12px; color: var(--ink-2); }
 .result { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
 
-/* timeline */
+/* timeline: construction sites per day, stacked by how much they disrupt */
 .timeline { background: var(--surface); border-top: 1px solid var(--border); padding: 6px 16px 4px; }
 .timeline-head { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
 .timeline-head h2 { font-size: 15px; margin: 0; }
-.timeline-head .hint { font-size: 12px; color: var(--muted); }
-.keys { display: flex; gap: 12px; margin-left: auto; font-size: 12px; color: var(--ink-2); }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-left: auto; font-size: 12px; color: var(--ink-2); }
 .key { display: inline-flex; align-items: center; gap: 5px; }
 .key-band { display: inline-block; width: 12px; height: 10px; background: var(--grid); border-radius: 2px; }
+.key-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.key-swatch.high { background: var(--sev-high); }
+.key-swatch.medium { background: var(--sev-medium); }
+.key-swatch.low { background: var(--sev-low); }
+.key-strip { display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: var(--muted); opacity: 0.55; flex: none; }
+/* the day under the pointer, else the day picked: values in bold, what they count after them */
+.timeline-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 14px; margin: 2px 0 0; font-size: 12px; color: var(--ink-2); }
+.timeline-readout > span { display: inline-flex; align-items: baseline; gap: 5px; }
+.timeline-readout strong { color: var(--ink); font-size: 13px; }
+.timeline-readout .readout-day { color: var(--ink); font-weight: 600; margin-right: 4px; }
+.timeline-readout .key-line { align-self: center; }
 .timeline-plot { position: relative; min-width: 0; }
-.timeline-plot svg { display: block; width: 100%; cursor: crosshair; touch-action: none; }
-.timeline-plot .holiday { fill: var(--grid); opacity: 0.6; }
-.timeline-plot .holiday-label { font-size: 10px; fill: var(--muted); }
+.timeline-plot svg { display: block; width: 100%; cursor: pointer; touch-action: pan-y; user-select: none; }
+.timeline-plot .bar.high { fill: var(--sev-high); }
+.timeline-plot .bar.medium { fill: var(--sev-medium); }
+.timeline-plot .bar.low { fill: var(--sev-low); }
+/* days the data covers only in part: before today, and after the published plans end */
+.timeline-plot .day.partial { opacity: 0.4; }
+.timeline-plot .zone { fill: var(--surface-2); }
+.timeline-plot .zone-label { font-size: 10px; fill: var(--muted); }
+.timeline-plot .peak-label { font-size: 11px; font-weight: 600; fill: var(--ink-2); }
+.timeline-plot .holiday { fill: var(--muted); opacity: 0.55; }
 .timeline-plot .grid { stroke: var(--grid); stroke-width: 1; }
 .timeline-plot .axis { stroke: var(--axis); stroke-width: 1; }
 .timeline-plot .tick { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
-.timeline-plot .horizon { stroke: var(--ink-2); stroke-width: 1; }
-.timeline-plot .marker-label { font-size: 10px; fill: var(--ink-2); }
-.timeline-plot .load-area { fill: var(--load-wash); animation: fade 900ms var(--ease); }
-.timeline-plot .load-line { fill: none; stroke: var(--load); stroke-width: 2; stroke-linejoin: round; }
-.timeline-plot .published-line { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; }
-/* the curves draw in once when they appear (pathLength=1); later data changes don't replay it */
-.timeline-plot .load-line, .timeline-plot .published-line { stroke-dasharray: 1; animation: draw 1000ms var(--ease); }
-.timeline-plot .today { stroke: var(--ink); stroke-width: 2; }
+.timeline-plot .today-label { fill: var(--ink-2); font-weight: 600; }
+.timeline-plot .published-line { fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linejoin: round; }
 .timeline-plot .selected { stroke: var(--ink); stroke-width: 1; }
-.timeline-plot .selected-dot { fill: var(--load); stroke: var(--surface); stroke-width: 2; }
-.timeline-plot .crosshair { stroke: var(--muted); stroke-width: 1; pointer-events: none; }
-.tooltip { position: absolute; top: 4px; width: 180px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15); pointer-events: none; }
-.tooltip-title { color: var(--ink-2); margin-bottom: 2px; }
-.tooltip-row { display: flex; align-items: center; gap: 6px; }
-.tooltip-row strong { font-size: 13px; }
-.tooltip-sub { color: var(--muted); }
+.timeline-plot .caret { fill: var(--ink); }
+.timeline-plot .hover-column { fill: var(--grid); opacity: 0.7; pointer-events: none; }
+.timeline-note { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
 .table-view { font-size: 12px; margin: 2px 0 2px; }
 .table-view summary { cursor: pointer; color: var(--accent-ink); width: max-content; }
 .table-view table { border-collapse: collapse; margin: 6px 0; }
 .table-view th, .table-view td { text-align: left; padding: 2px 16px 2px 0; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+/* on a phone, under the day picker in the side panel */
+.panel-head .timeline { background: none; border-top: 0; padding: 4px 16px 2px; }
+.timeline.narrow .keys { margin-left: 0; }
+/* the day picker right above already names the day */
+.timeline.narrow .readout-day { display: none; }
+.timeline.narrow .timeline-readout { min-height: 34px; align-content: flex-start; }
 
 .footer { font-size: 11px; padding: 4px 16px 8px; background: var(--surface); }
 .splash { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 16px; text-align: center; }
@@ -644,8 +651,6 @@ input[type='text'], input:not([type]), input[type='number'], input[type='date'],
   .panel { border-left: 0; border-top: 1px solid var(--border); }
   .panel-resizer { display: none; }
   .panel-body { overflow: visible; }
-  .keys { margin-left: 0; flex-wrap: wrap; }
-  .timeline-head .hint { display: none; }
   /* brand and tools on top, the roles as a full-width row along the header's bottom edge */
   .topbar { padding: 0 16px; }
   .brand { min-width: 0; padding: 10px 0; }
