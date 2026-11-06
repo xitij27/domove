@@ -19,7 +19,7 @@ spread the works out so the city never feels shut all at once.</p>
   &nbsp;&nbsp;|&nbsp;&nbsp;
   <a href="#for-developers">For developers</a>
   &nbsp;&nbsp;|&nbsp;&nbsp;
-  <a href="Do.Move%20presentation.pdf">Slides (PDF)</a>
+  <a href="Do.Move%20presentation.pdf">Pitch</a>
 </p>
 
 <a href="https://domove-dashboard-beta.vercel.app">
@@ -233,7 +233,7 @@ domove/
 ├── docs/                        design notes (see below)
 ├── .github/workflows/           checks.yml (tests on every pull request),
 │                                android-apk.yml (release APK)
-└── Do.Move presentation.pdf     project slides
+└── Do.Move presentation.pdf     our hackathon pitch
 ```
 
 </details>
@@ -480,5 +480,5 @@ As a user, I want to receive push notifications for my usual routes so that I ca
 <br>
 
 <div align="center">
-<sub><a href="https://domove-dashboard-beta.vercel.app">Planner dashboard</a> &nbsp;|&nbsp; <a href="https://github.com/xitij27/domove/releases/latest">Android app</a> &nbsp;|&nbsp; <a href="docs/planner-dashboard.md">How the dashboard scores</a> &nbsp;|&nbsp; <a href="Do.Move%20presentation.pdf">Slides</a> &nbsp;|&nbsp; <a href="https://github.com/xitij27/domove/issues">Issues</a></sub>
+<sub><a href="https://domove-dashboard-beta.vercel.app">Planner dashboard</a> &nbsp;|&nbsp; <a href="https://github.com/xitij27/domove/releases/latest">Android app</a> &nbsp;|&nbsp; <a href="docs/planner-dashboard.md">How the dashboard scores</a> &nbsp;|&nbsp; <a href="Do.Move%20presentation.pdf">Pitch</a> &nbsp;|&nbsp; <a href="https://github.com/xitij27/domove/issues">Issues</a></sub>
 </div>
